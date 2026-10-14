@@ -41,6 +41,7 @@ export default async function OrdersPage() {
                     <StatusBadge status={o.status} />
                   </div>
                   <p className="mt-1 text-sm text-brand-black">{o.account_name}</p>
+                  {o.parent_name && <p className="text-xs">{o.parent_name}</p>}
                   <p className="text-xs">
                     {formatDate(o.created_at)} · {money(o.total_value, o.currency)}
                   </p>
@@ -54,7 +55,7 @@ export default async function OrdersPage() {
                 <tr>
                   <th>Order</th>
                   <th>Date</th>
-                  <th>Account</th>
+                  <th>Outlet</th>
                   <th>Contact</th>
                   <th className="text-right">Value</th>
                   <th>Status</th>
@@ -69,7 +70,10 @@ export default async function OrdersPage() {
                       </Link>
                     </td>
                     <td className="whitespace-nowrap">{formatDate(o.created_at)}</td>
-                    <td>{o.account_name}</td>
+                    <td>
+                      {o.account_name}
+                      {o.parent_name && <span className="block text-xs">{o.parent_name}</span>}
+                    </td>
                     <td>{o.contact_name}</td>
                     <td className="whitespace-nowrap text-right">{money(o.total_value, o.currency)}</td>
                     <td>

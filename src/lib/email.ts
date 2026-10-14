@@ -25,16 +25,22 @@ function siteUrl() {
   return (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
 }
 
+function outletLabel(order: Order) {
+  return order.parent_name && order.parent_name !== order.account_name
+    ? `${order.account_name} (${order.parent_name})`
+    : order.account_name;
+}
+
 export function emailSubject(order: Order, audience: Audience) {
-  if (audience === "cs") return `[${order.market}] POSM order to execute: ${order.order_number} · ${order.account_name}`;
+  if (audience === "cs") return `[${order.market}] POSM order to execute: ${order.order_number} · ${outletLabel(order)}`;
   if (audience === "customer") return `Your POSM order from Sirocco · ${order.order_number}`;
-  return `Order placed: ${order.order_number} · ${order.account_name}`;
+  return `Order placed: ${order.order_number} · ${outletLabel(order)}`;
 }
 
 export function renderOrderEmail(order: Order, items: OrderItem[], market: Market, audience: Audience) {
   const intro =
     audience === "kam"
-      ? `Here is the order you placed for <strong>${esc(order.account_name)}</strong>. Keep this email as your proof of execution.`
+      ? `Here is the order you placed for <strong>${esc(outletLabel(order))}</strong>. Keep this email as your proof of execution.`
       : audience === "customer"
         ? `Dear ${esc(order.contact_name)},<br><br>Please see the POSM ordered for you. Delivery is expected in the next <strong>${market.delivery_days} days</strong>.`
         : `A new POSM order has been placed for ${esc(market.name)}. Please execute the order below.`;
@@ -65,7 +71,8 @@ export function renderOrderEmail(order: Order, items: OrderItem[], market: Marke
   const details = [
     detail("Order number", `<strong>${esc(order.order_number)}</strong>`),
     detail("Date", esc(formatDate(order.created_at, true))),
-    detail("Account", `${esc(order.account_name)} (#${esc(order.account_number)})`),
+    detail("Account", `${esc(order.parent_name ?? order.account_name)} (#${esc(order.parent_number ?? order.account_number)})`),
+    detail("Deliver to outlet", `${esc(order.account_name)} (#${esc(order.account_number)})`),
     detail("Contact", `${esc(order.contact_name)} · ${esc(order.contact_mobile)} · ${esc(order.contact_email)}`),
     audience !== "customer" ? detail("KAM", `${esc(order.kam_name || order.kam_email)} · ${esc(order.kam_email)}`) : "",
     audience === "customer" ? detail("Your Sirocco contact", `${esc(order.kam_name || order.kam_email)} · ${esc(order.kam_email)}`) : "",

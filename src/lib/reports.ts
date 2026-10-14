@@ -23,6 +23,8 @@ export type ReportRow = {
   kam_name: string | null;
   account_number: string;
   account_name: string;
+  parent_number: string | null;
+  parent_name: string | null;
   contact_name: string;
   brand: string;
   category: string | null;
@@ -50,7 +52,7 @@ export async function getReportRows(f: ReportFilters, limit = 50000): Promise<Re
     let q = db
       .from("order_items")
       .select(
-        "id, sku, brand, name, category, qty, unit_value, line_value, orders!inner(order_number, created_at, status, market, kam_id, kam_email, kam_name, account_number, account_name, contact_name)",
+        "id, sku, brand, name, category, qty, unit_value, line_value, orders!inner(order_number, created_at, status, market, kam_id, kam_email, kam_name, account_number, account_name, parent_number, parent_name, contact_name)",
       )
       .order("id");
     if (f.from) q = q.gte("orders.created_at", `${f.from}T00:00:00+04:00`);
@@ -61,7 +63,7 @@ export async function getReportRows(f: ReportFilters, limit = 50000): Promise<Re
     else q = q.neq("orders.status", "cancelled");
     if (f.account) {
       const a = f.account.replace(/[%,()]/g, " ");
-      q = q.or(`account_number.ilike.%${a}%,account_name.ilike.%${a}%`, { referencedTable: "orders" });
+      q = q.or(`account_number.ilike.%${a}%,account_name.ilike.%${a}%,parent_name.ilike.%${a}%`, { referencedTable: "orders" });
     }
     if (f.brand) q = q.eq("brand", f.brand);
     if (f.category) q = q.eq("category", f.category);
@@ -94,6 +96,8 @@ export async function getReportRows(f: ReportFilters, limit = 50000): Promise<Re
         kam_name: o.kam_name,
         account_number: o.account_number,
         account_name: o.account_name,
+        parent_number: o.parent_number,
+        parent_name: o.parent_name,
         contact_name: o.contact_name,
         brand: r.brand,
         category: r.category,
@@ -139,8 +143,10 @@ const COLUMNS: { header: string; key: keyof ReportRow | "date"; width: number }[
   { header: "Market", key: "market", width: 8 },
   { header: "KAM", key: "kam_name", width: 22 },
   { header: "KAM email", key: "kam_email", width: 28 },
-  { header: "Account number", key: "account_number", width: 16 },
-  { header: "Account name", key: "account_name", width: 32 },
+  { header: "Parent number", key: "parent_number", width: 14 },
+  { header: "Parent account", key: "parent_name", width: 40 },
+  { header: "Outlet number", key: "account_number", width: 16 },
+  { header: "Outlet", key: "account_name", width: 32 },
   { header: "Contact", key: "contact_name", width: 22 },
   { header: "Brand", key: "brand", width: 16 },
   { header: "Category", key: "category", width: 16 },

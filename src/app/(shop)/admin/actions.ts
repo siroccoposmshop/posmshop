@@ -59,9 +59,6 @@ export async function importWorkbook(input: { path: string; filename: string; de
     };
     if (i.value !== null) row.value = i.value;
     if (i.stock !== null) row.stock = Math.max(0, Math.floor(i.stock));
-    if (i.max_per_order !== undefined) row.max_per_order = i.max_per_order;
-    if (i.order_multiple !== undefined) row.order_multiple = i.order_multiple;
-    if (i.markets !== undefined) row.markets = i.markets;
     return row;
   });
   for (let i = 0; i < itemRows.length; i += 500) {
@@ -81,7 +78,19 @@ export async function importWorkbook(input: { path: string; filename: string; de
       skipped++;
       return [];
     }
-    return [{ account_number: a.account_number, name: a.name, market, channel: a.channel, active: true, updated_at: new Date().toISOString() }];
+    return [
+      {
+        account_number: a.account_number,
+        name: a.name,
+        parent_number: a.parent_number,
+        parent_name: a.parent_name,
+        kam_name: a.kam_name,
+        market,
+        channel: a.channel,
+        active: true,
+        updated_at: new Date().toISOString(),
+      },
+    ];
   });
   if (skipped) warnings.push(`${skipped} accounts had no market and were skipped. Choose a default market and upload again to include them.`);
   for (let i = 0; i < accountRows.length; i += 500) {
@@ -326,7 +335,7 @@ export async function saveMarket(_: unknown, formData: FormData): Promise<{ erro
   const code = String(formData.get("code") ?? "");
   const cs_email = String(formData.get("cs_email") ?? "").trim() || null;
   const delivery_days = Math.max(1, Math.floor(Number(formData.get("delivery_days") ?? 7)));
-  const currency = String(formData.get("currency") ?? "AED").trim().toUpperCase().slice(0, 3) || "AED";
+  const currency = String(formData.get("currency") ?? "USD").trim().toUpperCase().slice(0, 3) || "USD";
   if (cs_email && !cs_email.split(/[,;\s]+/).filter(Boolean).every((e) => /^\S+@\S+\.\S+$/.test(e))) {
     return { error: "Enter valid email addresses, separated by commas." };
   }
