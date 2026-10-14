@@ -82,7 +82,7 @@ export default async function AdminOrders({
                   </span>
                 </td>
                 <td>{o.kam_name || o.kam_email}</td>
-                <td className="whitespace-nowrap text-right">{money(o.total_value, o.currency)}</td>
+                <td className="whitespace-nowrap text-right">{money(o.total_value)}</td>
                 <td>
                   <StatusSelect id={o.id} status={o.status} />
                 </td>

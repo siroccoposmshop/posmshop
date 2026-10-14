@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getReportRows, readFilters, summariseByItem, summariseByKam } from "@/lib/reports";
-import { formatDate, money } from "@/lib/format";
+import { formatDate, money, type DisplayCurrency } from "@/lib/format";
 
 export const metadata = { title: "Reports" };
 export const dynamic = "force-dynamic";
@@ -12,6 +12,7 @@ export default async function ReportsPage({
 }) {
   const sp = await searchParams;
   const filters = readFilters(sp);
+  const cur: DisplayCurrency = sp.cur === "usd" ? "USD" : "AED";
   const db = createAdminClient();
   const [rows, { data: kams }, { data: brandRows }, { data: markets }] = await Promise.all([
     getReportRows(filters),
@@ -31,9 +32,26 @@ export default async function ReportsPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="accent-square text-3xl text-brand-black">Reports</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="accent-square text-3xl text-brand-black">Reports</h1>
+        <div className="flex rounded-full bg-white p-1 ring-1 ring-black/10" role="group" aria-label="Currency">
+          {(["AED", "USD"] as const).map((c) => (
+            <a
+              key={c}
+              href={`/admin/reports?${new URLSearchParams({ ...(filters as Record<string, string>), ...(c === "USD" ? { cur: "usd" } : {}) }).toString()}`}
+              aria-current={cur === c ? "true" : undefined}
+              className={`rounded-full px-4 py-1.5 font-display text-sm font-medium uppercase ${
+                cur === c ? "bg-brand-green text-white" : "text-brand-grey hover:text-brand-black"
+              }`}
+            >
+              {c}
+            </a>
+          ))}
+        </div>
+      </div>
 
       <form className="bento grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {cur === "USD" && <input type="hidden" name="cur" value="usd" />}
         <div>
           <label className="label" htmlFor="from">From</label>
           <input id="from" type="date" name="from" defaultValue={filters.from} className="field" />
@@ -99,7 +117,7 @@ export default async function ReportsPage({
         </div>
         <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-3">
           <button className="btn btn-primary">Apply filters</button>
-          <a href="/admin/reports" className="btn btn-secondary">Reset</a>
+          <a href={cur === "USD" ? "/admin/reports?cur=usd" : "/admin/reports"} className="btn btn-secondary">Reset</a>
           <span className="ml-auto flex gap-2">
             <a href={`/admin/reports/export?format=xlsx&${qs}`} className="btn btn-secondary">Excel</a>
             <a href={`/admin/reports/export?format=csv&${qs}`} className="btn btn-secondary">CSV</a>
@@ -110,7 +128,7 @@ export default async function ReportsPage({
       <div className="grid grid-cols-3 gap-3">
         <div className="bento-green">
           <p className="font-display text-xs uppercase text-white/80">Value</p>
-          <p className="font-display text-xl font-medium sm:text-2xl">{money(totalValue)}</p>
+          <p className="font-display text-xl font-medium sm:text-2xl">{money(totalValue, cur)}</p>
         </div>
         <div className="bento">
           <p className="font-display text-xs uppercase">Orders</p>
@@ -143,7 +161,7 @@ export default async function ReportsPage({
                   </td>
                   <td className="text-right">{r.orders}</td>
                   <td className="text-right">{r.qty.toLocaleString()}</td>
-                  <td className="whitespace-nowrap text-right">{money(r.value)}</td>
+                  <td className="whitespace-nowrap text-right">{money(r.value, cur)}</td>
                 </tr>
               ))}
               {!byItem.length && (
@@ -167,7 +185,7 @@ export default async function ReportsPage({
                 <tr key={r.kam}>
                   <td>{r.kam}</td>
                   <td className="text-right">{r.orders}</td>
-                  <td className="whitespace-nowrap text-right">{money(r.value)}</td>
+                  <td className="whitespace-nowrap text-right">{money(r.value, cur)}</td>
                 </tr>
               ))}
             </tbody>
@@ -201,7 +219,7 @@ export default async function ReportsPage({
                 </td>
                 <td>{r.name}<span className="block text-xs">{r.sku}</span></td>
                 <td className="text-right">{r.qty}</td>
-                <td className="whitespace-nowrap text-right">{money(r.line_value)}</td>
+                <td className="whitespace-nowrap text-right">{money(r.line_value, cur)}</td>
               </tr>
             ))}
           </tbody>

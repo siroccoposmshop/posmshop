@@ -115,8 +115,8 @@ export default async function OrderPage({
                     </span>
                   </td>
                   <td className="text-right">{i.qty}</td>
-                  <td className="whitespace-nowrap text-right">{money(i.unit_value, order.currency)}</td>
-                  <td className="whitespace-nowrap text-right">{money(i.line_value, order.currency)}</td>
+                  <td className="whitespace-nowrap text-right">{money(i.unit_value)}</td>
+                  <td className="whitespace-nowrap text-right">{money(i.line_value)}</td>
                 </tr>
               ))}
             </tbody>
@@ -126,7 +126,7 @@ export default async function OrderPage({
                   Total value
                 </td>
                 <td className="whitespace-nowrap text-right text-lg font-medium text-brand-black">
-                  {money(order.total_value, order.currency)}
+                  {money(order.total_value)}
                 </td>
               </tr>
             </tfoot>

@@ -4,8 +4,18 @@ export function isAllowedEmail(email: string) {
   return email.trim().toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`);
 }
 
-export function money(value: number, currency = "USD") {
-  return `${currency} ${Number(value).toLocaleString("en-US", {
+/**
+ * Item costs are stored in USD (that's what the budgeting workbook gives).
+ * Everyone sees AED; admin reports can switch to USD.
+ */
+export const USD_TO_AED = 3.6735;
+
+export type DisplayCurrency = "AED" | "USD";
+
+/** Formats a USD amount for display, converted to AED unless USD is asked for. */
+export function money(usd: number, currency: DisplayCurrency = "AED") {
+  const value = currency === "AED" ? Number(usd) * USD_TO_AED : Number(usd);
+  return `${currency} ${value.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;

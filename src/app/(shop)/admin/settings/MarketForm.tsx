@@ -19,10 +19,6 @@ export function MarketForm({ market }: { market: Market }) {
           <label className="label" htmlFor={`dd-${market.code}`}>Delivery days</label>
           <input id={`dd-${market.code}`} name="delivery_days" type="number" min={1} defaultValue={market.delivery_days} className="field" />
         </div>
-        <div>
-          <label className="label" htmlFor={`cur-${market.code}`}>Currency</label>
-          <input id={`cur-${market.code}`} name="currency" defaultValue={market.currency} maxLength={3} className="field uppercase" />
-        </div>
       </div>
       {state?.error && <p className="text-sm text-brand-red">{state.error}</p>}
       <button className="btn btn-primary" disabled={pending}>
