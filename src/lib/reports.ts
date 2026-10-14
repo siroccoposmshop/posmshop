@@ -1,5 +1,6 @@
 import "server-only";
 import ExcelJS from "exceljs";
+import { USD_TO_AED } from "@/lib/format";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type ReportFilters = {
@@ -136,7 +137,11 @@ export function summariseByKam(rows: ReportRow[]) {
   return [...map.values()].map((e) => ({ ...e, orders: e.orders.size })).sort((a, b) => b.value - a.value);
 }
 
-const COLUMNS: { header: string; key: keyof ReportRow | "date"; width: number }[] = [
+type Column = { header: string; key: keyof ReportRow | "date" | "unit_value_aed" | "line_value_aed"; width: number };
+
+const aed = (usd: number) => Math.round(usd * USD_TO_AED * 100) / 100;
+
+const COLUMNS: Column[] = [
   { header: "Order number", key: "order_number", width: 22 },
   { header: "Date", key: "date", width: 18 },
   { header: "Status", key: "status", width: 12 },
@@ -153,12 +158,18 @@ const COLUMNS: { header: string; key: keyof ReportRow | "date"; width: number }[
   { header: "SKU", key: "sku", width: 16 },
   { header: "Item", key: "name", width: 32 },
   { header: "Qty", key: "qty", width: 8 },
-  { header: "Unit value", key: "unit_value", width: 12 },
-  { header: "Line value", key: "line_value", width: 12 },
+  { header: "Unit value (AED)", key: "unit_value_aed", width: 14 },
+  { header: "Line value (AED)", key: "line_value_aed", width: 14 },
+  { header: "Unit value (USD)", key: "unit_value", width: 14 },
+  { header: "Line value (USD)", key: "line_value", width: 14 },
 ];
 
 function dubaiTime(iso: string) {
   return new Date(iso).toLocaleString("sv-SE", { timeZone: "Asia/Dubai" }).slice(0, 16);
+}
+
+function withAed(r: ReportRow) {
+  return { ...r, date: dubaiTime(r.created_at), unit_value_aed: aed(r.unit_value), line_value_aed: aed(r.line_value) };
 }
 
 export function toCsv(rows: ReportRow[]) {
@@ -168,7 +179,8 @@ export function toCsv(rows: ReportRow[]) {
   };
   const lines = [COLUMNS.map((c) => c.header).join(",")];
   for (const r of rows) {
-    lines.push(COLUMNS.map((c) => esc(c.key === "date" ? dubaiTime(r.created_at) : r[c.key])).join(","));
+    const row = withAed(r);
+    lines.push(COLUMNS.map((c) => esc(row[c.key])).join(","));
   }
   return "﻿" + lines.join("\r\n");
 }
@@ -177,7 +189,7 @@ export async function toXlsx(rows: ReportRow[]) {
   const wb = new ExcelJS.Workbook();
   const lines = wb.addWorksheet("Order lines");
   lines.columns = COLUMNS.map((c) => ({ header: c.header, key: c.key, width: c.width }));
-  for (const r of rows) lines.addRow({ ...r, date: dubaiTime(r.created_at) });
+  for (const r of rows) lines.addRow(withAed(r));
 
   const items = wb.addWorksheet("By item");
   items.columns = [
@@ -187,18 +199,20 @@ export async function toXlsx(rows: ReportRow[]) {
     { header: "Category", key: "category", width: 16 },
     { header: "Orders", key: "orders", width: 10 },
     { header: "Qty", key: "qty", width: 10 },
-    { header: "Value", key: "value", width: 14 },
+    { header: "Value (AED)", key: "value_aed", width: 14 },
+    { header: "Value (USD)", key: "value", width: 14 },
   ];
-  summariseByItem(rows).forEach((r) => items.addRow(r));
+  summariseByItem(rows).forEach((r) => items.addRow({ ...r, value_aed: aed(r.value) }));
 
   const kams = wb.addWorksheet("By KAM");
   kams.columns = [
     { header: "KAM", key: "kam", width: 28 },
     { header: "Orders", key: "orders", width: 10 },
     { header: "Qty", key: "qty", width: 10 },
-    { header: "Value", key: "value", width: 14 },
+    { header: "Value (AED)", key: "value_aed", width: 14 },
+    { header: "Value (USD)", key: "value", width: 14 },
   ];
-  summariseByKam(rows).forEach((r) => kams.addRow(r));
+  summariseByKam(rows).forEach((r) => kams.addRow({ ...r, value_aed: aed(r.value) }));
 
   for (const ws of [lines, items, kams]) {
     ws.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };

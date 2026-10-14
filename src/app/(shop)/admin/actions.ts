@@ -336,7 +336,7 @@ export async function saveMarket(_: unknown, formData: FormData): Promise<{ erro
   const code = String(formData.get("code") ?? "");
   const cs_email = String(formData.get("cs_email") ?? "").trim() || null;
   const delivery_days = Math.max(1, Math.floor(Number(formData.get("delivery_days") ?? 7)));
-  const currency = String(formData.get("currency") ?? "USD").trim().toUpperCase().slice(0, 3) || "USD";
+  const currency = "USD"; // stored values are USD; the site displays AED
   if (cs_email && !cs_email.split(/[,;\s]+/).filter(Boolean).every((e) => /^\S+@\S+\.\S+$/.test(e))) {
     return { error: "Enter valid email addresses, separated by commas." };
   }

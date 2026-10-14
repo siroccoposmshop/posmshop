@@ -3,6 +3,7 @@
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { Item, Market } from "@/lib/types";
+import { USD_TO_AED } from "@/lib/format";
 import { deleteItem, saveItem } from "../../actions";
 
 export function ItemForm({ item, markets, brands }: { item: Item | null; markets: Market[]; brands: string[] }) {
@@ -39,8 +40,9 @@ export function ItemForm({ item, markets, brands }: { item: Item | null; markets
           <input id="category" name="category" className="field" defaultValue={item?.category ?? ""} />
         </div>
         <div>
-          <label className="label" htmlFor="value">Unit value</label>
+          <label className="label" htmlFor="value">Unit cost (USD)</label>
           <input id="value" name="value" type="number" step="0.01" min="0" className="field" required defaultValue={item?.value ?? 0} />
+          <p className="mt-1 text-xs">Entered in USD, as in the budgeting Excel. Everyone sees it in AED (× {USD_TO_AED}).</p>
         </div>
         <div>
           <label className="label" htmlFor="stock">Current stock</label>

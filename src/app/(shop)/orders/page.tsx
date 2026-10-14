@@ -43,7 +43,7 @@ export default async function OrdersPage() {
                   <p className="mt-1 text-sm text-brand-black">{o.account_name}</p>
                   {o.parent_name && <p className="text-xs">{o.parent_name}</p>}
                   <p className="text-xs">
-                    {formatDate(o.created_at)} · {money(o.total_value, o.currency)}
+                    {formatDate(o.created_at)} · {money(o.total_value)}
                   </p>
                 </Link>
               </li>
@@ -75,7 +75,7 @@ export default async function OrdersPage() {
                       {o.parent_name && <span className="block text-xs">{o.parent_name}</span>}
                     </td>
                     <td>{o.contact_name}</td>
-                    <td className="whitespace-nowrap text-right">{money(o.total_value, o.currency)}</td>
+                    <td className="whitespace-nowrap text-right">{money(o.total_value)}</td>
                     <td>
                       <StatusBadge status={o.status} />
                     </td>

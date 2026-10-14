@@ -96,7 +96,10 @@ export default async function AdminItems({ searchParams }: { searchParams: Promi
                   </span>
                 </td>
                 <td>{i.category}</td>
-                <td className="whitespace-nowrap text-right">{money(i.value)}</td>
+                <td className="whitespace-nowrap text-right">
+                  {money(i.value)}
+                  <span className="block text-xs">{money(i.value, "USD")}</span>
+                </td>
                 <td className="text-right">
                   {i.stock <= 0 ? (
                     <span className="text-brand-red">

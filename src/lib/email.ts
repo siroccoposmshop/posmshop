@@ -93,7 +93,7 @@ export function renderOrderEmail(order: Order, items: OrderItem[], market: Marke
         : `<div style="width:56px;height:56px;border-radius:6px;background:${LIGHT}"></div>`;
       const right = isCustomer
         ? `<strong>× ${i.qty}</strong>`
-        : `<strong>× ${i.qty}</strong><br><span style="font-size:13px;color:${GREY}">${esc(money(i.line_value, order.currency))}</span>`;
+        : `<strong>× ${i.qty}</strong><br><span style="font-size:13px;color:${GREY}">${esc(money(i.line_value))}</span>`;
       return `<tr>
         <td style="padding:12px 0;border-bottom:1px solid #e5e3e3;width:56px;vertical-align:top">${img}</td>
         <td style="padding:12px 10px;border-bottom:1px solid #e5e3e3;font-family:${BODY_FONT};font-size:14px;line-height:1.35;color:#000;vertical-align:top">
@@ -109,7 +109,7 @@ export function renderOrderEmail(order: Order, items: OrderItem[], market: Marke
     ? ""
     : `<tr>
           <td colspan="2" align="right" style="padding:16px 10px 0;${LABEL};font-size:13px">Total value</td>
-          <td align="right" style="padding:16px 0 0;font-family:${FONT};font-size:20px;font-weight:700;color:#000;white-space:nowrap">${esc(money(order.total_value, order.currency))}</td>
+          <td align="right" style="padding:16px 0 0;font-family:${FONT};font-size:20px;font-weight:700;color:#000;white-space:nowrap">${esc(money(order.total_value))}</td>
         </tr>`;
 
   const contact = `${esc(order.contact_name)}<br>${esc(order.contact_mobile)}<br>${esc(order.contact_email)}`;

@@ -104,7 +104,7 @@ export default async function AdminDashboard() {
                     {o.account_name}
                     <span className="block text-xs">{o.kam_name || o.kam_email}</span>
                   </td>
-                  <td className="whitespace-nowrap text-right">{money(o.total_value, o.currency)}</td>
+                  <td className="whitespace-nowrap text-right">{money(o.total_value)}</td>
                   <td>
                     <StatusBadge status={o.status} />
                   </td>
