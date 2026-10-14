@@ -64,7 +64,7 @@ export function LoginForm({ next }: { next?: string }) {
         </p>
         <div>
           <label htmlFor="code" className="label">
-            6-digit code
+            Sign-in code
           </label>
           <input
             id="code"
@@ -72,6 +72,7 @@ export function LoginForm({ next }: { next?: string }) {
             inputMode="numeric"
             autoComplete="one-time-code"
             pattern="[0-9]{6,10}"
+            maxLength={10}
             required
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
