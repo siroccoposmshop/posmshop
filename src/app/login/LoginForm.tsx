@@ -9,32 +9,11 @@ export function LoginForm({ next }: { next?: string }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
-  const [password, setPassword] = useState("");
-  const [step, setStep] = useState<"password" | "email" | "code">("password");
+  const [step, setStep] = useState<"email" | "code">("email");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const destination = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
-
-  async function signInWithPassword(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    const clean = email.trim().toLowerCase();
-    if (!isAllowedEmail(clean)) {
-      setError(`Only @${ALLOWED_DOMAIN} email addresses can sign in.`);
-      return;
-    }
-    setBusy(true);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email: clean, password });
-    setBusy(false);
-    if (error) {
-      setError("Email or password is incorrect. Ask Trade Marketing to set a password for you if you don't have one.");
-      return;
-    }
-    router.replace(destination);
-    router.refresh();
-  }
 
   async function sendCode(e: React.FormEvent) {
     e.preventDefault();
@@ -117,56 +96,6 @@ export function LoginForm({ next }: { next?: string }) {
     );
   }
 
-  if (step === "password") {
-    return (
-      <form onSubmit={signInWithPassword} className="mt-8 space-y-4">
-        <div>
-          <label htmlFor="email" className="label">
-            Work email
-          </label>
-          <input
-            id="email"
-            type="email"
-            className="field"
-            placeholder={`name@${ALLOWED_DOMAIN}`}
-            autoComplete="username"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </div>
-        <div>
-          <label htmlFor="password" className="label">
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            className="field"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
-        {error && <p className="text-sm text-brand-red">{error}</p>}
-        <button className="btn btn-primary w-full" disabled={busy}>
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
-        <button
-          type="button"
-          className="w-full text-sm underline"
-          onClick={() => {
-            setError(null);
-            setStep("email");
-          }}
-        >
-          Email me a sign-in code instead
-        </button>
-      </form>
-    );
-  }
-
   return (
     <form onSubmit={sendCode} className="mt-8 space-y-4">
       <div>
@@ -187,16 +116,6 @@ export function LoginForm({ next }: { next?: string }) {
       {error && <p className="text-sm text-brand-red">{error}</p>}
       <button className="btn btn-primary w-full" disabled={busy}>
         {busy ? "Sending…" : "Send code"}
-      </button>
-      <button
-        type="button"
-        className="w-full text-sm underline"
-        onClick={() => {
-          setError(null);
-          setStep("password");
-        }}
-      >
-        Sign in with a password
       </button>
     </form>
   );
