@@ -141,7 +141,7 @@ export function AccountStep() {
         <div className="bento-green flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="font-display text-xs uppercase tracking-wide text-white/80">Parent account</p>
-            <p className="font-display text-2xl font-medium uppercase">{parent.parent_name}</p>
+            <p className="font-display text-lg font-medium uppercase leading-tight">{parent.parent_name}</p>
             <p className="text-sm text-white/85">
               #{parent.parent_number}
               {parent.kam_name ? ` · KAM ${parent.kam_name}` : ""}
@@ -228,8 +228,8 @@ export function AccountStep() {
     <form onSubmit={proceed} className="mt-6 space-y-4">
       <div className="bento-green flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="font-display text-xs uppercase tracking-wide text-white/80">{account.parent_name}</p>
-          <p className="font-display text-2xl font-medium uppercase">{account.name}</p>
+          <p className="font-display text-base uppercase leading-tight text-white/85">{account.parent_name}</p>
+          <p className="mt-0.5 font-display text-lg font-medium uppercase leading-tight">{account.name}</p>
           <p className="text-sm text-white/85">
             Outlet #{account.account_number} · {account.market}
           </p>
