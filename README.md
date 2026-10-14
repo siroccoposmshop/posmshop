@@ -42,13 +42,13 @@ users and reports.
    `<h2>Your POSM SHOP code</h2><p>Enter this code: <strong>{{ .Token }}</strong></p><p>Or <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email">sign in with this link</a>.</p>`
 6. **Authentication → Emails → SMTP settings:** connect Resend (step 3). Supabase's built-in email only sends a handful of emails per hour and isn't suitable for production.
 7. **Authentication → URL Configuration:** set Site URL to the live site URL and add it to Redirect URLs.
-8. **Project Settings → API:** copy the Project URL, the `anon` key and the `service_role` key.
+8. **Project Settings → API Keys:** copy the Project URL, the publishable key (`sb_publishable_…`) and a secret key (`sb_secret_…`).
 
 ### 2. Vercel (hosting)
 1. Sign up at <https://vercel.com> **with the Sirocco GitHub account** (`siroccoposmshop`).
 2. "Add New → Project" → import `siroccoposmshop/posmshop`. Framework: Next.js (auto-detected).
 3. Add the environment variables from `.env.example`:
-   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SITE_URL`, `RESEND_API_KEY`, `EMAIL_FROM`.
+   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `NEXT_PUBLIC_SITE_URL`, `RESEND_API_KEY`, `EMAIL_FROM`.
 4. Deploy. Optionally add a domain such as `posm.sirocco.ae` (needs a DNS record from Sirocco IT).
 
 ### 3. Resend (order emails)
