@@ -23,10 +23,16 @@ export function CartView() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <h1 className="accent-square text-4xl text-brand-black">Cart</h1>
-      <p className="mt-1 text-sm">
-        {cart.account.name} (#{cart.account.account_number}) · {cart.contact?.name}
-      </p>
+      <div className="flex items-start justify-between gap-4">
+        <h1 className="accent-square text-4xl text-brand-black">Cart</h1>
+        <div className="min-w-0 max-w-[60%] text-right text-xs leading-snug sm:text-sm">
+          {cart.account.parent_name && <p className="line-clamp-2 font-medium text-brand-black">{cart.account.parent_name}</p>}
+          <p className="truncate">
+            {cart.account.name} (#{cart.account.account_number})
+          </p>
+          {cart.contact && <p className="truncate">{cart.contact.name}</p>}
+        </div>
+      </div>
 
       {cart.lines.length === 0 ? (
         <div className="bento mt-6 text-center">
@@ -49,7 +55,7 @@ export function CartView() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-display text-xs uppercase text-brand-green">{line.brand}</p>
-                    <p className="truncate font-medium text-brand-black">{line.name}</p>
+                    <p className="line-clamp-2 font-medium leading-tight text-brand-black">{line.name}</p>
                     <p className="text-xs">
                       SKU {line.sku} · {money(line.value)} each
                     </p>
