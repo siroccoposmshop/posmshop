@@ -20,14 +20,7 @@ export default async function OrderStartPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <p className="font-display text-sm uppercase tracking-wide text-brand-green">Step 1 of 3</p>
-      <h1 className="accent-square mt-1 text-4xl text-brand-black sm:text-5xl">New order</h1>
-      <p className="mt-2">
-        Search the parent account, choose the outlet to deliver to, then the contact who should receive the order confirmation.
-        {profile.role === "admin"
-          ? " As an admin you can see accounts in every market."
-          : ` Showing accounts in ${profile.market}.`}
-      </p>
+      <h1 className="accent-square text-4xl text-brand-black sm:text-5xl">New order</h1>
       <AccountStep />
     </div>
   );
