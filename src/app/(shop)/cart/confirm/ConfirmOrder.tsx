@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/components/CartProvider";
@@ -15,17 +15,6 @@ export function ConfirmOrder() {
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const endRef = useRef<HTMLDivElement>(null);
-  const [atEnd, setAtEnd] = useState(false);
-
-  // Mobile "Place order" bar appears once the bottom of the page is reached.
-  useEffect(() => {
-    const el = endRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(([entry]) => setAtEnd(entry.isIntersecting), { rootMargin: "0px 0px 40px 0px" });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [cart.ready, cart.lines.length]);
 
   useEffect(() => {
     if (cart.ready && (!cart.account || !cart.contact || cart.lines.length === 0)) router.replace("/cart");
@@ -163,7 +152,7 @@ export function ConfirmOrder() {
         <Link href="/cart" className="btn btn-secondary">
           ← Back to cart
         </Link>
-        {/* Desktop: button in the page. Mobile: pinned bar below, shown once scrolled to the end. */}
+        {/* Desktop: button here. Mobile: full-width button at the end of the page, just above the footer. */}
         <button type="button" className="btn btn-primary hidden md:inline-flex" onClick={submit} disabled={pending}>
           {pending ? "Placing order…" : "Place order"}
         </button>
@@ -171,19 +160,15 @@ export function ConfirmOrder() {
       <p className="mt-3 text-xs">
         Placing the order emails a confirmation to you, to {contact.email}, and to Customer Service for {marketName}.
       </p>
-      <div ref={endRef} aria-hidden className="h-px" />
-
-      <div
-        className={`no-print fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-transform md:hidden ${
-          atEnd ? "translate-y-0" : "translate-y-full"
-        }`}
-        aria-hidden={!atEnd}
+      <button
+        type="button"
+        className="btn btn-primary mt-5 w-full justify-between !px-5 !py-4 md:hidden"
+        onClick={submit}
+        disabled={pending}
       >
-        <button type="button" className="btn btn-primary w-full justify-between !px-5" onClick={submit} disabled={pending || !atEnd}>
-          <span>{pending ? "Placing order…" : "Place order"}</span>
-          <span>{money(cart.total)}</span>
-        </button>
-      </div>
+        <span>{pending ? "Placing order…" : "Place order"}</span>
+        <span>{money(cart.total)}</span>
+      </button>
     </div>
   );
 }
