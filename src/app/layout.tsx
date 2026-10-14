@@ -20,6 +20,8 @@ export const metadata: Metadata = {
   title: { default: "POSM SHOP | Sirocco", template: "%s | POSM SHOP" },
   description: "Sirocco point-of-sale materials ordering for Key Account Managers.",
   robots: { index: false, follow: false },
+  // Stop iOS turning phone numbers and emails into underlined blue links.
+  formatDetection: { telephone: false, email: false, address: false },
 };
 
 export const viewport: Viewport = {

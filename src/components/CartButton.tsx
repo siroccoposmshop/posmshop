@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useCart } from "./CartProvider";
 import { money } from "@/lib/format";
 
@@ -33,7 +34,9 @@ export function CartButton() {
 /** Cart bar stuck to the bottom of the screen on mobile. */
 export function MobileCartBar() {
   const { count, total, ready, account } = useCart();
-  if (!ready || !account) return null;
+  const pathname = usePathname();
+  // Not needed on the cart and confirm pages — they have their own buttons.
+  if (!ready || !account || pathname.startsWith("/cart")) return null;
   return (
     <div className="no-print fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden">
       <Link href="/cart" className="btn btn-primary w-full justify-between !px-5">
