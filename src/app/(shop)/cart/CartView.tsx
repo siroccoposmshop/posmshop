@@ -14,10 +14,15 @@ export function CartView() {
     return (
       <div className="bento mx-auto max-w-xl text-center">
         <h1 className="text-3xl text-brand-black">Your cart is empty</h1>
-        <p className="mt-2">Start by choosing an account.</p>
-        <Link href="/" className="btn btn-primary mt-5">
-          Start an order
-        </Link>
+        <p className="mt-2">Start a new order, or check the orders you&apos;ve already placed.</p>
+        <div className="mt-5 flex flex-wrap justify-center gap-3">
+          <Link href="/orders" className="btn btn-secondary">
+            My orders
+          </Link>
+          <Link href="/" className="btn btn-primary">
+            Start an order
+          </Link>
+        </div>
       </div>
     );
   }

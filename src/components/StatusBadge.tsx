@@ -8,6 +8,6 @@ const styles: Record<OrderStatus, string> = {
   cancelled: "bg-brand-red/10 text-brand-red",
 };
 
-export function StatusBadge({ status }: { status: OrderStatus }) {
-  return <span className={`badge ${styles[status]}`}>{status}</span>;
+export function StatusBadge({ status, large = false }: { status: OrderStatus; large?: boolean }) {
+  return <span className={`badge ${styles[status]} ${large ? "!px-4 !py-1.5 !text-sm" : ""}`}>{status}</span>;
 }
