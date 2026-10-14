@@ -26,6 +26,17 @@ export function AccountStep() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchCardRef = useRef<HTMLDivElement>(null);
+  const [searchActive, setSearchActive] = useState(false);
+
+  // Phones: when the search box is tapped, scroll its card to the top of the screen
+  // so results appear underneath it rather than behind the keyboard.
+  function liftSearch() {
+    if (!window.matchMedia("(max-width: 767px)").matches) return;
+    setSearchActive(true);
+    // Wait for the extra space to render and the keyboard to open.
+    setTimeout(() => searchCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 250);
+  }
 
   const account = cart.account;
 
@@ -196,20 +207,23 @@ export function AccountStep() {
 
   if (!account) {
     return (
-      <div className="bento mt-6">
+      <div ref={searchCardRef} className="bento mt-6 scroll-mt-20">
         <label htmlFor="account-search" className="label">
           Search parent account name or number
         </label>
         <input
           id="account-search"
+          type="search"
+          enterKeyHint="search"
           className="field"
           placeholder="e.g. 25 Hours Hotel or 53248"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onFocus={liftSearch}
           autoComplete="off"
-          autoFocus
         />
-        <ul className="mt-3 divide-y divide-black/5">
+        {/* While searching on a phone, reserve room so the card can sit at the top with results above the keyboard */}
+        <ul className={`mt-3 divide-y divide-black/5 ${searchActive ? "min-h-[75dvh] md:min-h-0" : ""}`}>
           {searching && <li className="py-3 text-sm">Searching…</li>}
           {!searching && query.trim().length >= 2 && results.length === 0 && (
             <li className="py-3 text-sm">No accounts match “{query}”.</li>
