@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/components/CartProvider";
+import { OrderFor } from "@/components/OrderFor";
+import { MARKETS } from "@/lib/markets";
 import { ItemImage } from "@/components/ItemImage";
 import { formatDate, money, qtyOptions, slugify } from "@/lib/format";
 import type { Item } from "@/lib/types";
@@ -38,19 +39,9 @@ export function Catalogue({ items }: { items: Item[] }) {
 
   return (
     <div>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="font-display text-sm uppercase tracking-wide text-brand-green">Step 2 of 3</p>
-          <h1 className="accent-square mt-1 text-4xl text-brand-black">Choose items</h1>
-          <p className="mt-1 text-sm">
-            For <strong className="text-brand-black">{cart.account.name}</strong> (#{cart.account.account_number}
-            {cart.account.parent_name ? `, ${cart.account.parent_name}` : ""}) ·{" "}
-            {cart.contact?.name} ·{" "}
-            <Link href="/" className="underline">
-              change
-            </Link>
-          </p>
-        </div>
+      <div className="flex items-start justify-between gap-4">
+        <h1 className="accent-square text-4xl text-brand-black">Order</h1>
+        <OrderFor showChange />
       </div>
 
       {/* Search + brands stay pinned under the header while scrolling */}
@@ -133,7 +124,7 @@ export function Catalogue({ items }: { items: Item[] }) {
 
       {brands.length === 0 && (
         <div className="bento mt-8 text-center">
-          <p>No items are available for {cart.account.market} yet.</p>
+          <p>No items are available for {MARKETS.find((m) => m.code === cart.account?.market)?.name ?? cart.account.market} yet.</p>
         </div>
       )}
 

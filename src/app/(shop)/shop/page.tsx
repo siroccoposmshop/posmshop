@@ -3,7 +3,7 @@ import { requireProfile } from "@/lib/auth";
 import type { Item } from "@/lib/types";
 import { Catalogue } from "./Catalogue";
 
-export const metadata = { title: "Items" };
+export const metadata = { title: "Order" };
 export const dynamic = "force-dynamic";
 
 export default async function ShopPage() {
