@@ -48,6 +48,9 @@ export function SiteHeader({ profile }: { profile: Profile }) {
                   </Link>
                 ))}
               </nav>
+              <Link href="/account" className="mt-2 block rounded-lg px-2 py-2 text-sm underline hover:bg-brand-light">
+                Change password
+              </Link>
               <form action="/auth/signout" method="post" className="mt-3">
                 <button className="btn btn-secondary w-full !py-2">Sign out</button>
               </form>

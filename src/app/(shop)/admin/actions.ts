@@ -308,14 +308,24 @@ export async function inviteUser(_: unknown, formData: FormData): Promise<{ erro
   const marketRaw = String(formData.get("market") ?? "");
   const market = (MARKETS as readonly string[]).includes(marketRaw) ? marketRaw : null;
   const full_name = String(formData.get("full_name") ?? "").trim() || null;
+  const password = String(formData.get("password") ?? "");
+  if (password && password.length < 8) return { error: "Temporary password must be at least 8 characters." };
 
   const db = createAdminClient();
-  const { data, error } = await db.auth.admin.createUser({ email, email_confirm: true });
+  const { data, error } = await db.auth.admin.createUser({ email, email_confirm: true, ...(password ? { password } : {}) });
   if (error) return { error: error.message.includes("already") ? "That user already exists — edit them in the list." : error.message };
   const { error: upd } = await db.from("profiles").update({ role, market, full_name }).eq("id", data.user.id);
   if (upd) return { error: upd.message };
   revalidatePath("/admin/users");
   return { ok: true };
+}
+
+/** Sets a new (temporary) password for an existing user. */
+export async function setUserPassword(id: string, password: string): Promise<{ error?: string; ok?: boolean }> {
+  await requireAdmin();
+  if (password.length < 8) return { error: "Password must be at least 8 characters." };
+  const { error } = await createAdminClient().auth.admin.updateUserById(id, { password });
+  return error ? { error: error.message } : { ok: true };
 }
 
 // ---------------------------------------------------------------------------
