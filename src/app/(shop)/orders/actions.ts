@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth";
 import { sendOrderEmails } from "@/lib/email";
+import { normaliseEmail, normaliseMobile } from "@/lib/contact";
 
 const schema = z.object({
   accountId: z.uuid(),
@@ -28,7 +29,12 @@ export async function placeOrder(
 
   const parsed = schema.safeParse(input);
   if (!parsed.success) return { error: "Some order details are missing or invalid." };
-  const { accountId, contact, notes, lines } = parsed.data;
+  const { accountId, notes, lines } = parsed.data;
+  const mobile = normaliseMobile(parsed.data.contact.mobile);
+  if (!mobile.ok) return { error: mobile.error };
+  const email = normaliseEmail(parsed.data.contact.email);
+  if (!email.ok) return { error: email.error };
+  const contact = { name: parsed.data.contact.name, mobile: mobile.value, email: email.value };
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("place_order", {

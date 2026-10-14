@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCart, type CartContact } from "@/components/CartProvider";
 import type { Account, Contact, ParentAccount } from "@/lib/types";
+import { UAE_PREFIX, normaliseEmail, normaliseMobile } from "@/lib/contact";
+import { MARKETS } from "@/lib/markets";
 
 const ACCOUNT_FIELDS = "id, account_number, name, parent_number, parent_name, kam_name, market, channel";
 
@@ -18,7 +20,9 @@ export function AccountStep() {
   const [searching, setSearching] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [contactId, setContactId] = useState<string>("new");
-  const [form, setForm] = useState<CartContact>({ name: "", mobile: "", email: "" });
+  const blank: CartContact = { name: "", mobile: `${UAE_PREFIX} `, email: "" };
+  const [form, setForm] = useState<CartContact>(blank);
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; mobile?: string; email?: string }>({});
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,55 +68,64 @@ export function AccountStep() {
       .then(({ data }) => setOutlets((data as Account[]) ?? []));
   }, [parent]);
 
-  // Load saved contacts for the chosen account.
+  // Load the outlet's saved contacts and pre-fill the one used on the last order there.
   useEffect(() => {
     if (!account) return;
     const supabase = createClient();
-    supabase
-      .from("contacts")
-      .select("*")
-      .eq("account_id", account.id)
-      .order("name")
-      .then(({ data }) => {
-        const list = (data as Contact[]) ?? [];
-        setContacts(list);
-        const current = cart.contact;
-        if (current?.id && list.some((c) => c.id === current.id)) {
-          setContactId(current.id);
-          setForm(current);
-        } else if (current && !current.id) {
-          setContactId("new");
-          setForm(current);
-        } else if (list.length) {
-          setContactId(list[0].id);
-          setForm(list[0]);
-        } else {
-          setContactId("new");
-          setForm({ name: "", mobile: "", email: "" });
-        }
-      });
+    Promise.all([
+      supabase.from("contacts").select("*").eq("account_id", account.id).order("created_at", { ascending: false }),
+      supabase
+        .from("orders")
+        .select("contact_email")
+        .eq("account_id", account.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]).then(([{ data }, { data: lastOrder }]) => {
+      const list = (data as Contact[]) ?? [];
+      setContacts(list);
+      setFieldErrors({});
+      const current = cart.contact;
+      const lastUsed = list.find((c) => c.email === lastOrder?.contact_email) ?? list[0];
+      if (current?.id && list.some((c) => c.id === current.id)) {
+        setContactId(current.id);
+        setForm(current);
+      } else if (current && !current.id) {
+        setContactId("new");
+        setForm(current);
+      } else if (lastUsed) {
+        setContactId(lastUsed.id);
+        setForm(lastUsed);
+      } else {
+        setContactId("new");
+        setForm(blank);
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account?.id]);
 
   function pickContact(id: string) {
     setContactId(id);
     const c = contacts.find((x) => x.id === id);
-    setForm(c ? { id: c.id, name: c.name, mobile: c.mobile, email: c.email } : { name: "", mobile: "", email: "" });
+    setForm(c ? { id: c.id, name: c.name, mobile: c.mobile, email: c.email } : blank);
+    setFieldErrors({});
   }
 
   async function proceed(e: React.FormEvent) {
     e.preventDefault();
     if (!account) return;
     setError(null);
-    const contact = {
-      name: form.name.trim(),
-      mobile: form.mobile.trim(),
-      email: form.email.trim().toLowerCase(),
+    const mobile = normaliseMobile(form.mobile);
+    const email = normaliseEmail(form.email);
+    const errors = {
+      name: form.name.trim() ? undefined : "Enter the contact's name.",
+      mobile: mobile.ok ? undefined : mobile.error,
+      email: email.ok ? undefined : email.error,
     };
-    if (!contact.name || !contact.mobile || !/^\S+@\S+\.\S+$/.test(contact.email)) {
-      setError("Enter the contact's name, mobile number and a valid email.");
-      return;
-    }
+    setFieldErrors(errors);
+    if (!mobile.ok || !email.ok || errors.name) return;
+    const contact = { name: form.name.trim(), mobile: mobile.value, email: email.value };
+    setForm((f) => ({ ...f, ...contact }));
     setSaving(true);
     const supabase = createClient();
     const { data: claims } = await supabase.auth.getClaims();
@@ -225,13 +238,13 @@ export function AccountStep() {
   }
 
   return (
-    <form onSubmit={proceed} className="mt-6 space-y-4">
+    <form onSubmit={proceed} noValidate className="mt-6 space-y-4">
       <div className="bento-green flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="font-display text-base uppercase leading-tight text-white/85">{account.parent_name}</p>
           <p className="mt-0.5 font-display text-lg font-medium uppercase leading-tight">{account.name}</p>
           <p className="text-sm text-white/85">
-            Outlet #{account.account_number} · {account.market}
+            Outlet #{account.account_number} · {MARKETS.find((m) => m.code === account.market)?.name ?? account.market}
           </p>
         </div>
         <button
@@ -278,6 +291,7 @@ export function AccountStep() {
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               autoComplete="off"
             />
+            {fieldErrors.name && <p className="mt-1 text-xs text-brand-red">{fieldErrors.name}</p>}
           </div>
           <div>
             <label htmlFor="c-mobile" className="label">
@@ -289,11 +303,21 @@ export function AccountStep() {
               type="tel"
               inputMode="tel"
               required
-              placeholder="+971 50 000 0000"
+              placeholder="+971 50 123 4567"
               value={form.mobile}
               onChange={(e) => setForm({ ...form, mobile: e.target.value })}
+              onBlur={() => {
+                const m = normaliseMobile(form.mobile);
+                if (m.ok) setForm((f) => ({ ...f, mobile: m.value }));
+                setFieldErrors((fe) => ({ ...fe, mobile: m.ok || form.mobile.trim() === UAE_PREFIX ? undefined : m.error }));
+              }}
+              aria-invalid={!!fieldErrors.mobile}
+              aria-describedby="c-mobile-msg"
               autoComplete="off"
             />
+            <p id="c-mobile-msg" className={`mt-1 text-xs ${fieldErrors.mobile ? "text-brand-red" : ""}`}>
+              {fieldErrors.mobile ?? "UAE numbers start with +971. For another country, type its + code."}
+            </p>
           </div>
           <div>
             <label htmlFor="c-email" className="label">
@@ -303,11 +327,19 @@ export function AccountStep() {
               id="c-email"
               className="field"
               type="email"
+              inputMode="email"
               required
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
+              onBlur={() => {
+                if (!form.email.trim()) return;
+                const m = normaliseEmail(form.email);
+                setFieldErrors((fe) => ({ ...fe, email: m.ok ? undefined : m.error }));
+              }}
+              aria-invalid={!!fieldErrors.email}
               autoComplete="off"
             />
+            {fieldErrors.email && <p className="mt-1 text-xs text-brand-red">{fieldErrors.email}</p>}
           </div>
         </div>
         {error && <p className="text-sm text-brand-red">{error}</p>}
