@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import type { Market, Profile } from "@/lib/types";
-import { inviteUser, saveUser, setUserPassword } from "../actions";
+import { inviteUser, saveUser } from "../actions";
 
 export function UserRow({ user, markets }: { user: Profile; markets: Market[] }) {
   const [state, action, pending] = useActionState(saveUser, null);
@@ -39,23 +39,9 @@ export function UserRow({ user, markets }: { user: Profile; markets: Market[] })
         <input form={formId} type="checkbox" name="active" defaultChecked={user.active} className="h-5 w-5 accent-[var(--color-brand-green)]" aria-label="Active" />
       </td>
       <td>
-        <div className="flex gap-2">
-          <button form={formId} className="btn btn-secondary !px-3 !py-1.5 text-xs" disabled={pending}>
-            {pending ? "…" : state?.ok ? "Saved ✓" : "Save"}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary !px-3 !py-1.5 text-xs"
-            onClick={async () => {
-              const pw = prompt(`New temporary password for ${user.email} (at least 8 characters):`);
-              if (!pw) return;
-              const res = await setUserPassword(user.id, pw);
-              alert(res.error ?? `Password set. Share it with ${user.email} and ask them to change it after signing in.`);
-            }}
-          >
-            Set password
-          </button>
-        </div>
+        <button form={formId} className="btn btn-secondary !px-3 !py-1.5 text-xs" disabled={pending}>
+          {pending ? "…" : state?.ok ? "Saved ✓" : "Save"}
+        </button>
       </td>
     </tr>
   );
@@ -80,10 +66,6 @@ export function InviteForm({ markets }: { markets: Market[] }) {
           <option value="admin">Admin (Trade Marketing)</option>
         </select>
       </div>
-      <div className="lg:col-span-2">
-        <label className="label" htmlFor="inv-password">Temporary password</label>
-        <input id="inv-password" name="password" type="text" minLength={8} autoComplete="off" placeholder="At least 8 characters" className="field" />
-      </div>
       <div>
         <label className="label" htmlFor="inv-market">Market</label>
         <select id="inv-market" name="market" className="field">
@@ -100,7 +82,7 @@ export function InviteForm({ markets }: { markets: Market[] }) {
           {pending ? "Adding…" : "Add user"}
         </button>
         {state?.error && <span className="text-sm text-brand-red">{state.error}</span>}
-        {state?.ok && <span className="text-sm text-brand-green">Added. Share the temporary password with them; they can change it after signing in.</span>}
+        {state?.ok && <span className="text-sm text-brand-green">Added. They can now sign in with their email.</span>}
       </div>
     </form>
   );

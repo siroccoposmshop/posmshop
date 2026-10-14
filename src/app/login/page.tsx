@@ -37,7 +37,8 @@ export default async function LoginPage({
           <Logo className="mb-10 h-12 w-auto lg:hidden" />
           <h2 className="text-3xl text-brand-black">Sign in</h2>
           <p className="mt-2 text-sm">
-            Use your <strong>@sirocco.ae</strong> email. You stay signed in on this device.
+            Use your <strong>@sirocco.ae</strong> email. We&apos;ll send you a 6-digit code. You stay
+            signed in on this device.
           </p>
           {error === "link" && (
             <p className="mt-4 rounded-lg bg-brand-red/10 p-3 text-sm text-brand-red">
