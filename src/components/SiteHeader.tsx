@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Logo } from "./Logo";
 import { NavLinks } from "./NavLinks";
 import { CartButton } from "./CartButton";
+import { UserMenu } from "./UserMenu";
 import type { Profile } from "@/lib/types";
 
 export function SiteHeader({ profile }: { profile: Profile }) {
@@ -24,35 +25,7 @@ export function SiteHeader({ profile }: { profile: Profile }) {
         </div>
         <div className="ml-auto flex items-center gap-2">
           <CartButton />
-          <Link href="/orders" className="rounded-full px-3 py-1.5 font-display text-sm font-medium uppercase md:hidden">
-            Orders
-          </Link>
-          <details className="relative">
-            <summary
-              className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full bg-brand-light font-display font-medium uppercase text-brand-black"
-              aria-label="Account menu"
-            >
-              {(profile.full_name || profile.email).slice(0, 1)}
-            </summary>
-            <div className="absolute right-0 mt-2 w-64 rounded-xl bg-white p-4 text-sm shadow-lg ring-1 ring-black/5">
-              <p className="font-medium text-brand-black">{profile.full_name || profile.email}</p>
-              <p className="truncate text-xs">{profile.email}</p>
-              <p className="mt-1 text-xs">
-                {profile.role === "admin" ? "Trade Marketing (admin)" : "Key Account Manager"}
-                {profile.market ? ` · ${profile.market}` : ""}
-              </p>
-              <nav className="mt-3 flex flex-col border-t border-black/5 pt-2 md:hidden">
-                {links.map((l) => (
-                  <Link key={l.href} href={l.href} className="rounded-lg px-2 py-2 font-display uppercase tracking-wide text-brand-black hover:bg-brand-light">
-                    {l.label}
-                  </Link>
-                ))}
-              </nav>
-              <form action="/auth/signout" method="post" className="mt-3">
-                <button className="btn btn-secondary w-full !py-2">Sign out</button>
-              </form>
-            </div>
-          </details>
+          <UserMenu profile={profile} links={links} />
         </div>
       </div>
       <div className="absolute inset-x-0 bottom-0 h-[3px] bg-brand-green" aria-hidden>
