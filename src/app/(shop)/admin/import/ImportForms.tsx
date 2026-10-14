@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { MARKETS } from "@/lib/markets";
 import { createClient } from "@/lib/supabase/client";
 import { shrinkImage } from "@/lib/shrink-image";
 import { importWorkbook, uploadImageForSku, type ImportSummary } from "../actions";
@@ -44,10 +45,11 @@ export function ImportForm() {
           </label>
           <select id="defaultMarket" name="defaultMarket" className="field">
             <option value="">Skip them</option>
-            <option value="UAE">UAE</option>
-            <option value="OMN">Oman</option>
-            <option value="QAT">Qatar</option>
-            <option value="BHR">Bahrain</option>
+            {MARKETS.map((m) => (
+              <option key={m.code} value={m.code}>
+                {m.name}
+              </option>
+            ))}
           </select>
         </div>
         <button className="btn btn-primary w-full" disabled={pending}>

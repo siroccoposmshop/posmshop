@@ -1,3 +1,4 @@
+import { MARKETS } from "@/lib/markets";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Account } from "@/lib/types";
 
@@ -24,10 +25,11 @@ export default async function AdminAccounts({ searchParams }: { searchParams: Pr
         <input name="q" defaultValue={sp.q} placeholder="Parent, outlet, number or KAM" className="field sm:col-span-2" />
         <select name="market" defaultValue={sp.market ?? ""} className="field">
           <option value="">All markets</option>
-          <option value="UAE">UAE</option>
-          <option value="OMN">Oman</option>
-          <option value="QAT">Qatar</option>
-          <option value="BHR">Bahrain</option>
+          {MARKETS.map((m) => (
+            <option key={m.code} value={m.code}>
+              {m.name}
+            </option>
+          ))}
         </select>
         <button className="btn btn-secondary">Search</button>
       </form>

@@ -12,7 +12,7 @@ export default async function SettingsPage() {
       <div>
         <h1 className="accent-square text-3xl text-brand-black">Markets</h1>
         <p className="mt-2 max-w-3xl text-sm">
-          Each order is emailed to the Customer Service mailbox for its market (Dubai for the UAE). The
+          Each order is emailed to the Customer Service mailbox for its market . The
           delivery days appear in the customer email: “Delivery is expected in the next XX days”.
         </p>
       </div>

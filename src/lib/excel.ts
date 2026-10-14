@@ -60,11 +60,10 @@ export type ParseResult = {
 };
 
 const MARKET_ALIASES: Record<string, string> = {
-  uae: "UAE", ae: "UAE", "united arab emirates": "UAE", dubai: "UAE", dxb: "UAE", "abu dhabi": "UAE", auh: "UAE",
-  sharjah: "UAE", "northern emirates": "UAE", ne: "UAE",
-  oman: "OMN", om: "OMN", omn: "OMN", muscat: "OMN",
-  qatar: "QAT", qa: "QAT", qat: "QAT", doha: "QAT",
-  bahrain: "BHR", bh: "BHR", bhr: "BHR", manama: "BHR",
+  dubai: "DXB", dxb: "DXB",
+  "abu dhabi": "AUH", auh: "AUH", "al ain": "AUH",
+  "northern emirates": "NE", ne: "NE", sharjah: "NE", ajman: "NE", "ras al khaimah": "NE", rak: "NE",
+  fujairah: "NE", "umm al quwain": "NE", uaq: "NE",
 };
 
 export function normaliseMarket(value: string | null | undefined): string | null {
