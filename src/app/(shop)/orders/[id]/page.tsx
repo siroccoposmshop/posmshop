@@ -32,14 +32,16 @@ export default async function OrderPage({
     <div className="mx-auto max-w-4xl">
       <Logo className="mb-6 hidden h-10 w-auto print:block" />
       <div className="flex items-start justify-between gap-4">
-        <h1 className="accent-square text-4xl text-brand-black">{placed ? "Order placed" : "Order"}</h1>
+        <div>
+          <h1 className="accent-square text-4xl text-brand-black">{placed ? "Order placed" : "Order"}</h1>
+          <div className="mt-2">
+            <StatusBadge status={order.status} large />
+          </div>
+        </div>
         <div className="min-w-0 max-w-[60%] text-right text-xs leading-snug sm:text-sm">
           <p className="font-display text-base font-medium text-brand-black sm:text-lg">{order.order_number}</p>
           <p>{formatDate(order.created_at, true)}</p>
           <p className="truncate">By {order.kam_name || order.kam_email}</p>
-          <div className="mt-1">
-            <StatusBadge status={order.status} />
-          </div>
         </div>
       </div>
 

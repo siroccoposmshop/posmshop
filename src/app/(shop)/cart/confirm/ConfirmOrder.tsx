@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/components/CartProvider";
@@ -15,11 +15,15 @@ export function ConfirmOrder() {
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Set once the order is placed, so emptying the cart doesn't bounce us to the empty cart page.
+  const placedRef = useRef(false);
 
   useEffect(() => {
+    if (placedRef.current) return;
     if (cart.ready && (!cart.account || !cart.contact || cart.lines.length === 0)) router.replace("/cart");
   }, [cart.ready, cart.account, cart.contact, cart.lines.length, router]);
 
+  if (placedRef.current) return <p className="py-10 text-center text-sm">Opening your order…</p>;
   if (!cart.ready || !cart.account || !cart.contact || cart.lines.length === 0) return null;
   const marketName = MARKETS.find((m) => m.code === cart.account?.market)?.name ?? cart.account.market;
   const { account, contact } = cart;
@@ -37,8 +41,9 @@ export function ConfirmOrder() {
         setError(result.error);
         return;
       }
-      cart.clear();
+      placedRef.current = true;
       router.replace(`/orders/${result.orderId}?placed=1`);
+      cart.clear();
     });
   }
 
