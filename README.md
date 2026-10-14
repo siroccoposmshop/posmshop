@@ -73,7 +73,7 @@ The site reads the **2026 POSM Budgeting** workbook. Only two tabs are used:
 
 Every other tab is ignored. KAMs search the parent account, then choose the outlet to deliver to. Order numbers use the parent ID: `POSM-53248-100`, `POSM-53248-101`, …
 
-Costs are uploaded and stored in **USD** (the workbook's cost column) and **shown to everyone in AED** at USD 1 = AED 3.6735 (`USD_TO_AED` in `src/lib/format.ts`). Admin reports have an AED/USD toggle, and report exports include both.
+Costs are uploaded and stored in **USD** (the workbook's cost column) and **shown to everyone in AED** at USD 1 = AED 3.6725 (`USD_TO_AED` in `src/lib/format.ts`). Admin reports have an AED/USD toggle, and report exports include both.
 
 `supabase/seed/2026_posm_budgeting.sql` is the first load of that workbook as SQL (104 items, 1,638 outlets).
 

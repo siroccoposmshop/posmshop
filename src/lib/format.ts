@@ -8,7 +8,7 @@ export function isAllowedEmail(email: string) {
  * Item costs are stored in USD (that's what the budgeting workbook gives).
  * Everyone sees AED; admin reports can switch to USD.
  */
-export const USD_TO_AED = 3.6735;
+export const USD_TO_AED = 3.6725;
 
 export type DisplayCurrency = "AED" | "USD";
 
