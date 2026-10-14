@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCart } from "@/components/CartProvider";
+import { OrderFor } from "@/components/OrderFor";
 import { ItemImage } from "@/components/ItemImage";
 import { money, qtyOptions } from "@/lib/format";
 
@@ -25,13 +26,7 @@ export function CartView() {
     <div className="mx-auto max-w-4xl">
       <div className="flex items-start justify-between gap-4">
         <h1 className="accent-square text-4xl text-brand-black">Cart</h1>
-        <div className="min-w-0 max-w-[60%] text-right text-xs leading-snug sm:text-sm">
-          {cart.account.parent_name && <p className="line-clamp-2 font-medium text-brand-black">{cart.account.parent_name}</p>}
-          <p className="truncate">
-            {cart.account.name} (#{cart.account.account_number})
-          </p>
-          {cart.contact && <p className="truncate">{cart.contact.name}</p>}
-        </div>
+        <OrderFor />
       </div>
 
       {cart.lines.length === 0 ? (
