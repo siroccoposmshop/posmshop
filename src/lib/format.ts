@@ -4,7 +4,7 @@ export function isAllowedEmail(email: string) {
   return email.trim().toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`);
 }
 
-export function money(value: number, currency = "AED") {
+export function money(value: number, currency = "USD") {
   return `${currency} ${Number(value).toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,

@@ -33,7 +33,7 @@ users and reports.
 
 ### 1. Supabase (database, login, image storage)
 1. Sign up at <https://supabase.com> with the Sirocco email. Create an organisation (e.g. "Sirocco") and a project called `posmshop`. Choose the region closest to the Gulf that IT is happy with.
-2. **SQL Editor** → paste and run `supabase/migrations/20261014000000_init.sql`.
+2. **SQL Editor** → paste and run each file in `supabase/migrations/` in name order.
 3. Make Trade Marketing admins: in the SQL Editor run
    `insert into admin_bootstrap (email) values ('first.admin@sirocco.ae');`
    (They become admin the first time they sign in. Later admins can be added from Admin → Users.)
@@ -66,12 +66,16 @@ users and reports.
 
 ## Excel format
 
-Every sheet is scanned. A sheet is read as **items** if its header row has an SKU column and an item name column. It's read as **accounts** if it has an account/customer number and an account/customer name. Recognised headers (case-insensitive):
+The site reads the **2026 POSM Budgeting** workbook. Only two tabs are used:
 
-- **Items:** `SKU code`/`Item code`/`Material`, `Item name`/`POSM item`/`Description`, `Brand`, `Category`/`Type`, `Value`/`Unit cost`/`Price`, `Current stock`/`Stock level`/`SOH`. Optional: `Max per order`, `Order multiple`/`Pack size`, `Markets` (e.g. `UAE, Oman` or `All`)
-- **Accounts:** `Account number`/`Customer no`/`Sold to`, `Account name`/`Customer name`/`Outlet`, `Market`/`Country`, `Channel`
+- **CURRENT STOCK** → items. Columns: `Brand`, `Item`, `SKU Code`, `Category`, `Current Stock`, `TOTAL Cost per Unit ($)`. Items are matched on SKU Code. New SKUs are added; existing ones have brand, name, category, cost and stock overwritten from the sheet. Max per order, order multiples, ETA, visibility, markets and images are set in Admin → Items and are never touched by an upload.
+- **CUSTOMER LIST** → outlets. Columns: `MARKET`, `Account Number`, `Account Name` (the outlet), `Parent Account: Account Name`, `Parent Sirocco KAM`. Outlets are matched on Account Number. The parent account ID is the first 5 digits of the account number (e.g. `53248-SF-3` → `53248`).
 
-Download the template from Admin → Excel upload to see the layout. If the real workbook uses different headings, add them to the alias lists in `src/lib/excel.ts`.
+Every other tab is ignored. KAMs search the parent account, then choose the outlet to deliver to. Order numbers use the parent ID: `POSM-53248-100`, `POSM-53248-101`, …
+
+Values are in **USD** (the workbook's cost column).
+
+`supabase/seed/2026_posm_budgeting.sql` is the first load of that workbook as SQL (104 items, 1,638 outlets).
 
 ## Development
 

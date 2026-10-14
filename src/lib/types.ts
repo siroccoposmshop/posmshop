@@ -18,12 +18,24 @@ export type Profile = {
   active: boolean;
 };
 
+/** An outlet. Outlets sit under a parent account (first 5 digits of the account number). */
 export type Account = {
   id: string;
   account_number: string;
   name: string;
+  parent_number: string;
+  parent_name: string;
+  kam_name: string | null;
   market: string;
   channel: string | null;
+};
+
+export type ParentAccount = {
+  parent_number: string;
+  parent_name: string;
+  market: string;
+  kam_name: string | null;
+  outlet_count: number;
 };
 
 export type Contact = {
@@ -59,6 +71,8 @@ export type Order = {
   account_id: string;
   account_number: string;
   account_name: string;
+  parent_number: string | null;
+  parent_name: string | null;
   market: string;
   kam_id: string;
   kam_name: string | null;

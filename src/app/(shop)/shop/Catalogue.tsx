@@ -43,7 +43,8 @@ export function Catalogue({ items }: { items: Item[] }) {
           <p className="font-display text-sm uppercase tracking-wide text-brand-green">Step 2 of 3</p>
           <h1 className="accent-square mt-1 text-4xl text-brand-black">Choose items</h1>
           <p className="mt-1 text-sm">
-            For <strong className="text-brand-black">{cart.account.name}</strong> (#{cart.account.account_number}) ·{" "}
+            For <strong className="text-brand-black">{cart.account.name}</strong> (#{cart.account.account_number}
+            {cart.account.parent_name ? `, ${cart.account.parent_name}` : ""}) ·{" "}
             {cart.contact?.name} ·{" "}
             <Link href="/" className="underline">
               change

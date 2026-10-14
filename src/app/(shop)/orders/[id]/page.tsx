@@ -55,9 +55,12 @@ export default async function OrderPage({
 
         <dl className="grid gap-4 py-5 text-sm sm:grid-cols-3">
           <div>
-            <dt className="label">Account</dt>
+            <dt className="label">Account / outlet</dt>
             <dd className="text-brand-black">
-              {order.account_name}
+              {order.parent_name ?? order.account_name}
+              {order.parent_number ? ` (#${order.parent_number})` : ""}
+              <br />
+              Deliver to: {order.account_name}
               <br />#{order.account_number} · {order.market}
             </dd>
           </div>

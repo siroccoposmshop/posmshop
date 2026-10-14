@@ -4,15 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useCart, type CartContact } from "@/components/CartProvider";
-import type { Account, Contact } from "@/lib/types";
+import type { Account, Contact, ParentAccount } from "@/lib/types";
 
-const ACCOUNT_FIELDS = "id, account_number, name, market, channel";
+const ACCOUNT_FIELDS = "id, account_number, name, parent_number, parent_name, kam_name, market, channel";
 
 export function AccountStep() {
   const router = useRouter();
   const cart = useCart();
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Account[]>([]);
+  const [results, setResults] = useState<ParentAccount[]>([]);
+  const [parent, setParent] = useState<ParentAccount | null>(null);
+  const [outlets, setOutlets] = useState<Account[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [contactId, setContactId] = useState<string>("new");
@@ -23,7 +25,7 @@ export function AccountStep() {
 
   const account = cart.account;
 
-  // Search accounts (RLS limits KAMs to their own market).
+  // Search parent accounts (RLS limits KAMs to their own market).
   useEffect(() => {
     if (debounce.current) clearTimeout(debounce.current);
     const q = query.trim();
@@ -36,15 +38,31 @@ export function AccountStep() {
       const supabase = createClient();
       const safe = q.replace(/[%,()]/g, " ");
       const { data } = await supabase
-        .from("accounts")
-        .select(ACCOUNT_FIELDS)
-        .or(`name.ilike.%${safe}%,account_number.ilike.%${safe}%`)
-        .order("name")
-        .limit(20);
-      setResults((data as Account[]) ?? []);
+        .from("parent_accounts")
+        .select("*")
+        .or(`parent_name.ilike.%${safe}%,parent_number.ilike.%${safe}%`)
+        .order("parent_name")
+        .limit(25);
+      setResults((data as ParentAccount[]) ?? []);
       setSearching(false);
     }, 250);
   }, [query]);
+
+  // Load the outlets under the chosen parent account.
+  useEffect(() => {
+    if (!parent) {
+      setOutlets(null);
+      return;
+    }
+    createClient()
+      .from("accounts")
+      .select(ACCOUNT_FIELDS)
+      .eq("parent_number", parent.parent_number)
+      .eq("parent_name", parent.parent_name)
+      .eq("active", true)
+      .order("name")
+      .then(({ data }) => setOutlets((data as Account[]) ?? []));
+  }, [parent]);
 
   // Load saved contacts for the chosen account.
   useEffect(() => {
@@ -117,16 +135,62 @@ export function AccountStep() {
     router.push("/shop");
   }
 
+  if (!account && parent) {
+    return (
+      <div className="mt-6 space-y-4">
+        <div className="bento-green flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-display text-xs uppercase tracking-wide text-white/80">Parent account</p>
+            <p className="font-display text-2xl font-medium uppercase">{parent.parent_name}</p>
+            <p className="text-sm text-white/85">
+              #{parent.parent_number}
+              {parent.kam_name ? ` · KAM ${parent.kam_name}` : ""}
+            </p>
+          </div>
+          <button type="button" className="btn bg-white/15 text-white hover:bg-white/25" onClick={() => setParent(null)}>
+            Change
+          </button>
+        </div>
+        <div className="bento">
+          <h2 className="text-xl text-brand-black">Which outlet should it be delivered to?</h2>
+          {outlets === null ? (
+            <p className="mt-3 text-sm">Loading outlets…</p>
+          ) : outlets.length === 0 ? (
+            <p className="mt-3 text-sm">No outlets found for this account.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-black/5">
+              {outlets.map((o) => (
+                <li key={o.id}>
+                  <button
+                    type="button"
+                    onClick={() => cart.setAccount(o)}
+                    className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-3 text-left hover:bg-brand-green-tint"
+                  >
+                    <span>
+                      <span className="block font-medium text-brand-black">{o.name}</span>
+                      <span className="text-xs">#{o.account_number}</span>
+                    </span>
+                    <span aria-hidden className="text-brand-green">→</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (!account) {
     return (
       <div className="bento mt-6">
         <label htmlFor="account-search" className="label">
-          Search account name or number
+          Search parent account name or number
         </label>
         <input
           id="account-search"
           className="field"
-          placeholder="e.g. Hard Rock Café or 100234"
+          placeholder="e.g. 25 Hours Hotel or 53248"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           autoComplete="off"
@@ -137,21 +201,21 @@ export function AccountStep() {
           {!searching && query.trim().length >= 2 && results.length === 0 && (
             <li className="py-3 text-sm">No accounts match “{query}”.</li>
           )}
-          {results.map((a) => (
-            <li key={a.id}>
+          {results.map((p) => (
+            <li key={`${p.parent_number}-${p.parent_name}`}>
               <button
                 type="button"
-                onClick={() => cart.setAccount(a)}
+                onClick={() => setParent(p)}
                 className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-3 text-left hover:bg-brand-green-tint"
               >
                 <span>
-                  <span className="block font-medium text-brand-black">{a.name}</span>
+                  <span className="block font-medium text-brand-black">{p.parent_name}</span>
                   <span className="text-xs">
-                    #{a.account_number}
-                    {a.channel ? ` · ${a.channel}` : ""}
+                    #{p.parent_number} · {p.outlet_count} {p.outlet_count === 1 ? "outlet" : "outlets"}
+                    {p.kam_name ? ` · ${p.kam_name}` : ""}
                   </span>
                 </span>
-                <span className="badge bg-brand-light">{a.market}</span>
+                <span className="badge bg-brand-light">{p.market}</span>
               </button>
             </li>
           ))}
@@ -164,10 +228,10 @@ export function AccountStep() {
     <form onSubmit={proceed} className="mt-6 space-y-4">
       <div className="bento-green flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="font-display text-xs uppercase tracking-wide text-white/80">Account</p>
+          <p className="font-display text-xs uppercase tracking-wide text-white/80">{account.parent_name}</p>
           <p className="font-display text-2xl font-medium uppercase">{account.name}</p>
           <p className="text-sm text-white/85">
-            #{account.account_number} · {account.market}
+            Outlet #{account.account_number} · {account.market}
           </p>
         </div>
         <button
@@ -176,6 +240,7 @@ export function AccountStep() {
           onClick={() => {
             if (cart.lines.length && !confirm("Changing the account empties your cart. Continue?")) return;
             cart.setAccount(null);
+            setParent(null);
             setQuery("");
           }}
         >

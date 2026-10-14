@@ -61,8 +61,8 @@ export default async function ReportsPage({
           </select>
         </div>
         <div>
-          <label className="label" htmlFor="account">Account</label>
-          <input id="account" name="account" defaultValue={filters.account} placeholder="Name or number" className="field" />
+          <label className="label" htmlFor="account">Account / outlet</label>
+          <input id="account" name="account" defaultValue={filters.account} placeholder="Parent, outlet or number" className="field" />
         </div>
         <div>
           <label className="label" htmlFor="brand">Brand</label>
@@ -183,7 +183,7 @@ export default async function ReportsPage({
               <th>Order</th>
               <th>Date</th>
               <th>KAM</th>
-              <th>Account</th>
+              <th>Outlet</th>
               <th>Item</th>
               <th className="text-right">Qty</th>
               <th className="text-right">Value</th>
@@ -195,7 +195,10 @@ export default async function ReportsPage({
                 <td className="whitespace-nowrap">{r.order_number}</td>
                 <td className="whitespace-nowrap">{formatDate(r.created_at)}</td>
                 <td>{r.kam_name || r.kam_email}</td>
-                <td>{r.account_name}</td>
+                <td>
+                  {r.account_name}
+                  {r.parent_name && <span className="block text-xs">{r.parent_name}</span>}
+                </td>
                 <td>{r.name}<span className="block text-xs">{r.sku}</span></td>
                 <td className="text-right">{r.qty}</td>
                 <td className="whitespace-nowrap text-right">{money(r.line_value)}</td>

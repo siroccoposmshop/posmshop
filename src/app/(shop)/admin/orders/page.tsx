@@ -19,7 +19,7 @@ export default async function AdminOrders({
   if (sp.status) q = q.eq("status", sp.status);
   if (sp.q) {
     const s = sp.q.replace(/[%,()]/g, " ");
-    q = q.or(`order_number.ilike.%${s}%,account_name.ilike.%${s}%,account_number.ilike.%${s}%,kam_email.ilike.%${s}%`);
+    q = q.or(`order_number.ilike.%${s}%,account_name.ilike.%${s}%,account_number.ilike.%${s}%,parent_name.ilike.%${s}%,kam_email.ilike.%${s}%`);
   }
   const { data } = await q;
   const orders = (data as Order[]) ?? [];
@@ -56,7 +56,7 @@ export default async function AdminOrders({
               <th>Order</th>
               <th>Date</th>
               <th>Market</th>
-              <th>Account</th>
+              <th>Outlet</th>
               <th>KAM</th>
               <th className="text-right">Value</th>
               <th>Status</th>
@@ -74,7 +74,10 @@ export default async function AdminOrders({
                 <td>{o.market}</td>
                 <td>
                   {o.account_name}
-                  <span className="block text-xs">#{o.account_number}</span>
+                  <span className="block text-xs">
+                    #{o.account_number}
+                    {o.parent_name ? ` · ${o.parent_name}` : ""}
+                  </span>
                 </td>
                 <td>{o.kam_name || o.kam_email}</td>
                 <td className="whitespace-nowrap text-right">{money(o.total_value, o.currency)}</td>

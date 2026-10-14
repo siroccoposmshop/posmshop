@@ -47,10 +47,13 @@ export function ConfirmOrder() {
 
       <div className="mt-6 grid gap-4 md:grid-cols-2">
         <div className="bento">
-          <h2 className="text-lg text-brand-black">Account</h2>
+          <h2 className="text-lg text-brand-black">Deliver to</h2>
           <p className="mt-1 font-medium text-brand-black">{account.name}</p>
           <p className="text-sm">
-            #{account.account_number} · {account.market}
+            Outlet #{account.account_number} · {account.market}
+          </p>
+          <p className="mt-1 text-sm">
+            {account.parent_name} (#{account.parent_number})
           </p>
         </div>
         <div className="bento">
