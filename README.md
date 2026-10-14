@@ -24,7 +24,7 @@ users and reports.
 | Out of stock → ETA | Admin sets an ETA date; KAMs see "Expected back …" |
 | Visibility per market | Market checkboxes on each item |
 | Order number `POSM-<customer number>-<# from 100>` | Per-account running number starting at 100 |
-| Three outputs (KAM proof, customer, Customer Service) | Three branded HTML emails sent on every order; the CS email goes to the market's mailbox (Dubai for UAE). The order page also prints / saves to PDF |
+| Three outputs (KAM proof, customer, Customer Service) | Three branded HTML emails sent on every order; the CS email goes to the market's mailbox (Dubai, Abu Dhabi or Northern Emirates). The order page also prints / saves to PDF |
 | Reports of all items used by who, filter by everything | Admin → Reports: date, market, KAM, account, brand, category, item, status. Download Excel (lines, by item, by KAM) or CSV |
 
 ## Setting it up (in order)

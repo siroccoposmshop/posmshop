@@ -20,7 +20,7 @@ export default async function LoginPage({
             SHOP
           </h1>
           <p className="mt-6 max-w-md text-lg text-white/90">
-            Order point-of-sale materials for your accounts across the UAE, Oman, Qatar and Bahrain.
+            Order point-of-sale materials for your accounts across Dubai, Abu Dhabi and the Northern Emirates.
           </p>
         </div>
         <div

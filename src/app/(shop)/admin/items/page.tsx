@@ -1,3 +1,4 @@
+import { MARKETS } from "@/lib/markets";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate, money } from "@/lib/format";
@@ -46,10 +47,11 @@ export default async function AdminItems({ searchParams }: { searchParams: Promi
         </select>
         <select name="market" defaultValue={sp.market ?? ""} className="field">
           <option value="">All markets</option>
-          <option value="UAE">UAE</option>
-          <option value="OMN">Oman</option>
-          <option value="QAT">Qatar</option>
-          <option value="BHR">Bahrain</option>
+          {MARKETS.map((m) => (
+            <option key={m.code} value={m.code}>
+              {m.name}
+            </option>
+          ))}
         </select>
         <div className="flex gap-2">
           <select name="filter" defaultValue={sp.filter ?? ""} className="field">

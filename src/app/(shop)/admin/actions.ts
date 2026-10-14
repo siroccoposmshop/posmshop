@@ -7,9 +7,10 @@ import { requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normaliseMarket, parseWorkbook } from "@/lib/excel";
 import { isAllowedEmail, slugify } from "@/lib/format";
+import { MARKET_CODES } from "@/lib/markets";
 import type { OrderStatus } from "@/lib/types";
 
-const MARKETS = ["UAE", "OMN", "QAT", "BHR"] as const;
+const MARKETS = MARKET_CODES;
 const BUCKET = "item-images";
 
 // ---------------------------------------------------------------------------
