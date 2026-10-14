@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfile } from "@/lib/auth";
-import { formatDate, money } from "@/lib/format";
-import { ItemImage } from "@/components/ItemImage";
+import { formatDate } from "@/lib/format";
+import { DeliveryCards, OrderLinesTable } from "@/components/OrderSummary";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Logo } from "@/components/Logo";
 import type { Order, OrderItem } from "@/lib/types";
@@ -30,108 +30,59 @@ export default async function OrderPage({
 
   return (
     <div className="mx-auto max-w-4xl">
+      <Logo className="mb-6 hidden h-10 w-auto print:block" />
+      <div className="flex items-start justify-between gap-4">
+        <h1 className="accent-square text-4xl text-brand-black">{placed ? "Order placed" : "Order"}</h1>
+        <div className="min-w-0 max-w-[60%] text-right text-xs leading-snug sm:text-sm">
+          <p className="font-display text-base font-medium text-brand-black sm:text-lg">{order.order_number}</p>
+          <p>{formatDate(order.created_at, true)}</p>
+          <p className="truncate">By {order.kam_name || order.kam_email}</p>
+          <div className="mt-1">
+            <StatusBadge status={order.status} />
+          </div>
+        </div>
+      </div>
+
       {placed && (
-        <div className="bento-green no-print mb-6">
-          <h1 className="accent-square text-3xl">Order placed</h1>
-          <p className="mt-1">
-            <span className="highlight">{order.order_number}</span> has been sent to Customer Service. A
-            confirmation is on its way to you and {order.contact_email}.
+        <div className="bento-green no-print mt-6">
+          <p>
+            <span className="highlight">{order.order_number}</span> has been sent to Customer Service. A confirmation
+            is on its way to you and {order.contact_email}.
           </p>
         </div>
       )}
 
-      <div className="bento">
-        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-black/5 pb-5">
-          <div>
-            <Logo className="mb-4 hidden h-10 w-auto print:block" />
-            <p className="font-display text-xs uppercase tracking-wide">POSM order</p>
-            <h2 className="text-3xl text-brand-black">{order.order_number}</h2>
-            <p className="text-sm">{formatDate(order.created_at, true)}</p>
+      <div className="mt-6 space-y-4">
+        <DeliveryCards
+          info={{
+            outletName: order.account_name,
+            outletNumber: order.account_number,
+            parentName: order.parent_name,
+            parentNumber: order.parent_number,
+            market: order.market,
+            contactName: order.contact_name,
+            contactMobile: order.contact_mobile,
+            contactEmail: order.contact_email,
+          }}
+        />
+        <OrderLinesTable
+          total={order.total_value}
+          lines={items.map((i) => ({
+            key: i.id,
+            name: i.name,
+            brand: i.brand,
+            sku: i.sku,
+            image_path: i.image_path,
+            qty: i.qty,
+            lineValue: i.line_value,
+          }))}
+        />
+        {order.notes && (
+          <div className="bento">
+            <h2 className="label">Notes for Customer Service</h2>
+            <p className="whitespace-pre-line text-sm text-brand-black">{order.notes}</p>
           </div>
-          <div className="flex items-center gap-3">
-            <StatusBadge status={order.status} />
-          </div>
-        </div>
-
-        <dl className="grid gap-4 py-5 text-sm sm:grid-cols-3">
-          <div>
-            <dt className="label">Account / outlet</dt>
-            <dd className="text-brand-black">
-              {order.parent_name ?? order.account_name}
-              {order.parent_number ? ` (#${order.parent_number})` : ""}
-              <br />
-              Deliver to: {order.account_name}
-              <br />#{order.account_number} · {order.market}
-            </dd>
-          </div>
-          <div>
-            <dt className="label">Contact</dt>
-            <dd className="text-brand-black">
-              {order.contact_name}
-              <br />
-              {order.contact_mobile}
-              <br />
-              {order.contact_email}
-            </dd>
-          </div>
-          <div>
-            <dt className="label">KAM</dt>
-            <dd className="text-brand-black">
-              {order.kam_name || order.kam_email}
-              <br />
-              {order.kam_email}
-            </dd>
-          </div>
-          {order.notes && (
-            <div className="sm:col-span-3">
-              <dt className="label">Notes</dt>
-              <dd className="whitespace-pre-line text-brand-black">{order.notes}</dd>
-            </div>
-          )}
-        </dl>
-
-        <div className="overflow-x-auto">
-          <table className="table">
-            <thead>
-              <tr>
-                <th colSpan={2}>Item</th>
-                <th className="text-right">Qty</th>
-                <th className="text-right">Unit</th>
-                <th className="text-right">Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((i) => (
-                <tr key={i.id}>
-                  <td className="w-16">
-                    <div className="h-12 w-12 overflow-hidden rounded bg-brand-light">
-                      <ItemImage path={i.image_path} alt={i.name} />
-                    </div>
-                  </td>
-                  <td>
-                    <span className="block font-medium text-brand-black">{i.name}</span>
-                    <span className="text-xs">
-                      {i.brand} · SKU {i.sku}
-                    </span>
-                  </td>
-                  <td className="text-right">{i.qty}</td>
-                  <td className="whitespace-nowrap text-right">{money(i.unit_value)}</td>
-                  <td className="whitespace-nowrap text-right">{money(i.line_value)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={4} className="text-right font-display font-medium uppercase">
-                  Total value
-                </td>
-                <td className="whitespace-nowrap text-right text-lg font-medium text-brand-black">
-                  {money(order.total_value)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+        )}
       </div>
 
       <div className="no-print mt-6 flex flex-wrap items-center justify-between gap-3">
@@ -140,6 +91,11 @@ export default async function OrderPage({
         </Link>
         <OrderActions orderId={order.id} emailsSentAt={order.emails_sent_at} />
       </div>
+      {placed && (
+        <Link href="/" className="no-print btn btn-primary mt-5 w-full !py-4">
+          Start a new order
+        </Link>
+      )}
     </div>
   );
 }
