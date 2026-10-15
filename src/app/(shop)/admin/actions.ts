@@ -3,7 +3,7 @@
 import sharp from "sharp";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { requireAdmin } from "@/lib/auth";
+import { getAdmin, requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normaliseMarket, parseWorkbook } from "@/lib/excel";
 import { isAllowedEmail, slugify } from "@/lib/format";
@@ -26,7 +26,8 @@ export type ImportSummary = {
 };
 
 export async function importWorkbook(input: { path: string; filename: string; defaultMarket: string }): Promise<{ summary?: ImportSummary; error?: string }> {
-  const admin = await requireAdmin();
+  const admin = await getAdmin();
+  if (!admin) return { error: "You've been signed out or aren't an admin. Sign in again and retry." };
   const defaultMarket = normaliseMarket(input.defaultMarket);
   if (!input.path || !input.filename.toLowerCase().endsWith(".xlsx")) {
     return { error: "Please upload an .xlsx file (Excel 2007 or later)." };
@@ -250,7 +251,7 @@ export async function removeItemImage(id: string) {
 
 /** Bulk image upload (one file per call): the file name without extension must equal an item's SKU. */
 export async function uploadImageForSku(formData: FormData): Promise<{ ok?: boolean; error?: string }> {
-  await requireAdmin();
+  if (!(await getAdmin())) return { error: "Signed out or not an admin. Sign in again and retry." };
   const file = formData.get("image");
   const original = String(formData.get("originalName") ?? "");
   if (!(file instanceof File) || file.size === 0 || !file.type.startsWith("image/")) return { error: "Not an image" };

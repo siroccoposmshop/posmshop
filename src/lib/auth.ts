@@ -19,6 +19,12 @@ export async function requireProfile() {
   return profile;
 }
 
+/** For server actions called from forms: returns null instead of redirecting, so the page can show a message. */
+export async function getAdmin() {
+  const profile = await getProfile();
+  return profile && profile.active && profile.role === "admin" ? profile : null;
+}
+
 export async function requireAdmin() {
   const profile = await requireProfile();
   if (profile.role !== "admin") redirect("/");
