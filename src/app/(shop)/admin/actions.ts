@@ -346,3 +346,18 @@ export async function saveMarket(_: unknown, formData: FormData): Promise<{ erro
   revalidatePath("/admin/settings");
   return { ok: true };
 }
+
+export async function setItemEta(id: string, eta: string | null): Promise<{ error?: string; ok?: boolean }> {
+  const admin = await getAdmin();
+  if (!admin) return { error: "You've been signed out. Sign in again and retry." };
+  if (eta && !/^\d{4}-\d{2}-\d{2}$/.test(eta)) return { error: "Choose a valid date." };
+  const { error } = await createAdminClient()
+    .from("items")
+    .update({ eta: eta || null, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/admin");
+  revalidatePath("/admin/items");
+  revalidatePath("/shop");
+  return { ok: true };
+}
