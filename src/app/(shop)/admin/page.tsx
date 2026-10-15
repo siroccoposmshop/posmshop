@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminDashboard() {
   const db = createAdminClient();
   const since = new Date(Date.now() - 30 * 86400000).toISOString();
-  const [orders30, recent, oos, low, counts, setup] = await Promise.all([
+  const [orders30, recent, oos, low, counts] = await Promise.all([
     db.from("orders").select("total_value, status").gte("created_at", since).neq("status", "cancelled"),
     db.from("orders").select("*").order("created_at", { ascending: false }).limit(8),
     db.from("items").select("*").eq("visible", true).lte("stock", 0).order("brand").limit(50),
@@ -21,14 +21,11 @@ export default async function AdminDashboard() {
       db.from("items").select("id", { count: "exact", head: true }),
       db.from("accounts").select("id", { count: "exact", head: true }),
       db.from("profiles").select("id", { count: "exact", head: true }),
-      db.from("items").select("id", { count: "exact", head: true }).is("image_path", null),
     ]),
-    db.from("markets").select("name, cs_email"),
   ]);
 
   const value30 = (orders30.data ?? []).reduce((n, o) => n + Number(o.total_value), 0);
-  const [items, accounts, users, noImage] = counts.map((c) => c.count ?? 0);
-  const missingCs = (setup.data ?? []).filter((m) => !m.cs_email).map((m) => m.name);
+  const [items, accounts, users] = counts.map((c) => c.count ?? 0);
   const oosItems = (oos.data as Item[]) ?? [];
   const recentOrders = (recent.data as Order[]) ?? [];
 
@@ -52,29 +49,6 @@ export default async function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      {(missingCs.length > 0 || items === 0 || noImage > 0) && (
-        <div className="bento border-l-4 border-brand-red">
-          <h2 className="text-lg text-brand-black">Setup checklist</h2>
-          <ul className="mt-2 list-inside list-disc space-y-1 text-sm">
-            {items === 0 && (
-              <li>
-                Upload the <Link href="/admin/import" className="underline">2026 POSM Budgeting</Link> Excel to load items and accounts.
-              </li>
-            )}
-            {missingCs.length > 0 && (
-              <li>
-                Set the Customer Service email for: {missingCs.join(", ")} (<Link href="/admin/settings" className="underline">Markets</Link>).
-              </li>
-            )}
-            {noImage > 0 && (
-              <li>
-                {noImage} items have no image yet (<Link href="/admin/items?filter=noimage" className="underline">view</Link>).
-              </li>
-            )}
-          </ul>
-        </div>
-      )}
-
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         {tiles.map((t, i) => {
           const body = (
