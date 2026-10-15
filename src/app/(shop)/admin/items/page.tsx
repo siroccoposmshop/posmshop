@@ -1,4 +1,5 @@
 import { MARKETS } from "@/lib/markets";
+import { LiveFilters } from "@/components/LiveFilters";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate, money } from "@/lib/format";
@@ -37,8 +38,8 @@ export default async function AdminItems({ searchParams }: { searchParams: Promi
         </Link>
       </div>
 
-      <form className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-        <input name="q" defaultValue={sp.q} placeholder="Search name, SKU, category" className="field lg:col-span-2" />
+      <LiveFilters className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_auto]">
+        <input name="q" defaultValue={sp.q} placeholder="Search name, SKU, category" type="search" autoComplete="off" className="field sm:col-span-2 lg:col-span-1" />
         <select name="brand" defaultValue={sp.brand ?? ""} className="field">
           <option value="">All brands</option>
           {brands.map((b) => (
@@ -53,16 +54,13 @@ export default async function AdminItems({ searchParams }: { searchParams: Promi
             </option>
           ))}
         </select>
-        <div className="flex gap-2">
-          <select name="filter" defaultValue={sp.filter ?? ""} className="field">
+        <select name="filter" defaultValue={sp.filter ?? ""} className="field">
             <option value="">Everything</option>
             <option value="oos">Out of stock</option>
             <option value="noimage">No image</option>
             <option value="hidden">Hidden</option>
           </select>
-          <button className="btn btn-secondary !px-4">Filter</button>
-        </div>
-      </form>
+      </LiveFilters>
 
       <p className="mt-3 text-sm">{items.length} items</p>
       <div className="bento mt-2 overflow-x-auto !p-0">
