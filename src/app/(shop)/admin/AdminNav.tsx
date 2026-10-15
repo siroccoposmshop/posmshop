@@ -8,7 +8,7 @@ const links = [
   { href: "/admin/orders", label: "Orders" },
   { href: "/admin/reports", label: "Reports" },
   { href: "/admin/items", label: "Items" },
-  { href: "/admin/import", label: "Excel upload" },
+  { href: "/admin/import", label: "Upload" },
   { href: "/admin/accounts", label: "Accounts" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/settings", label: "Markets" },

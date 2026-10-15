@@ -2,7 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate } from "@/lib/format";
 import { ImportForm, BulkImagesForm } from "./ImportForms";
 
-export const metadata = { title: "Excel upload" };
+export const metadata = { title: "Upload" };
 export const dynamic = "force-dynamic";
 
 export default async function ImportPage() {
@@ -16,7 +16,7 @@ export default async function ImportPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="accent-square text-3xl text-brand-black">Excel upload</h1>
+        <h1 className="accent-square text-3xl text-brand-black">Upload</h1>
         <p className="mt-2 max-w-3xl text-sm">
           Upload the latest <strong>2026 POSM Budgeting</strong> workbook. Items are matched on SKU code and
           accounts on account number. The upload <strong>overrides stock levels</strong> and updates names,
