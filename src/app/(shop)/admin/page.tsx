@@ -12,11 +12,12 @@ export const dynamic = "force-dynamic";
 export default async function AdminDashboard() {
   const db = createAdminClient();
   const since = new Date(Date.now() - 30 * 86400000).toISOString();
-  const [orders30, recent, oos, low, counts] = await Promise.all([
+  const [orders30, recent, oos, low, withMonths, counts] = await Promise.all([
     db.from("orders").select("total_value, status").gte("created_at", since).neq("status", "cancelled"),
     db.from("orders").select("*").order("created_at", { ascending: false }).limit(8),
     db.from("items").select("*").eq("visible", true).lte("stock", 0).order("brand").limit(50),
     db.from("items").select("*").eq("visible", true).gt("stock", 0).gt("months_of_stock", 0).lt("months_of_stock", 6),
+    db.from("items").select("id", { count: "exact", head: true }).not("months_of_stock", "is", null),
     Promise.all([
       db.from("items").select("id", { count: "exact", head: true }),
       db.from("accounts").select("id", { count: "exact", head: true }),
@@ -131,7 +132,17 @@ export default async function AdminDashboard() {
             Under 6 months of stock (from the last Excel upload) that will run out before the next delivery arrives, or
             with no delivery due.
           </p>
-          {lowItems.length === 0 ? (
+          {low.error || withMonths.error ? (
+            <p className="text-sm text-brand-red">
+              Running low needs a database update: run <code>supabase/migrations/20261017000000_months_of_stock.sql</code> in
+              the Supabase SQL editor, then upload the Excel again.
+            </p>
+          ) : !withMonths.count ? (
+            <p className="text-sm text-brand-red">
+              No months-of-stock figures yet. <Link href="/admin/import" className="underline">Upload the Excel</Link> to
+              load them from column H of CURRENT STOCK.
+            </p>
+          ) : lowItems.length === 0 ? (
             <p className="text-sm">Nothing is running low.</p>
           ) : (
             <table className="table">
