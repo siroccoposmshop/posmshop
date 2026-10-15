@@ -81,6 +81,7 @@ export function CartView() {
                             markets: [],
                             visible: true,
                             eta: null,
+                            months_of_stock: null,
                             description: null,
                           },
                           Number(e.target.value),

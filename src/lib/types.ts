@@ -59,6 +59,7 @@ export type Item = {
   markets: string[];
   visible: boolean;
   eta: string | null;
+  months_of_stock: number | null;
   image_path: string | null;
   description: string | null;
 };

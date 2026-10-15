@@ -4,6 +4,7 @@ import { formatDate, money } from "@/lib/format";
 import { StatusBadge } from "@/components/StatusBadge";
 import type { Item, Order } from "@/lib/types";
 import { EtaButton } from "./EtaButton";
+import { Panel } from "./Panel";
 
 export const metadata = { title: "Admin" };
 export const dynamic = "force-dynamic";
@@ -11,10 +12,11 @@ export const dynamic = "force-dynamic";
 export default async function AdminDashboard() {
   const db = createAdminClient();
   const since = new Date(Date.now() - 30 * 86400000).toISOString();
-  const [orders30, recent, oos, counts, setup] = await Promise.all([
+  const [orders30, recent, oos, low, counts, setup] = await Promise.all([
     db.from("orders").select("total_value, status").gte("created_at", since).neq("status", "cancelled"),
     db.from("orders").select("*").order("created_at", { ascending: false }).limit(8),
     db.from("items").select("*").eq("visible", true).lte("stock", 0).order("brand").limit(50),
+    db.from("items").select("*").eq("visible", true).gt("stock", 0).gt("months_of_stock", 0).lt("months_of_stock", 6),
     Promise.all([
       db.from("items").select("id", { count: "exact", head: true }),
       db.from("accounts").select("id", { count: "exact", head: true }),
@@ -28,6 +30,17 @@ export default async function AdminDashboard() {
   const [items, accounts, users, noImage] = counts.map((c) => c.count ?? 0);
   const missingCs = (setup.data ?? []).filter((m) => !m.cs_email).map((m) => m.name);
   const oosItems = (oos.data as Item[]) ?? [];
+  const recentOrders = (recent.data as Order[]) ?? [];
+
+  // Running low: under 6 months of cover that runs out before the next delivery (or none is due).
+  const now = Date.now();
+  const lowItems = ((low.data as Item[]) ?? [])
+    .map((item) => ({
+      item,
+      toEta: item.eta ? (Date.parse(item.eta) - now) / (86400000 * DAYS_PER_MONTH) : null,
+    }))
+    .filter(({ item, toEta }) => toEta === null || toEta > Number(item.months_of_stock))
+    .sort((a, b) => Number(a.item.months_of_stock) - Number(b.item.months_of_stock));
 
   const tiles = [
     { label: "Orders · 30 days", value: (orders30.data ?? []).length.toLocaleString() },
@@ -83,45 +96,42 @@ export default async function AdminDashboard() {
         })}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="bento overflow-x-auto">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-xl text-brand-black">Latest orders</h2>
+      <div className="space-y-3">
+        <Panel title="Latest orders" count={recentOrders.length} tone="neutral">
+          <div className="mb-2 text-right">
             <Link href="/admin/orders" className="text-sm underline">
               All orders
             </Link>
           </div>
-          <table className="table">
-            <tbody>
-              {((recent.data as Order[]) ?? []).map((o) => (
-                <tr key={o.id}>
-                  <td>
-                    <Link href={`/orders/${o.id}`} className="font-medium text-brand-green underline">
-                      {o.order_number}
-                    </Link>
-                    <span className="block text-xs">{formatDate(o.created_at, true)}</span>
-                  </td>
-                  <td>
-                    {o.account_name}
-                    <span className="block text-xs">{o.kam_name || o.kam_email}</span>
-                  </td>
-                  <td className="whitespace-nowrap text-right">{money(o.total_value)}</td>
-                  <td>
-                    <StatusBadge status={o.status} />
-                  </td>
-                </tr>
-              ))}
-              {!recent.data?.length && (
-                <tr>
-                  <td className="text-sm">No orders yet.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </section>
+          {recentOrders.length === 0 ? (
+            <p className="text-sm">No orders yet.</p>
+          ) : (
+            <table className="table">
+              <tbody>
+                {recentOrders.map((o) => (
+                  <tr key={o.id}>
+                    <td>
+                      <Link href={`/orders/${o.id}`} className="font-medium text-brand-green underline">
+                        {o.order_number}
+                      </Link>
+                      <span className="block text-xs">{formatDate(o.created_at, true)}</span>
+                    </td>
+                    <td>
+                      {o.account_name}
+                      <span className="block text-xs">{o.kam_name || o.kam_email}</span>
+                    </td>
+                    <td className="whitespace-nowrap text-right">{money(o.total_value)}</td>
+                    <td>
+                      <StatusBadge status={o.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Panel>
 
-        <section className="bento overflow-x-auto">
-          <h2 className="mb-3 text-xl text-brand-black">Out of stock</h2>
+        <Panel title="Out of stock" count={oosItems.length} tone="red">
           {oosItems.length === 0 ? (
             <p className="text-sm">Nothing visible is out of stock.</p>
           ) : (
@@ -130,12 +140,7 @@ export default async function AdminDashboard() {
                 {oosItems.map((i) => (
                   <tr key={i.id}>
                     <td>
-                      <Link href={`/admin/items/${i.id}`} className="font-medium text-brand-black underline">
-                        {i.name}
-                      </Link>
-                      <span className="block text-xs">
-                        {i.brand} · {i.sku}
-                      </span>
+                      <ItemCell item={i} />
                     </td>
                     <td className="text-right">
                       <EtaButton id={i.id} eta={i.eta} />
@@ -145,8 +150,69 @@ export default async function AdminDashboard() {
               </tbody>
             </table>
           )}
-        </section>
+        </Panel>
+
+        <Panel title="Running low" count={lowItems.length} tone="amber">
+          <p className="mb-2 text-xs">
+            Under 6 months of stock (from the last Excel upload) that will run out before the next delivery arrives, or
+            with no delivery due.
+          </p>
+          {lowItems.length === 0 ? (
+            <p className="text-sm">Nothing is running low.</p>
+          ) : (
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th className="text-right">Stock left</th>
+                  <th className="text-right">Next delivery</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lowItems.map(({ item, toEta }) => (
+                  <tr key={item.id}>
+                    <td>
+                      <ItemCell item={item} />
+                    </td>
+                    <td className="whitespace-nowrap text-right">
+                      <span className="font-medium text-brand-black">{monthsLabel(Number(item.months_of_stock))}</span>
+                      <span className="block text-xs">{item.stock.toLocaleString()} units</span>
+                    </td>
+                    <td className="text-right">
+                      <EtaButton id={item.id} eta={item.eta} />
+                      {toEta !== null && <span className="block text-xs">in {monthsLabel(toEta)}</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </Panel>
       </div>
     </div>
+  );
+}
+
+const DAYS_PER_MONTH = 30.44;
+
+function monthsLabel(months: number) {
+  if (months < 1) {
+    const weeks = Math.max(1, Math.round((months * DAYS_PER_MONTH) / 7));
+    return `${weeks} week${weeks === 1 ? "" : "s"}`;
+  }
+  const m = Math.round(months * 10) / 10;
+  return `${m} month${m === 1 ? "" : "s"}`;
+}
+
+function ItemCell({ item }: { item: Item }) {
+  return (
+    <>
+      <Link href={`/admin/items/${item.id}`} className="font-medium text-brand-black underline">
+        {item.name}
+      </Link>
+      <span className="block text-xs">
+        {item.brand} · {item.sku}
+      </span>
+    </>
   );
 }

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { getAdmin, requireAdmin } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { normaliseMarket, parseWorkbook } from "@/lib/excel";
+import { matchOrderEtas, normaliseMarket, parseWorkbook } from "@/lib/excel";
 import { isAllowedEmail, slugify } from "@/lib/format";
 import { MARKET_CODES } from "@/lib/markets";
 import type { OrderStatus } from "@/lib/types";
@@ -18,7 +18,7 @@ const BUCKET = "item-images";
 // ---------------------------------------------------------------------------
 export type ImportSummary = {
   filename: string;
-  items: { created: number; updated: number; total: number };
+  items: { created: number; updated: number; total: number; etas?: number };
   accounts: { created: number; updated: number; skipped: number; total: number };
   sheets: { name: string; kind: string; rows: number; columns: Record<string, string> }[];
   warnings: string[];
@@ -47,8 +47,8 @@ export async function importWorkbook(input: { path: string; filename: string; de
   const db = createAdminClient();
   const warnings = [...parsed.warnings];
 
-  // Items — upsert by SKU. Excel overrides stock, value, names and category.
-  // Admin-only settings (images, visibility, ETA) are never touched by the import.
+  // Items — upsert by SKU. Excel overrides stock, value, names, category and months of stock.
+  // Admin-only settings (images, visibility, limits, markets) are never touched by the import.
   const { data: existingItems } = await db.from("items").select("sku");
   const existingSkus = new Set((existingItems ?? []).map((r) => r.sku as string));
   const itemRows = parsed.items.map((i) => {
@@ -61,11 +61,32 @@ export async function importWorkbook(input: { path: string; filename: string; de
     };
     if (i.value !== null) row.value = i.value;
     if (i.stock !== null) row.stock = Math.max(0, Math.floor(i.stock));
+    if (i.months_of_stock !== null) row.months_of_stock = Math.round(i.months_of_stock * 100) / 100;
     return row;
   });
   for (let i = 0; i < itemRows.length; i += 500) {
     const { error } = await db.from("items").upsert(itemRows.slice(i, i + 500), { onConflict: "sku" });
-    if (error) return { error: `Saving items failed: ${error.message}` };
+    if (error) {
+      if (/months_of_stock/.test(error.message)) {
+        return { error: "The database needs an update first: run supabase/migrations/20261017000000_months_of_stock.sql in the Supabase SQL editor, then upload again." };
+      }
+      return { error: `Saving items failed: ${error.message}` };
+    }
+  }
+
+  // ETAs from the ORDERS tab: the soonest open order per item. Items not on an open order keep their ETA.
+  let etaCount = 0;
+  if (parsed.orderEtas.size) {
+    const { data: allItems } = await db.from("items").select("sku");
+    const { bySku, unmatched } = matchOrderEtas(parsed.orderEtas, (allItems ?? []).map((r) => r.sku as string));
+    const byDate = new Map<string, string[]>();
+    for (const [sku, eta] of bySku) byDate.set(eta, [...(byDate.get(eta) ?? []), sku]);
+    for (const [eta, skus] of byDate) {
+      const { error } = await db.from("items").update({ eta, updated_at: new Date().toISOString() }).in("sku", skus);
+      if (error) warnings.push(`Couldn't set ETA ${eta} for ${skus.join(", ")}: ${error.message}`);
+      else etaCount += skus.length;
+    }
+    if (unmatched.length) warnings.push(`ORDERS tab codes with no matching item (ETA not set): ${unmatched.join(", ")}.`);
   }
   const fileSkus = new Set(parsed.items.map((i) => i.sku));
   const missingFromFile = parsed.items.length ? [...existingSkus].filter((s) => !fileSkus.has(s)) : [];
@@ -106,6 +127,7 @@ export async function importWorkbook(input: { path: string; filename: string; de
       total: itemRows.length,
       created: parsed.items.filter((i) => !existingSkus.has(i.sku)).length,
       updated: parsed.items.filter((i) => existingSkus.has(i.sku)).length,
+      etas: etaCount,
     },
     accounts: {
       total: accountRows.length,

@@ -12,14 +12,15 @@ import ExcelJS from "exceljs";
 
 type Field<K extends string> = { key: K; aliases: string[]; required?: boolean };
 
-// Only these come from the workbook. Max per order, multiples, ETA, visibility
-// and markets are set by admins in the system and never overwritten by an upload.
-const ITEM_FIELDS: Field<"sku" | "brand" | "name" | "category" | "value" | "stock">[] = [
+// Only these come from the workbook (plus ETAs from the ORDERS tab, see parseOrders).
+// Max per order, multiples, visibility and markets are set by admins and never overwritten.
+const ITEM_FIELDS: Field<"sku" | "brand" | "name" | "category" | "value" | "stock" | "months_of_stock">[] = [
   { key: "sku", required: true, aliases: ["sku code", "sku", "item code", "material code", "material", "code", "article code", "article"] },
   { key: "name", required: true, aliases: ["item name", "posm item", "posm name", "item", "name", "item description", "description", "posm"] },
   { key: "brand", aliases: ["brand name", "brand"] },
   { key: "category", aliases: ["category", "item category", "posm category", "type", "item type", "posm type"] },
   { key: "value", aliases: ["total cost per unit", "cost per unit", "value", "unit value", "value aed", "unit cost", "unit cost aed", "cost", "cost aed", "unit price", "price"] },
+  { key: "months_of_stock", aliases: ["months of stock", "months stock", "stock cover months", "months cover"] },
   { key: "stock", aliases: ["current stock level", "current stock", "stock level", "stock", "stock on hand", "soh", "available stock", "available", "qty available", "quantity"] },
 ];
 
@@ -39,6 +40,7 @@ export type ParsedItem = {
   category: string | null;
   value: number | null;
   stock: number | null;
+  months_of_stock: number | null;
 };
 
 export type ParsedAccount = {
@@ -55,8 +57,10 @@ export type ParsedAccount = {
 export type ParseResult = {
   items: ParsedItem[];
   accounts: ParsedAccount[];
-  sheets: { name: string; kind: "items" | "accounts" | "skipped"; rows: number; columns: Record<string, string> }[];
+  sheets: { name: string; kind: "items" | "accounts" | "orders" | "skipped"; rows: number; columns: Record<string, string> }[];
   warnings: string[];
+  /** Soonest ETA (yyyy-mm-dd) per item code on an open order in the ORDERS tab, as written there. */
+  orderEtas: Map<string, string>;
 };
 
 const MARKET_ALIASES: Record<string, string> = {
@@ -125,7 +129,7 @@ export async function parseWorkbook(buffer: ArrayBuffer): Promise<ParseResult> {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer);
 
-  const result: ParseResult = { items: [], accounts: [], sheets: [], warnings: [] };
+  const result: ParseResult = { items: [], accounts: [], sheets: [], warnings: [], orderEtas: new Map() };
   const seenSku = new Map<string, number>();
   const seenAccount = new Map<string, number>();
 
@@ -136,6 +140,12 @@ export async function parseWorkbook(buffer: ArrayBuffer): Promise<ParseResult> {
   const accountTabs = names.filter((n) => /customer\s*list/i.test(n));
 
   wb.eachSheet((sheet) => {
+    if (/^\s*orders\s*$/i.test(sheet.name)) {
+      const orders = parseOrders(sheet);
+      result.orderEtas = orders.etas;
+      result.sheets.push({ name: sheet.name, kind: orders.ok ? "orders" : "skipped", rows: orders.rows, columns: orders.columns });
+      return;
+    }
     const onlyItems = itemTabs.includes(sheet.name);
     const onlyAccounts = accountTabs.includes(sheet.name);
     if ((itemTabs.length || accountTabs.length) && !onlyItems && !onlyAccounts) {
@@ -182,6 +192,7 @@ export async function parseWorkbook(buffer: ArrayBuffer): Promise<ParseResult> {
           category: get(row, "category") || null,
           value: toNumber(get(row, "value")),
           stock: toNumber(get(row, "stock")),
+          months_of_stock: toNumber(get(row, "months_of_stock")),
         };
         const existing = seenSku.get(sku);
         if (existing !== undefined) {
@@ -229,6 +240,100 @@ export async function parseWorkbook(buffer: ArrayBuffer): Promise<ParseResult> {
     );
   }
   return result;
+}
+
+/**
+ * ORDERS tab: purchase orders with an "Item Codes" list and an "ETA" date.
+ * Delivered orders and ETAs that aren't dates (CANCELLED, "END NOV"…) are ignored;
+ * when a code is on several open orders the soonest ETA wins.
+ */
+function parseOrders(sheet: ExcelJS.Worksheet) {
+  const etas = new Map<string, string>();
+  const rows: ExcelJS.CellValue[][] = [];
+  sheet.eachRow({ includeEmpty: true }, (row) => rows.push((row.values as ExcelJS.CellValue[]).slice(1)));
+
+  const headerIdx = rows.slice(0, 20).findIndex((r) => {
+    const h = r.map((c) => normaliseHeader(cellText(c)));
+    return h.includes("eta") && h.some((x) => x === "item codes" || x === "item code");
+  });
+  if (headerIdx < 0) return { ok: false, etas, rows: 0, columns: {} };
+  const header = rows[headerIdx].map((c) => normaliseHeader(cellText(c)));
+  const col = {
+    codes: header.findIndex((x) => x === "item codes" || x === "item code"),
+    eta: header.indexOf("eta"),
+    delivered: header.indexOf("delivered"),
+  };
+
+  let count = 0;
+  for (const row of rows.slice(headerIdx + 1)) {
+    if (col.delivered >= 0 && /^y/i.test(cellText(row[col.delivered]))) continue;
+    const eta = toIsoDate(row[col.eta]);
+    if (!eta) continue;
+    const codes = splitItemCodes(cellText(row[col.codes]));
+    if (!codes.length) continue;
+    count++;
+    for (const code of codes) {
+      const current = etas.get(code);
+      if (!current || eta < current) etas.set(code, eta);
+    }
+  }
+  const raw = rows[headerIdx].map((c) => cellText(c));
+  const columns: Record<string, string> = { codes: raw[col.codes], eta: raw[col.eta] };
+  if (col.delivered >= 0) columns.delivered = raw[col.delivered];
+  return { ok: true, etas, rows: count, columns };
+}
+
+function toIsoDate(value: ExcelJS.CellValue): string | null {
+  if (value && typeof value === "object" && !(value instanceof Date) && "result" in value) {
+    return toIsoDate(value.result as ExcelJS.CellValue);
+  }
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  // A date stored as a plain Excel serial number.
+  if (typeof value === "number" && value > 40000 && value < 80000) {
+    return new Date(Date.UTC(1899, 11, 30) + value * 86400000).toISOString().slice(0, 10);
+  }
+  const text = cellText(value);
+  return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : null;
+}
+
+/** "PAUL17, 40, 19" → PAUL17, PAUL40, PAUL19 · "INCH001 / INCH002" · "HKN169 (27K)" → HKN169 */
+export function splitItemCodes(text: string): string[] {
+  const codes: string[] = [];
+  let prefix = "";
+  for (const token of text.toUpperCase().replace(/\(.*?\)/g, " ").split(/[^A-Z0-9]+/)) {
+    const m = token.match(/^([A-Z]+)\d+$/);
+    if (m) {
+      prefix = m[1];
+      codes.push(token);
+    } else if (/^\d+$/.test(token) && prefix) {
+      codes.push(prefix + token);
+    }
+  }
+  return codes;
+}
+
+/**
+ * Matches ORDERS-tab codes to item SKUs: exactly, or ignoring leading zeros in the number
+ * (BRD026 → BRD26) when that can only mean one item. Returns SKU → ETA plus unmatched codes.
+ */
+export function matchOrderEtas(etas: Map<string, string>, skus: string[]) {
+  const exact = new Map(skus.map((s) => [s.toUpperCase(), s]));
+  const loose = new Map<string, string | null>();
+  const looseKey = (s: string) => s.toUpperCase().replace(/^([A-Z]+)0*(\d+)$/, "$1$2");
+  for (const s of skus) loose.set(looseKey(s), loose.has(looseKey(s)) ? null : s);
+
+  const bySku = new Map<string, string>();
+  const unmatched: string[] = [];
+  for (const [code, eta] of etas) {
+    const sku = exact.get(code) ?? loose.get(looseKey(code)) ?? null;
+    if (!sku) {
+      unmatched.push(code);
+      continue;
+    }
+    const current = bySku.get(sku);
+    if (!current || eta < current) bySku.set(sku, eta);
+  }
+  return { bySku, unmatched };
 }
 
 export async function buildTemplate() {
