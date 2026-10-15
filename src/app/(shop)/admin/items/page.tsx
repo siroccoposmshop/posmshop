@@ -1,3 +1,4 @@
+import { compareItems } from "@/lib/item-order";
 import { MARKETS } from "@/lib/markets";
 import { LiveFilters } from "@/components/LiveFilters";
 import Link from "next/link";
@@ -26,7 +27,8 @@ export default async function AdminItems({ searchParams }: { searchParams: Promi
     query = query.or(`name.ilike.%${q}%,sku.ilike.%${q}%,category.ilike.%${q}%`);
   }
   const [{ data }, { data: brandRows }] = await Promise.all([query, db.from("items").select("brand")]);
-  const items = (data as Item[]) ?? [];
+  // Same order as the shop: brand, then 2026 glasses, pints, half pints, coasters, everything else
+  const items = ((data as Item[]) ?? []).sort((a, b) => a.brand.localeCompare(b.brand) || compareItems(a, b));
   const brands = [...new Set((brandRows ?? []).map((b) => b.brand as string))].sort();
 
   return (
