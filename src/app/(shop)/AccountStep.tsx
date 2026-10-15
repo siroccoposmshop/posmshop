@@ -7,11 +7,13 @@ import { useCart, type CartContact } from "@/components/CartProvider";
 import type { Account, Contact, ParentAccount } from "@/lib/types";
 import { UAE_PREFIX, normaliseEmail, normaliseMobile } from "@/lib/contact";
 import { MARKETS } from "@/lib/markets";
+import { Spinner } from "@/components/Spinner";
 
 const ACCOUNT_FIELDS = "id, account_number, name, parent_number, parent_name, kam_name, market, channel";
 
 export function AccountStep() {
   const router = useRouter();
+  useEffect(() => router.prefetch("/shop"), [router]);
   const cart = useCart();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ParentAccount[]>([]);
@@ -138,6 +140,17 @@ export function AccountStep() {
     const contact = { name: form.name.trim(), mobile: mobile.value, email: email.value };
     setForm((f) => ({ ...f, ...contact }));
     setSaving(true);
+    try {
+      await saveAndGo(contact);
+    } catch {
+      setSaving(false);
+      setError("Something went wrong. Please try again.");
+    }
+  }
+
+  // Stays in the loading state until the items page replaces this one.
+  async function saveAndGo(contact: { name: string; mobile: string; email: string }) {
+    if (!account) return;
     const supabase = createClient();
     const { data: claims } = await supabase.auth.getClaims();
     const userId = claims?.claims?.sub;
@@ -155,7 +168,6 @@ export function AccountStep() {
       if (!error && data) id = data.id;
     }
     cart.setContact({ id, ...contact });
-    setSaving(false);
     router.push("/shop");
   }
 
@@ -357,8 +369,18 @@ export function AccountStep() {
           </div>
         </div>
         {error && <p className="text-sm text-brand-red">{error}</p>}
-        <button className="btn btn-primary w-full sm:w-auto" disabled={saving}>
-          {saving ? "Saving…" : "Continue to items →"}
+        <button
+          className={`btn btn-primary w-full sm:w-auto ${saving ? "cursor-wait !bg-brand-green-dark !opacity-100" : ""}`}
+          disabled={saving}
+          aria-busy={saving}
+        >
+          {saving ? (
+            <>
+              <Spinner /> Loading items…
+            </>
+          ) : (
+            "Continue to items →"
+          )}
         </button>
       </div>
     </form>
