@@ -163,7 +163,7 @@ function ItemCard({ item }: { item: Item }) {
 
   return (
     <article className="flex flex-col overflow-hidden rounded-[var(--radius-bento)] bg-white ring-1 ring-black/5">
-      <div className="relative aspect-[4/3] shrink-0 overflow-hidden bg-white">
+      <div className="relative aspect-[4/3] shrink-0 overflow-hidden bg-brand-light">
         <ItemImage path={item.image_path} alt={item.name} />
         {item.category && (
           <span className="badge absolute left-2 top-2 max-w-[calc(100%-1rem)] truncate bg-white/90 !text-[0.65rem] text-brand-black sm:left-3 sm:top-3 sm:!text-xs">
