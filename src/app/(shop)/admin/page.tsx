@@ -71,7 +71,8 @@ export default async function AdminDashboard() {
         })}
       </div>
 
-      <div className="space-y-3">
+      {/* Cards sit side by side; items-start keeps an opened card from stretching its neighbour. */}
+      <div className="grid items-start gap-3 md:grid-cols-2">
         <Panel title="Latest orders" count={recentOrders.length} tone="neutral">
           <div className="mb-2 text-right">
             <Link href="/admin/orders" className="text-sm underline">
