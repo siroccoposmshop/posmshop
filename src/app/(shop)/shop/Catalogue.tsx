@@ -1,4 +1,5 @@
 "use client";
+import { compareItems } from "@/lib/item-order";
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -32,7 +33,7 @@ export function Catalogue({ items }: { items: Item[] }) {
   const brands = useMemo(() => {
     const map = new Map<string, Item[]>();
     for (const i of visible) map.set(i.brand, [...(map.get(i.brand) ?? []), i]);
-    return [...map.entries()];
+    return [...map.entries()].map(([brand, list]) => [brand, [...list].sort(compareItems)] as [string, Item[]]);
   }, [visible]);
 
   if (!cart.ready || !cart.account) return null;
