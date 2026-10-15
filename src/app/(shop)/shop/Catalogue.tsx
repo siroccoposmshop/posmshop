@@ -45,8 +45,8 @@ export function Catalogue({ items }: { items: Item[] }) {
       </div>
 
       {/* Search + brands stay pinned under the header while scrolling */}
-      <div className="sticky top-16 z-20 -mx-4 mt-4 border-b border-black/5 bg-brand-light/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
-        <div className="flex items-center gap-2">
+      <div className="sticky top-16 z-20 -mx-4 mt-4 border-b border-black/5 bg-brand-light/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:mt-2 lg:py-2.5">
+        <div className="flex items-center gap-2 lg:items-start lg:gap-4">
           <button
             type="button"
             className="btn btn-secondary shrink-0 !px-4 !py-2.5 lg:hidden"
@@ -59,13 +59,14 @@ export function Catalogue({ items }: { items: Item[] }) {
             Brands
           </button>
           {/* Desktop: named brand list */}
-          <nav aria-label="Brands" className="hidden min-w-0 flex-1 overflow-x-auto lg:block">
-            <ul className="flex gap-2">
+          <nav aria-label="Brands" className="hidden min-w-0 flex-1 lg:block">
+            {/* Wraps onto two rows so every brand is visible without sideways scrolling */}
+            <ul className="flex flex-wrap gap-1.5">
               {brands.map(([brand, list]) => (
-                <li key={brand} className="shrink-0">
+                <li key={brand}>
                   <a
                     href={`#brand-${slugify(brand)}`}
-                    className="block whitespace-nowrap rounded-full bg-white px-4 py-1.5 font-display text-sm font-medium uppercase tracking-wide text-brand-black ring-1 ring-black/5 hover:bg-brand-green hover:text-white"
+                    className="block whitespace-nowrap rounded-full bg-white px-3 py-1 font-display text-[0.8rem] font-medium uppercase tracking-wide text-brand-black ring-1 ring-black/5 hover:bg-brand-green hover:text-white"
                   >
                     {brand} <span className="text-brand-grey/70">{list.length}</span>
                   </a>
@@ -76,7 +77,7 @@ export function Catalogue({ items }: { items: Item[] }) {
           <input
             type="search"
             aria-label="Search items or SKU"
-            className="field min-w-0 flex-1 !py-2.5 lg:w-64 lg:flex-none"
+            className="field min-w-0 flex-1 !py-2.5 lg:w-52 lg:flex-none"
             placeholder="Search items or SKU"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -130,7 +131,7 @@ export function Catalogue({ items }: { items: Item[] }) {
 
       <div className="mt-6 space-y-10">
         {brands.map(([brand, list]) => (
-          <section key={brand} id={`brand-${slugify(brand)}`} className="scroll-mt-36">
+          <section key={brand} id={`brand-${slugify(brand)}`} className="scroll-mt-36 lg:scroll-mt-44">
             <h2 className="mb-3 flex items-baseline gap-3 text-2xl text-brand-black sm:mb-4 sm:text-3xl">
               {brand}
               <span className="font-sans text-sm normal-case text-brand-grey">{list.length} items</span>
