@@ -13,10 +13,16 @@ export function ItemImage({ path, alt, className = "" }: { path: string | null; 
     );
   }
   // eslint-disable-next-line @next/next/no-img-element
-  // Absolutely positioned so a tall image can't stretch its container; it is scaled down to fit inside.
+  // Absolutely positioned so a tall image can't stretch its container; it is scaled down to fit inside,
+  // with a 6% margin so items never touch the edges of the image area.
   return (
     <span className="relative block h-full w-full">
-      <img src={src} alt={alt} loading="lazy" className={`absolute inset-0 h-full w-full object-contain ${className}`} />
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        className={`absolute left-[6%] top-[6%] h-[88%] w-[88%] object-contain ${className}`}
+      />
     </span>
   );
 }
