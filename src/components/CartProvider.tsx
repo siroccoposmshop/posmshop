@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { Account, Item } from "@/lib/types";
+import { createClient } from "@/lib/supabase/client";
 
 export type CartLine = {
   item_id: string;
@@ -70,6 +71,31 @@ export function CartProvider({ userId, children }: { userId: string; children: R
     }
     setReady(true);
   }, [key]);
+
+  // The saved outlet can go stale (e.g. its market or name changed after an Excel upload).
+  // Re-read it from the database once per visit; drop the cart if the outlet no longer exists.
+  const accountId = state.account?.id;
+  useEffect(() => {
+    if (!ready || !accountId) return;
+    let cancelled = false;
+    createClient()
+      .from("accounts")
+      .select("id, account_number, name, parent_number, parent_name, kam_name, market, channel")
+      .eq("id", accountId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled || error) return;
+        setState((s) => {
+          if (s.account?.id !== accountId) return s;
+          if (!data) return empty;
+          const fresh = data as Account;
+          return JSON.stringify(fresh) === JSON.stringify(s.account) ? s : { ...s, account: fresh };
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, accountId]);
 
   useEffect(() => {
     if (!ready) return;
