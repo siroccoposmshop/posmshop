@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate, money } from "@/lib/format";
 import { StatusBadge } from "@/components/StatusBadge";
 import type { Item, Order } from "@/lib/types";
+import { EtaButton } from "./EtaButton";
 
 export const metadata = { title: "Admin" };
 export const dynamic = "force-dynamic";
@@ -137,11 +138,7 @@ export default async function AdminDashboard() {
                       </span>
                     </td>
                     <td className="text-right">
-                      {i.eta ? (
-                        <span className="text-xs">ETA {formatDate(i.eta)}</span>
-                      ) : (
-                        <span className="badge bg-brand-red text-white">Add ETA</span>
-                      )}
+                      <EtaButton id={i.id} eta={i.eta} />
                     </td>
                   </tr>
                 ))}
