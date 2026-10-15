@@ -87,6 +87,12 @@ export function ImportForm() {
           <p className="font-display text-lg uppercase text-brand-black">Import complete</p>
           <p>
             Items: <strong>{s.items.created}</strong> new, <strong>{s.items.updated}</strong> updated.
+            {s.items.etas ? (
+              <>
+                {" "}
+                ETA set on <strong>{s.items.etas}</strong> from the ORDERS tab.
+              </>
+            ) : null}
             <br />
             Accounts: <strong>{s.accounts.created}</strong> new, <strong>{s.accounts.updated}</strong> updated
             {s.accounts.skipped ? `, ${s.accounts.skipped} skipped` : ""}.
@@ -96,7 +102,7 @@ export function ImportForm() {
             <ul className="mt-2 space-y-1">
               {s.sheets.map((sh) => (
                 <li key={sh.name}>
-                  <strong>{sh.name}</strong>: {sh.kind === "skipped" ? "skipped (no matching headers)" : `${sh.rows} ${sh.kind}`}
+                  <strong>{sh.name}</strong>: {sh.kind === "skipped" ? "skipped (not used)" : `${sh.rows} ${sh.kind === "orders" ? "open orders with an ETA" : sh.kind}`}
                   {sh.kind !== "skipped" && (
                     <span className="block text-xs">
                       {Object.entries(sh.columns)
