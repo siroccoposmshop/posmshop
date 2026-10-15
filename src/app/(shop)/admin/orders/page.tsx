@@ -1,4 +1,5 @@
 import { MARKETS } from "@/lib/markets";
+import { LiveFilters } from "@/components/LiveFilters";
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate, money } from "@/lib/format";
@@ -28,8 +29,8 @@ export default async function AdminOrders({
   return (
     <div>
       <h1 className="accent-square text-3xl text-brand-black">All orders</h1>
-      <form className="mt-4 grid gap-2 sm:grid-cols-4">
-        <input name="q" defaultValue={sp.q} placeholder="Order, account or KAM" className="field sm:col-span-2" />
+      <LiveFilters className="mt-4 grid gap-2 sm:grid-cols-[2fr_1fr_1fr_auto]">
+        <input name="q" type="search" autoComplete="off" defaultValue={sp.q} placeholder="Order, account or KAM" className="field" />
         <select name="market" defaultValue={sp.market ?? ""} className="field">
           <option value="">All markets</option>
           {MARKETS.map((m) => (
@@ -38,8 +39,7 @@ export default async function AdminOrders({
             </option>
           ))}
         </select>
-        <div className="flex gap-2">
-          <select name="status" defaultValue={sp.status ?? ""} className="field">
+        <select name="status" defaultValue={sp.status ?? ""} className="field">
             <option value="">Any status</option>
             <option value="submitted">Submitted</option>
             <option value="processing">Processing</option>
@@ -47,9 +47,7 @@ export default async function AdminOrders({
             <option value="delivered">Delivered</option>
             <option value="cancelled">Cancelled</option>
           </select>
-          <button className="btn btn-secondary !px-4">Go</button>
-        </div>
-      </form>
+      </LiveFilters>
 
       <div className="bento mt-4 overflow-x-auto !p-0">
         <table className="table">

@@ -1,4 +1,5 @@
 import { MARKETS } from "@/lib/markets";
+import { LiveFilters } from "@/components/LiveFilters";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Account } from "@/lib/types";
 
@@ -21,8 +22,8 @@ export default async function AdminAccounts({ searchParams }: { searchParams: Pr
     <div>
       <h1 className="accent-square text-3xl text-brand-black">Accounts &amp; outlets</h1>
       <p className="mt-2 text-sm">Outlets come from the CUSTOMER LIST tab of the budgeting Excel, grouped by parent account (first 5 digits of the account number). Upload a new file to add or update them.</p>
-      <form className="mt-4 grid gap-2 sm:grid-cols-4">
-        <input name="q" defaultValue={sp.q} placeholder="Parent, outlet, number or KAM" className="field sm:col-span-2" />
+      <LiveFilters className="mt-4 grid gap-2 sm:grid-cols-[2fr_1fr_auto]">
+        <input name="q" type="search" autoComplete="off" defaultValue={sp.q} placeholder="Parent, outlet, number or KAM" className="field" />
         <select name="market" defaultValue={sp.market ?? ""} className="field">
           <option value="">All markets</option>
           {MARKETS.map((m) => (
@@ -31,8 +32,7 @@ export default async function AdminAccounts({ searchParams }: { searchParams: Pr
             </option>
           ))}
         </select>
-        <button className="btn btn-secondary">Search</button>
-      </form>
+      </LiveFilters>
       <p className="mt-3 text-sm">{(count ?? 0).toLocaleString()} outlets{(count ?? 0) > 500 ? " (showing 500)" : ""}</p>
       <div className="bento mt-2 overflow-x-auto !p-0">
         <table className="table">
