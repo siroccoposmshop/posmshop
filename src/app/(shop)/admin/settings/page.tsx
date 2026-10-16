@@ -12,8 +12,9 @@ export default async function SettingsPage() {
       <div>
         <h1 className="accent-square text-3xl text-brand-black">Markets</h1>
         <p className="mt-2 max-w-3xl text-sm">
-          Each order is emailed to the Customer Service mailbox for its market . The
-          delivery days appear in the customer email: “Delivery is expected in the next XX days”.
+          Each order confirmation goes to the KAM and to Customer Service in one email (MMI unless a market
+          sets its own address). The delivery days appear in the customer email: “Delivery is expected in the next
+          XX days”.
         </p>
       </div>
       <div className="grid gap-4 md:grid-cols-2">

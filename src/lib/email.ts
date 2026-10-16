@@ -1,10 +1,13 @@
 import "server-only";
 import { Resend } from "resend";
+import sharp from "sharp";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate, imageUrl, money } from "@/lib/format";
+import { DEFAULT_ORDER_DESK } from "@/lib/markets";
 import type { Market, Order, OrderItem } from "@/lib/types";
 
-export type Audience = "kam" | "customer" | "cs";
+/** "kam": the order confirmation, sent to the KAM and the order desk (MMI) together. "customer": the outlet contact. */
+export type Audience = "kam" | "customer";
 
 const GREEN = "#58a244";
 const GREY = "#545658";
@@ -54,9 +57,8 @@ function firstName(name: string) {
 }
 
 export function emailSubject(order: Order, audience: Audience) {
-  if (audience === "cs") return `[${order.market}] POSM order to execute: ${order.order_number} · ${outletLabel(order)}`;
   if (audience === "customer") return `Your POSM order for ${order.account_name} · ${order.order_number}`;
-  return `Order placed: ${order.order_number} · ${outletLabel(order)}`;
+  return `[${order.market}] POSM order ${order.order_number} · ${outletLabel(order)}`;
 }
 
 const LABEL = `font-family:${FONT};font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:${GREY}`;
@@ -67,7 +69,17 @@ function block(label: string, value: string) {
   return `<tr><td style="padding:0 0 14px"><div style="${LABEL}">${label}</div><div style="${VALUE};margin-top:2px">${value}</div></td></tr>`;
 }
 
-export function renderOrderEmail(order: Order, items: OrderItem[], market: Market, audience: Audience) {
+/**
+ * Renders an order email. `images` maps an item's image_path to an inline attachment (cid) so
+ * photos show in every mail app, Outlook included (it can't display the .webp originals).
+ */
+export function renderOrderEmail(
+  order: Order,
+  items: OrderItem[],
+  market: Market,
+  audience: Audience,
+  images: Map<string, string> = new Map(),
+) {
   const isCustomer = audience === "customer";
   const venue = friendlyAccountName(order.parent_name);
   const outletAtVenue =
@@ -76,26 +88,24 @@ export function renderOrderEmail(order: Order, items: OrderItem[], market: Marke
       : `<strong>${esc(order.account_name)}</strong>`;
   const kam = order.kam_name || order.kam_email;
 
-  const intro =
-    audience === "kam"
-      ? `Here is the order you placed for <strong>${esc(order.account_name)}</strong>${venue ? ` at ${esc(venue)}` : ""}. Keep this email as your proof of execution.`
-      : isCustomer
-        ? `Dear ${esc(firstName(order.contact_name))},<br><br>Please see the POSM ordered for ${outletAtVenue}. Delivery is expected in the next <strong>${market.delivery_days} days</strong>.`
-        : `A new POSM order has been placed for ${esc(market.name)}. Please execute the order below.`;
+  const intro = isCustomer
+    ? `Dear ${esc(firstName(order.contact_name))},<br><br>Please see the POSM ordered for ${outletAtVenue}. Delivery is expected in the next <strong>${market.delivery_days} days</strong>.`
+    : `${esc(kam)} has placed a POSM order for <strong>${esc(order.account_name)}</strong>${venue ? ` at ${esc(venue)}` : ""}. Customer Service: please execute the order below. KAM: keep this email as your proof of execution.`;
 
-  const heading = audience === "cs" ? "Order to execute" : isCustomer ? "Your POSM order" : "Order confirmation";
+  const heading = isCustomer ? "Your POSM order" : "Order confirmation";
 
   const rows = items
     .map((i) => {
-      const src = imageUrl(i.image_path);
+      const cid = i.image_path ? images.get(i.image_path) : undefined;
+      const src = cid ? `cid:${cid}` : imageUrl(i.image_path);
       const img = src
-        ? `<img src="${esc(src)}" width="56" height="56" alt="" style="display:block;width:56px;height:56px;object-fit:contain;border-radius:6px;background:${LIGHT}">`
-        : `<div style="width:56px;height:56px;border-radius:6px;background:${LIGHT}"></div>`;
+        ? `<img src="${esc(src)}" width="72" height="72" alt="" style="display:block;width:72px;height:72px;object-fit:contain;border-radius:6px;background:${LIGHT}">`
+        : `<div style="width:72px;height:72px;border-radius:6px;background:${LIGHT}"></div>`;
       const right = isCustomer
         ? `<strong>× ${i.qty}</strong>`
         : `<strong>× ${i.qty}</strong><br><span style="font-size:13px;color:${GREY}">${esc(money(i.line_value))}</span>`;
       return `<tr>
-        <td style="padding:12px 0;border-bottom:1px solid #e5e3e3;width:56px;vertical-align:top">${img}</td>
+        <td style="padding:12px 0;border-bottom:1px solid #e5e3e3;width:72px;vertical-align:top">${img}</td>
         <td style="padding:12px 10px;border-bottom:1px solid #e5e3e3;font-family:${BODY_FONT};font-size:14px;line-height:1.35;color:#000;vertical-align:top">
           <strong>${esc(i.name)}</strong><br>
           <span style="font-size:12px;color:${GREY}">${esc(i.brand)} · ${esc(i.sku)}</span>
@@ -131,7 +141,7 @@ export function renderOrderEmail(order: Order, items: OrderItem[], market: Marke
         block("Outlet", `<strong>${esc(order.account_name)}</strong> · #${esc(order.account_number)}`),
         block("Account", `${esc(order.parent_name ?? order.account_name)} · #${esc(order.parent_number ?? order.account_number)}`),
         block("Contact at outlet", contact),
-        audience === "cs" ? block("KAM", `${esc(kam)}<br>${esc(order.kam_email)}`) : "",
+        block("KAM", `${esc(kam)}<br>${esc(order.kam_email)}`),
         block("Market", esc(market.name)),
         order.notes ? block("Notes", esc(order.notes)) : "",
       ].join("");
@@ -198,9 +208,42 @@ export async function loadOrder(orderId: string) {
   return { order: order as Order, items: (items ?? []) as OrderItem[], market: market as Market };
 }
 
+export function orderDeskRecipients(market: Market) {
+  const custom = (market.cs_email ?? "")
+    .split(/[,;\s]+/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  return custom.length ? custom : [DEFAULT_ORDER_DESK];
+}
+
+/** Small JPEG copies of the item photos, embedded in the email as inline attachments. */
+async function inlineImages(items: OrderItem[]) {
+  const paths = [...new Set(items.map((i) => i.image_path).filter((p): p is string => !!p))];
+  const results = await Promise.all(
+    paths.map(async (path, n) => {
+      try {
+        const url = imageUrl(path);
+        if (!url) return null;
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const content = await sharp(Buffer.from(await res.arrayBuffer()))
+          .resize(216, 216, { fit: "contain", background: LIGHT })
+          .flatten({ background: LIGHT })
+          .jpeg({ quality: 82 })
+          .toBuffer();
+        return { path, cid: `item-${n}`, content };
+      } catch (e) {
+        console.warn("Email image skipped", path, e);
+        return null;
+      }
+    }),
+  );
+  return results.filter((r) => r !== null);
+}
+
 /**
- * Sends the three order outputs: KAM (proof of execution), customer contact,
- * and the Customer Service mailbox for the order's market.
+ * Sends the two order emails: the confirmation to the KAM and the order desk (MMI Customer Service)
+ * together, and a delivery note to the outlet contact.
  */
 export async function sendOrderEmails(orderId: string) {
   const loaded = await loadOrder(orderId);
@@ -214,35 +257,34 @@ export async function sendOrderEmails(orderId: string) {
 
   const resend = new Resend(process.env.RESEND_API_KEY);
   const from = process.env.EMAIL_FROM ?? "POSM SHOP <onboarding@resend.dev>";
-  const csRecipients = (market.cs_email ?? "")
-    .split(/[,;\s]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const images = await inlineImages(items);
+  const cids = new Map(images.map((i) => [i.path, i.cid]));
+  const attachments = images.map((i) => ({ filename: `${i.cid}.jpg`, content: i.content, contentId: i.cid }));
 
   const messages: { to: string[]; audience: Audience }[] = [
-    { to: [order.kam_email], audience: "kam" },
+    { to: [order.kam_email, ...orderDeskRecipients(market)], audience: "kam" },
     { to: [order.contact_email], audience: "customer" },
   ];
-  if (csRecipients.length) messages.push({ to: csRecipients, audience: "cs" });
 
-  const results = await resend.batch.send(
-    messages.map((m) => ({
-      from,
-      to: m.to,
-      replyTo: m.audience === "customer" ? order.kam_email : undefined,
-      subject: emailSubject(order, m.audience),
-      html: renderOrderEmail(order, items, market, m.audience),
-    })),
+  // Sent one by one: Resend's batch endpoint doesn't take attachments.
+  const results = await Promise.all(
+    messages.map((m) =>
+      resend.emails.send({
+        from,
+        to: m.to,
+        replyTo: order.kam_email,
+        subject: emailSubject(order, m.audience),
+        html: renderOrderEmail(order, items, market, m.audience, cids),
+        attachments,
+      }),
+    ),
   );
 
-  if (results.error) {
-    console.error("Order email failed", order.order_number, results.error);
-    return { sent: 0, skipped: results.error.message };
+  const failed = results.filter((r) => r.error);
+  if (failed.length) console.error("Order email failed", order.order_number, failed.map((r) => r.error));
+  const sent = results.length - failed.length;
+  if (sent) {
+    await createAdminClient().from("orders").update({ emails_sent_at: new Date().toISOString() }).eq("id", order.id);
   }
-
-  await createAdminClient().from("orders").update({ emails_sent_at: new Date().toISOString() }).eq("id", order.id);
-  return {
-    sent: messages.length,
-    skipped: csRecipients.length ? null : `No Customer Service email set for ${market.name}`,
-  };
+  return { sent, skipped: failed.length ? failed.map((r) => r.error?.message).join("; ") : null };
 }

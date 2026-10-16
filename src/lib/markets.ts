@@ -7,3 +7,6 @@ export const MARKETS = [
 
 export type MarketCode = (typeof MARKETS)[number]["code"];
 export const MARKET_CODES = MARKETS.map((m) => m.code) as MarketCode[];
+
+/** MMI Customer Service executes orders. A market's "Customer Service email" setting overrides it. */
+export const DEFAULT_ORDER_DESK = "CShelpdeskMMI@mmi.ae";
