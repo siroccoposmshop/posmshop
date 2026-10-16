@@ -48,8 +48,8 @@ export default async function OrderPage({
       {placed && (
         <div className="bento-green no-print mt-6">
           <p>
-            <span className="highlight">{order.order_number}</span> has been sent to Customer Service. A confirmation
-            is on its way to you and {order.contact_email}.
+            <span className="highlight">{order.order_number}</span> has been sent to you and MMI Customer Service. The
+            delivery details are on their way to {order.contact_email}.
           </p>
         </div>
       )}

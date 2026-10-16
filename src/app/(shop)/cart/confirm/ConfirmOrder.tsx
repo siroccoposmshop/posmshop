@@ -113,7 +113,8 @@ export function ConfirmOrder() {
         <span>{money(cart.total)}</span>
       </button>
       <p className="mt-3 text-xs">
-        Placing the order emails a confirmation to you, to {contact.email}, and to Customer Service for {marketName}.
+        Placing the order emails a confirmation to you and MMI Customer Service, and the delivery details to{" "}
+        {contact.email}.
       </p>
     </div>
   );
