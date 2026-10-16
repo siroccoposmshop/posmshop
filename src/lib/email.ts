@@ -1,8 +1,7 @@
 import "server-only";
 import { Resend } from "resend";
-import sharp from "sharp";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { formatDate, imageUrl, money } from "@/lib/format";
+import { formatDate, money } from "@/lib/format";
 import { DEFAULT_ORDER_DESK } from "@/lib/markets";
 import type { Market, Order, OrderItem } from "@/lib/types";
 
@@ -61,127 +60,93 @@ export function emailSubject(order: Order, audience: Audience) {
   return `[${order.market}] POSM order ${order.order_number} · ${outletLabel(order)}`;
 }
 
-const LABEL = `font-family:${FONT};font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:${GREY}`;
-const VALUE = `font-family:${BODY_FONT};font-size:15px;line-height:1.4;color:#000`;
+const LABEL = `font-family:${FONT};font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:${GREY}`;
+const VALUE = `font-family:${BODY_FONT};font-size:14px;line-height:1.4;color:#000`;
+const ROW = "border-bottom:1px solid #eeeded";
 
-/** A label stacked above its value: reads well at any width. */
-function block(label: string, value: string) {
-  return `<tr><td style="padding:0 0 14px"><div style="${LABEL}">${label}</div><div style="${VALUE};margin-top:2px">${value}</div></td></tr>`;
+/** A label stacked above its value. */
+function field(label: string, value: string) {
+  return `<div style="${LABEL}">${label}</div><div style="${VALUE};margin-top:1px">${value}</div>`;
 }
 
-/**
- * Renders an order email. `images` maps an item's image_path to an inline attachment (cid) so
- * photos show in every mail app, Outlook included (it can't display the .webp originals).
- */
-export function renderOrderEmail(
-  order: Order,
-  items: OrderItem[],
-  market: Market,
-  audience: Audience,
-  images: Map<string, string> = new Map(),
-) {
+/** One or two fields side by side; a lone field spans the row. */
+function fieldRow(left: string, right?: string) {
+  const cell = (html: string, w: string) => `<td width="${w}" style="padding:0 8px 10px 0;vertical-align:top">${html}</td>`;
+  return `<tr>${right === undefined ? `<td colspan="2" style="padding:0 0 10px;vertical-align:top">${left}</td>` : cell(left, "50%") + cell(right, "50%")}</tr>`;
+}
+
+export function renderOrderEmail(order: Order, items: OrderItem[], market: Market, audience: Audience) {
   const isCustomer = audience === "customer";
   const venue = friendlyAccountName(order.parent_name);
-  const outletAtVenue =
-    venue && venue.toLowerCase() !== order.account_name.toLowerCase()
-      ? `<strong>${esc(order.account_name)}</strong> at ${esc(venue)}`
-      : `<strong>${esc(order.account_name)}</strong>`;
+  const outletAtVenue = `<strong>${esc(order.account_name)}</strong>${
+    venue && venue.toLowerCase() !== order.account_name.toLowerCase() ? ` at ${esc(venue)}` : ""
+  }`;
   const kam = order.kam_name || order.kam_email;
 
   const intro = isCustomer
-    ? `Dear ${esc(firstName(order.contact_name))},<br><br>Please see the POSM ordered for ${outletAtVenue}. Delivery is expected in the next <strong>${market.delivery_days} days</strong>.`
-    : `${esc(kam)} has placed a POSM order for <strong>${esc(order.account_name)}</strong>${venue ? ` at ${esc(venue)}` : ""}. Customer Service: please execute the order below. KAM: keep this email as your proof of execution.`;
-
-  const heading = isCustomer ? "Your POSM order" : "Order confirmation";
+    ? `Dear ${esc(firstName(order.contact_name))},<br>Here is the POSM ordered for ${outletAtVenue}. Delivery is expected within <strong>${market.delivery_days} days</strong>.`
+    : `${esc(kam)} placed this order for ${outletAtVenue}.<br>Customer Service: please execute. KAM: keep this as your proof of execution.`;
 
   const rows = items
-    .map((i) => {
-      const cid = i.image_path ? images.get(i.image_path) : undefined;
-      const src = cid ? `cid:${cid}` : imageUrl(i.image_path);
-      const img = src
-        ? `<img src="${esc(src)}" width="72" height="72" alt="" style="display:block;width:72px;height:72px;object-fit:contain;border-radius:6px;background:${LIGHT}">`
-        : `<div style="width:72px;height:72px;border-radius:6px;background:${LIGHT}"></div>`;
-      const right = isCustomer
-        ? `<strong>× ${i.qty}</strong>`
-        : `<strong>× ${i.qty}</strong><br><span style="font-size:13px;color:${GREY}">${esc(money(i.line_value))}</span>`;
-      return `<tr>
-        <td style="padding:12px 0;border-bottom:1px solid #e5e3e3;width:72px;vertical-align:top">${img}</td>
-        <td style="padding:12px 10px;border-bottom:1px solid #e5e3e3;font-family:${BODY_FONT};font-size:14px;line-height:1.35;color:#000;vertical-align:top">
-          <strong>${esc(i.name)}</strong><br>
-          <span style="font-size:12px;color:${GREY}">${esc(i.brand)} · ${esc(i.sku)}</span>
-        </td>
-        <td align="right" style="padding:12px 0;border-bottom:1px solid #e5e3e3;font-family:${BODY_FONT};font-size:15px;line-height:1.35;color:#000;white-space:nowrap;vertical-align:top">${right}</td>
-      </tr>`;
-    })
+    .map(
+      (i) => `<tr>
+        <td style="padding:8px 8px 8px 0;${ROW};${VALUE}">${esc(i.name)}<div style="font-size:12px;color:${GREY}">${esc(i.brand)} · ${esc(i.sku)}</div></td>
+        <td align="right" style="padding:8px 0;${ROW};${VALUE};white-space:nowrap;vertical-align:top"><strong>× ${i.qty}</strong>${
+          isCustomer ? "" : `<div style="font-size:12px;color:${GREY}">${esc(money(i.line_value))}</div>`
+        }</td>
+      </tr>`,
+    )
     .join("");
 
   const total = isCustomer
     ? ""
-    : `<tr>
-          <td colspan="2" align="right" style="padding:16px 10px 0;${LABEL};font-size:13px">Total value</td>
-          <td align="right" style="padding:16px 0 0;font-family:${FONT};font-size:20px;font-weight:700;color:#000;white-space:nowrap">${esc(money(order.total_value))}</td>
-        </tr>`;
+    : `<tr><td align="right" style="padding:12px 8px 0 0;${LABEL}">Total</td>
+        <td align="right" style="padding:12px 0 0;font-family:${FONT};font-size:18px;font-weight:700;color:#000;white-space:nowrap">${esc(money(order.total_value))}</td></tr>`;
 
   const contact = `${esc(order.contact_name)}<br>${esc(order.contact_mobile)}<br>${esc(order.contact_email)}`;
-
-  // Order number and date side by side (both short), everything else stacked.
-  const top = `<tr><td style="padding:0 0 14px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
-      <td width="50%" style="vertical-align:top"><div style="${LABEL}">Order number</div><div style="${VALUE};margin-top:2px"><strong>${esc(order.order_number)}</strong></div></td>
-      <td width="50%" style="vertical-align:top"><div style="${LABEL}">Date</div><div style="${VALUE};margin-top:2px">${esc(formatDate(order.created_at, true))}</div></td>
-    </tr></table></td></tr>`;
+  const orderNo = field("Order", `<strong>${esc(order.order_number)}</strong>`);
+  const date = field("Date", esc(formatDate(order.created_at, true)));
 
   const details = isCustomer
     ? [
-        top,
-        block("Delivering to", `<strong>${esc(order.account_name)}</strong>${venue ? `<br>${esc(venue)}` : ""}`),
-        block("Contact for delivery", contact),
+        fieldRow(orderNo, date),
+        fieldRow(field("Delivering to", `<strong>${esc(order.account_name)}</strong>${venue ? `<br>${esc(venue)}` : ""}`), field("Contact", contact)),
       ].join("")
     : [
-        top,
-        block("Outlet", `<strong>${esc(order.account_name)}</strong> · #${esc(order.account_number)}`),
-        block("Account", `${esc(order.parent_name ?? order.account_name)} · #${esc(order.parent_number ?? order.account_number)}`),
-        block("Contact at outlet", contact),
-        block("KAM", `${esc(kam)}<br>${esc(order.kam_email)}`),
-        block("Market", esc(market.name)),
-        order.notes ? block("Notes", esc(order.notes)) : "",
+        fieldRow(orderNo, date),
+        fieldRow(field("Outlet", `<strong>${esc(order.account_name)}</strong><br>#${esc(order.account_number)}`), field("Market", esc(market.name))),
+        fieldRow(field("Account", `${esc(order.parent_name ?? order.account_name)} · #${esc(order.parent_number ?? order.account_number)}`)),
+        fieldRow(field("Contact", contact), field("KAM", `${esc(kam)}<br>${esc(order.kam_email)}`)),
+        order.notes ? fieldRow(field("Notes", esc(order.notes))) : "",
       ].join("");
 
   const signOff = isCustomer
-    ? `<p style="margin:28px 0 0;font-family:${BODY_FONT};font-size:15px;line-height:1.5;color:${GREY}">
-        Any questions about your delivery? Just reply to this email.<br><br>
-        Kind regards,<br>
-        <strong style="color:#000">${esc(kam)}</strong><br>
-        Sirocco · <a href="mailto:${esc(order.kam_email)}" style="color:${GREEN}">${esc(order.kam_email)}</a>
-      </p>`
+    ? `<p style="margin:20px 0 0;${VALUE};color:${GREY}">Questions? Just reply to this email.<br><br>Kind regards,<br><strong style="color:#000">${esc(kam)}</strong>, Sirocco</p>`
     : "";
 
   const link =
     !isCustomer && siteUrl()
-      ? `<p style="margin:24px 0 0"><a href="${siteUrl()}/orders/${order.id}" style="display:inline-block;background:${GREEN};color:#fff;text-decoration:none;font-family:${FONT};text-transform:uppercase;letter-spacing:.04em;font-size:14px;padding:12px 22px;border-radius:999px">View order</a></p>`
+      ? `<p style="margin:18px 0 0"><a href="${siteUrl()}/orders/${order.id}" style="display:inline-block;background:${GREEN};color:#fff;text-decoration:none;font-family:${FONT};text-transform:uppercase;letter-spacing:.04em;font-size:13px;padding:9px 18px;border-radius:999px">View order</a></p>`
       : "";
 
   const logo = siteUrl()
-    ? `<img src="${siteUrl()}/email-logo-white.png" width="140" alt="SIROCCO" style="display:block;width:140px;height:auto">`
-    : `<span style="font-family:${FONT};font-size:24px;font-weight:700;color:#fff;letter-spacing:.06em">SIROCCO</span>`;
+    ? `<img src="${siteUrl()}/email-logo-white.png" width="96" alt="SIROCCO" style="display:block;width:96px;height:auto">`
+    : `<span style="font-family:${FONT};font-size:17px;font-weight:700;color:#fff;letter-spacing:.08em">SIROCCO</span>`;
 
   return `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(emailSubject(order, audience))}</title></head>
 <body style="margin:0;padding:0;background:${LIGHT}">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${LIGHT}"><tr><td align="center" style="padding:20px 10px">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#fff;border-radius:14px;overflow:hidden">
-    <tr><td style="background:${GREEN};padding:20px 24px;border-right:10px solid ${RED}">${logo}</td></tr>
-    <tr><td style="padding:26px 24px 6px">
-      <h1 style="margin:0 0 12px;font-family:${FONT};font-weight:500;font-size:26px;line-height:1.1;text-transform:uppercase;color:${GREEN}">${heading}</h1>
-      <p style="margin:0;font-family:${BODY_FONT};font-size:15px;line-height:1.5;color:${GREY}">${intro}</p>
-    </td></tr>
-    <tr><td style="padding:18px 24px 4px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${LIGHT}"><tr><td align="center" style="padding:16px 8px">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#fff;border-radius:10px;overflow:hidden">
+    <tr><td style="background:${GREEN};padding:12px 20px;border-right:6px solid ${RED}">${logo}</td></tr>
+    <tr><td style="padding:20px 20px 0">
+      <h1 style="margin:0 0 6px;font-family:${FONT};font-weight:500;font-size:20px;line-height:1.15;text-transform:uppercase;color:${GREEN}">${isCustomer ? "Your POSM order" : "Order confirmation"}</h1>
+      <p style="margin:0 0 16px;${VALUE};color:${GREY}">${intro}</p>
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${details}</table>
-    </td></tr>
-    <tr><td style="padding:0 24px">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:4px">
         <tr>
-          <th colspan="2" align="left" style="padding:6px 0;border-bottom:2px solid ${GREEN};${LABEL};font-weight:500">Items</th>
-          <th align="right" style="padding:6px 0;border-bottom:2px solid ${GREEN};${LABEL};font-weight:500">Qty</th>
+          <th align="left" style="padding:4px 0;border-bottom:2px solid ${GREEN};${LABEL};font-weight:500">Items</th>
+          <th align="right" style="padding:4px 0;border-bottom:2px solid ${GREEN};${LABEL};font-weight:500">Qty</th>
         </tr>
         ${rows}
         ${total}
@@ -189,9 +154,7 @@ export function renderOrderEmail(
       ${link}
       ${signOff}
     </td></tr>
-    <tr><td style="padding:26px 24px;font-family:${BODY_FONT};font-size:12px;color:${GREY}">
-      Sirocco · Food and Beverage Services · Business Bay, Dubai<br>Sent by POSM SHOP.
-    </td></tr>
+    <tr><td style="padding:20px;font-family:${BODY_FONT};font-size:11px;color:${GREY}">Sirocco · POSM SHOP</td></tr>
   </table>
 </td></tr></table>
 </body></html>`;
@@ -216,31 +179,6 @@ export function orderDeskRecipients(market: Market) {
   return custom.length ? custom : [DEFAULT_ORDER_DESK];
 }
 
-/** Small JPEG copies of the item photos, embedded in the email as inline attachments. */
-async function inlineImages(items: OrderItem[]) {
-  const paths = [...new Set(items.map((i) => i.image_path).filter((p): p is string => !!p))];
-  const results = await Promise.all(
-    paths.map(async (path, n) => {
-      try {
-        const url = imageUrl(path);
-        if (!url) return null;
-        const res = await fetch(url);
-        if (!res.ok) return null;
-        const content = await sharp(Buffer.from(await res.arrayBuffer()))
-          .resize(216, 216, { fit: "contain", background: LIGHT })
-          .flatten({ background: LIGHT })
-          .jpeg({ quality: 82 })
-          .toBuffer();
-        return { path, cid: `item-${n}`, content };
-      } catch (e) {
-        console.warn("Email image skipped", path, e);
-        return null;
-      }
-    }),
-  );
-  return results.filter((r) => r !== null);
-}
-
 /**
  * Sends the two order emails: the confirmation to the KAM and the order desk (MMI Customer Service)
  * together, and a delivery note to the outlet contact.
@@ -257,34 +195,27 @@ export async function sendOrderEmails(orderId: string) {
 
   const resend = new Resend(process.env.RESEND_API_KEY);
   const from = process.env.EMAIL_FROM ?? "POSM SHOP <onboarding@resend.dev>";
-  const images = await inlineImages(items);
-  const cids = new Map(images.map((i) => [i.path, i.cid]));
-  const attachments = images.map((i) => ({ filename: `${i.cid}.jpg`, content: i.content, contentId: i.cid }));
 
   const messages: { to: string[]; audience: Audience }[] = [
     { to: [order.kam_email, ...orderDeskRecipients(market)], audience: "kam" },
     { to: [order.contact_email], audience: "customer" },
   ];
 
-  // Sent one by one: Resend's batch endpoint doesn't take attachments.
-  const results = await Promise.all(
-    messages.map((m) =>
-      resend.emails.send({
-        from,
-        to: m.to,
-        replyTo: order.kam_email,
-        subject: emailSubject(order, m.audience),
-        html: renderOrderEmail(order, items, market, m.audience, cids),
-        attachments,
-      }),
-    ),
+  const results = await resend.batch.send(
+    messages.map((m) => ({
+      from,
+      to: m.to,
+      replyTo: order.kam_email,
+      subject: emailSubject(order, m.audience),
+      html: renderOrderEmail(order, items, market, m.audience),
+    })),
   );
 
-  const failed = results.filter((r) => r.error);
-  if (failed.length) console.error("Order email failed", order.order_number, failed.map((r) => r.error));
-  const sent = results.length - failed.length;
-  if (sent) {
-    await createAdminClient().from("orders").update({ emails_sent_at: new Date().toISOString() }).eq("id", order.id);
+  if (results.error) {
+    console.error("Order email failed", order.order_number, results.error);
+    return { sent: 0, skipped: results.error.message };
   }
-  return { sent, skipped: failed.length ? failed.map((r) => r.error?.message).join("; ") : null };
+
+  await createAdminClient().from("orders").update({ emails_sent_at: new Date().toISOString() }).eq("id", order.id);
+  return { sent: messages.length, skipped: null };
 }
