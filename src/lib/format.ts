@@ -55,3 +55,21 @@ export function slugify(value: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
 }
+
+/**
+ * Customer-facing version of a parent account name: drops the legal entity
+ * part ("LLC", "(Br of …)", " - Ennismore") and title-cases it, e.g.
+ * "25 HOURS HOTEL DUBAI ONE CENTRAL LLC - Ennismore" → "25 Hours Hotel Dubai One Central".
+ */
+export function friendlyAccountName(name: string | null | undefined) {
+  if (!name) return "";
+  let s = name.split(" - ")[0];
+  for (let i = 0; i < 3; i++) s = s.replace(/\([^()]*\)/g, " ");
+  s = s
+    .replace(/\b(L\.?\s?L\.?\s?C|FZ-?LLC|FZE|FZCO|P\.?J\.?S\.?C|LTD|LIMITED)\b\.?/gi, " ")
+    .replace(/\s+/g, " ")
+    .replace(/[\s,.&-]+$/, "")
+    .trim();
+  if (!s) return name;
+  return s.toLowerCase().replace(/(^|[\s/(-])([a-z])/g, (_, p: string, c: string) => p + c.toUpperCase());
+}
