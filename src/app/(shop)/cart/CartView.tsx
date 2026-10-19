@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCart, type CartLine } from "@/components/CartProvider";
-import { createClient } from "@/lib/supabase/client";
+import { fetchOrderWarnings, OrderWarningList, type OrderWarning } from "@/components/OrderWarnings";
 import { OrderFor } from "@/components/OrderFor";
 import { ItemImage } from "@/components/ItemImage";
 import { money, qtyOptions } from "@/lib/format";
@@ -131,31 +131,19 @@ export function CartView() {
   );
 }
 
-type Warning = { line: CartLine; text: string };
-
 /**
  * Goes to the review page, but first shows a reminder for any item in the cart that has an
- * order warning (e.g. "Not for consumers"). Warnings are read fresh from the database.
+ * order warning (e.g. "Not for consumers").
  */
 function ReviewButton({ lines }: { lines: CartLine[] }) {
   const router = useRouter();
   const [checking, setChecking] = useState(false);
-  const [warnings, setWarnings] = useState<Warning[] | null>(null);
+  const [warnings, setWarnings] = useState<OrderWarning[] | null>(null);
 
   async function review() {
     setChecking(true);
-    const { data, error } = await createClient()
-      .from("items")
-      .select("id, order_warning")
-      .in("id", lines.map((l) => l.item_id))
-      .not("order_warning", "is", null);
+    const found = await fetchOrderWarnings(lines);
     setChecking(false);
-    const found = error
-      ? []
-      : lines.flatMap((line) => {
-          const text = data?.find((d) => d.id === line.item_id)?.order_warning?.trim();
-          return text ? [{ line, text }] : [];
-        });
     if (found.length) setWarnings(found);
     else router.push("/cart/confirm");
   }
@@ -183,20 +171,9 @@ function ReviewButton({ lines }: { lines: CartLine[] }) {
             <h2 id="warning-title" className="accent-square text-2xl text-brand-black">
               Reminder
             </h2>
-            <ul className="mt-4 space-y-3">
-              {warnings.map(({ line, text }) => (
-                <li key={line.item_id} className="flex items-center gap-3 rounded-lg bg-brand-red/5 p-3 ring-1 ring-brand-red/20">
-                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-brand-light">
-                    <ItemImage path={line.image_path} alt="" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="font-medium leading-tight text-brand-black">{line.name}</p>
-                    <p className="text-xs">SKU {line.sku}</p>
-                    <p className="mt-1 text-sm font-medium text-brand-red">{text}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-4">
+              <OrderWarningList warnings={warnings} />
+            </div>
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button type="button" className="btn btn-secondary" onClick={() => setWarnings(null)}>
                 Back to cart

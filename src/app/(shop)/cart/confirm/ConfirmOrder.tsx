@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/components/CartProvider";
 import { DeliveryCards, OrderLinesTable } from "@/components/OrderSummary";
+import { OrderWarningList, useOrderWarnings } from "@/components/OrderWarnings";
 import { money } from "@/lib/format";
 import { MARKETS } from "@/lib/markets";
 import { placeOrder } from "../../orders/actions";
@@ -17,6 +18,7 @@ export function ConfirmOrder() {
   const [pending, startTransition] = useTransition();
   // Set once the order is placed, so emptying the cart doesn't bounce us to the empty cart page.
   const placedRef = useRef(false);
+  const warnings = useOrderWarnings(cart.lines);
 
   useEffect(() => {
     if (placedRef.current) return;
@@ -64,6 +66,16 @@ export function ConfirmOrder() {
             contactEmail: contact.email,
           }}
         />
+        {warnings.length > 0 && (
+          <section className="bento border-2 border-brand-red" aria-labelledby="order-reminder">
+            <h2 id="order-reminder" className="font-display text-sm font-medium uppercase tracking-wide text-brand-red">
+              Reminder
+            </h2>
+            <div className="mt-3">
+              <OrderWarningList warnings={warnings} />
+            </div>
+          </section>
+        )}
         <OrderLinesTable
           total={cart.total}
           lines={cart.lines.map((l) => ({
