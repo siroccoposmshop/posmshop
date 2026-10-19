@@ -62,13 +62,16 @@ export async function importWorkbook(input: { path: string; filename: string; de
     if (i.value !== null) row.value = i.value;
     if (i.stock !== null) row.stock = Math.max(0, Math.floor(i.stock));
     if (i.months_of_stock !== null) row.months_of_stock = Math.round(i.months_of_stock * 100) / 100;
+    row.delisted = i.delisted;
     return row;
   });
   for (let i = 0; i < itemRows.length; i += 500) {
     const { error } = await db.from("items").upsert(itemRows.slice(i, i + 500), { onConflict: "sku" });
     if (error) {
-      if (/months_of_stock/.test(error.message)) {
-        return { error: "The database needs an update first: run supabase/migrations/20261017000000_months_of_stock.sql in the Supabase SQL editor, then upload again." };
+      const missing = error.message.match(/months_of_stock|delisted/)?.[0];
+      if (missing) {
+        const file = missing === "delisted" ? "20261019000000_delisted.sql" : "20261017000000_months_of_stock.sql";
+        return { error: `The database needs an update first: run supabase/migrations/${file} in the Supabase SQL editor, then upload again.` };
       }
       return { error: `Saving items failed: ${error.message}` };
     }

@@ -15,8 +15,15 @@ export default async function AdminDashboard() {
   const [orders30, recent, oos, low, withMonths, counts] = await Promise.all([
     db.from("orders").select("total_value, status").gte("created_at", since).neq("status", "cancelled"),
     db.from("orders").select("*").order("created_at", { ascending: false }).limit(8),
-    db.from("items").select("*").eq("visible", true).lte("stock", 0).order("brand").limit(50),
-    db.from("items").select("*").eq("visible", true).gt("stock", 0).gt("months_of_stock", 0).lt("months_of_stock", 6),
+    db.from("items").select("*").eq("visible", true).not("delisted", "is", true).lte("stock", 0).order("brand").limit(50),
+    db
+      .from("items")
+      .select("*")
+      .eq("visible", true)
+      .not("delisted", "is", true)
+      .gt("stock", 0)
+      .gt("months_of_stock", 0)
+      .lt("months_of_stock", 6),
     db.from("items").select("id", { count: "exact", head: true }).not("months_of_stock", "is", null),
     Promise.all([
       db.from("items").select("id", { count: "exact", head: true }),
@@ -71,115 +78,138 @@ export default async function AdminDashboard() {
         })}
       </div>
 
-      {/* Cards sit side by side; items-start keeps an opened card from stretching its neighbour. */}
+      {/* Two independent columns, so opening a card only pushes down the cards beneath it in its own column. */}
       <div className="grid items-start gap-3 md:grid-cols-2">
-        <Panel title="Latest orders" count={recentOrders.length} tone="neutral">
-          <div className="mb-2 text-right">
-            <Link href="/admin/orders" className="text-sm underline">
-              All orders
-            </Link>
-          </div>
-          {recentOrders.length === 0 ? (
-            <p className="text-sm">No orders yet.</p>
-          ) : (
-            <table className="table">
-              <tbody>
-                {recentOrders.map((o) => (
-                  <tr key={o.id}>
-                    <td>
-                      <Link href={`/orders/${o.id}`} className="font-medium text-brand-green underline">
-                        {o.order_number}
-                      </Link>
-                      <span className="block text-xs">{formatDate(o.created_at, true)}</span>
-                    </td>
-                    <td>
-                      {o.account_name}
-                      <span className="block text-xs">{o.kam_name || o.kam_email}</span>
-                    </td>
-                    <td className="whitespace-nowrap text-right">{money(o.total_value)}</td>
-                    <td>
-                      <StatusBadge status={o.status} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </Panel>
+        <div className="space-y-3">
+          <Panel title="Latest orders" count={recentOrders.length} tone="neutral">
+            <div className="mb-2 text-right">
+              <Link href="/admin/orders" className="text-sm underline">
+                All orders
+              </Link>
+            </div>
+            {recentOrders.length === 0 ? (
+              <p className="text-sm">No orders yet.</p>
+            ) : (
+              <table className="table">
+                <tbody>
+                  {recentOrders.map((o) => (
+                    <tr key={o.id}>
+                      <td>
+                        <Link href={`/orders/${o.id}`} className="font-medium text-brand-green underline">
+                          {o.order_number}
+                        </Link>
+                        <span className="block text-xs">{formatDate(o.created_at, true)}</span>
+                      </td>
+                      <td>
+                        {o.account_name}
+                        <span className="block text-xs">{o.kam_name || o.kam_email}</span>
+                      </td>
+                      <td className="whitespace-nowrap text-right">{money(o.total_value)}</td>
+                      <td>
+                        <StatusBadge status={o.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Panel>
 
-        <Panel title="Out of stock" count={oosItems.length} tone="red">
-          {oosItems.length === 0 ? (
-            <p className="text-sm">Nothing visible is out of stock.</p>
-          ) : (
-            <table className="table">
-              <tbody>
-                {oosItems.map((i) => (
-                  <tr key={i.id}>
-                    <td>
-                      <ItemCell item={i} />
-                    </td>
-                    <td className="text-right">
-                      <EtaButton id={i.id} eta={i.eta} />
-                    </td>
+          <Panel title="Running low" count={lowItems.length} tone="amber">
+            <p className="mb-2 text-xs">
+              Under 6 months of stock (from the last Excel upload) that will run out before the next delivery arrives, or
+              with no delivery due.
+            </p>
+            {low.error || withMonths.error ? (
+              <DbUpdateNote message={(low.error ?? withMonths.error)!.message} />
+            ) : !withMonths.count ? (
+              <p className="text-sm text-brand-red">
+                No months-of-stock figures yet. <Link href="/admin/import" className="underline">Upload the Excel</Link> to
+                load them from column H of CURRENT STOCK.
+              </p>
+            ) : lowItems.length === 0 ? (
+              <p className="text-sm">Nothing is running low.</p>
+            ) : (
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th className="text-right">Stock left</th>
+                    <th className="text-right">Next delivery</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </Panel>
+                </thead>
+                <tbody>
+                  {lowItems.map(({ item, toEta }) => (
+                    <tr key={item.id}>
+                      <td>
+                        <ItemCell item={item} />
+                      </td>
+                      <td className="whitespace-nowrap text-right">
+                        <span className="font-medium text-brand-black">{monthsLabel(Number(item.months_of_stock))}</span>
+                        <span className="block text-xs">{item.stock.toLocaleString()} units</span>
+                      </td>
+                      <td className="text-right">
+                        <EtaButton id={item.id} eta={item.eta} />
+                        {toEta !== null && <span className="block text-xs">in {monthsLabel(toEta)}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Panel>
+        </div>
+        <div className="space-y-3">
+          <Panel title="Out of stock" count={oosItems.length} tone="red">
+            {oos.error ? (
+              <DbUpdateNote message={oos.error.message} />
+            ) : oosItems.length === 0 ? (
+              <p className="text-sm">Nothing visible is out of stock.</p>
+            ) : (
+              <table className="table">
+                <tbody>
+                  {oosItems.map((i) => (
+                    <tr key={i.id}>
+                      <td>
+                        <ItemCell item={i} />
+                      </td>
+                      <td className="text-right">
+                        <EtaButton id={i.id} eta={i.eta} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Panel>
 
-        <Panel title="Running low" count={lowItems.length} tone="amber">
-          <p className="mb-2 text-xs">
-            Under 6 months of stock (from the last Excel upload) that will run out before the next delivery arrives, or
-            with no delivery due.
-          </p>
-          {low.error || withMonths.error ? (
-            <p className="text-sm text-brand-red">
-              Running low needs a database update: run <code>supabase/migrations/20261017000000_months_of_stock.sql</code> in
-              the Supabase SQL editor, then upload the Excel again.
-            </p>
-          ) : !withMonths.count ? (
-            <p className="text-sm text-brand-red">
-              No months-of-stock figures yet. <Link href="/admin/import" className="underline">Upload the Excel</Link> to
-              load them from column H of CURRENT STOCK.
-            </p>
-          ) : lowItems.length === 0 ? (
-            <p className="text-sm">Nothing is running low.</p>
-          ) : (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th className="text-right">Stock left</th>
-                  <th className="text-right">Next delivery</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lowItems.map(({ item, toEta }) => (
-                  <tr key={item.id}>
-                    <td>
-                      <ItemCell item={item} />
-                    </td>
-                    <td className="whitespace-nowrap text-right">
-                      <span className="font-medium text-brand-black">{monthsLabel(Number(item.months_of_stock))}</span>
-                      <span className="block text-xs">{item.stock.toLocaleString()} units</span>
-                    </td>
-                    <td className="text-right">
-                      <EtaButton id={item.id} eta={item.eta} />
-                      {toEta !== null && <span className="block text-xs">in {monthsLabel(toEta)}</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </Panel>
+        </div>
       </div>
     </div>
   );
 }
 
 const DAYS_PER_MONTH = 30.44;
+
+/** Shown when a dashboard query fails because a newer migration hasn't been run yet. */
+function DbUpdateNote({ message }: { message: string }) {
+  const file = /delisted/.test(message)
+    ? "20261019000000_delisted.sql"
+    : /months_of_stock/.test(message)
+      ? "20261017000000_months_of_stock.sql"
+      : null;
+  return (
+    <p className="text-sm text-brand-red">
+      {file ? (
+        <>
+          This needs a database update: run <code>supabase/migrations/{file}</code> in the Supabase SQL editor.
+        </>
+      ) : (
+        <>Couldn&apos;t load this list: {message}</>
+      )}
+    </p>
+  );
+}
 
 function monthsLabel(months: number) {
   if (months < 1) {
