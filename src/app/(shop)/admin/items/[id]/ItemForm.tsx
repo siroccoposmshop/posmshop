@@ -64,8 +64,9 @@ export function ItemForm({ item, markets, brands }: { item: Item | null; markets
           <input id="max_per_order" name="max_per_order" type="number" min="0" step="1" className="field" defaultValue={item?.max_per_order ?? ""} placeholder="No limit" />
         </div>
         <div className="sm:col-span-2">
-          <label className="label" htmlFor="description">Description (optional)</label>
+          <label className="label" htmlFor="description">Comment for KAMs (optional)</label>
           <textarea id="description" name="description" className="field min-h-20" defaultValue={item?.description ?? ""} />
+          <p className="mt-1 text-xs">Shown on the item card behind a round “i” button.</p>
         </div>
       </div>
 
