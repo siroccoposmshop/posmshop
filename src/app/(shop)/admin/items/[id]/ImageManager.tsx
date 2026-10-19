@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ItemImage } from "@/components/ItemImage";
 import { shrinkImage } from "@/lib/shrink-image";
+import { imageUrl } from "@/lib/format";
 import { removeItemImage, uploadItemImage } from "../../actions";
 
 export function ImageManager({ id, path, name }: { id: string; path: string | null; name: string }) {
@@ -31,6 +32,7 @@ export function ImageManager({ id, path, name }: { id: string; path: string | nu
       <div className="aspect-[4/3] overflow-hidden rounded-lg bg-brand-light">
         <ItemImage path={path} alt={name} />
       </div>
+      {path && <ImageSize path={path} />}
       <form action={upload} className="space-y-2">
         <input
           type="file"
@@ -63,4 +65,38 @@ export function ImageManager({ id, path, name }: { id: string; path: string | nu
       )}
     </div>
   );
+}
+
+/** "1200 × 900 px · 84 KB · WEBP" for the stored image. */
+function ImageSize({ path }: { path: string }) {
+  const [info, setInfo] = useState<string | null>(null);
+
+  useEffect(() => {
+    const src = imageUrl(path);
+    if (!src) return;
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setInfo(null);
+    fetch(src, { cache: "no-store" })
+      .then((res) => (res.ok ? res.blob() : Promise.reject()))
+      .then((blob) => {
+        objectUrl = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+          if (cancelled) return;
+          const kb = blob.size / 1024;
+          const size = kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${Math.round(kb)} KB`;
+          const type = (blob.type.split("/")[1] || path.split(".").pop() || "").toUpperCase();
+          setInfo(`${img.naturalWidth} × ${img.naturalHeight} px · ${size}${type ? ` · ${type}` : ""}`);
+        };
+        img.src = objectUrl;
+      })
+      .catch(() => !cancelled && setInfo("Size unavailable"));
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [path]);
+
+  return <p className="text-center text-xs">{info ?? "Checking size…"}</p>;
 }
