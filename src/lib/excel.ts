@@ -60,10 +60,12 @@ export type ParsedAccount = {
 export type ParseResult = {
   items: ParsedItem[];
   accounts: ParsedAccount[];
-  sheets: { name: string; kind: "items" | "accounts" | "orders" | "skipped"; rows: number; columns: Record<string, string> }[];
+  sheets: { name: string; kind: "items" | "accounts" | "orders" | "extras" | "skipped"; rows: number; columns: Record<string, string> }[];
   warnings: string[];
   /** Soonest ETA (yyyy-mm-dd) per item code on an open order in the ORDERS tab, as written there. */
   orderEtas: Map<string, string>;
+  /** Stock figures from the EXTRAS tab; only used to update items that already exist. */
+  extras: { sku: string; stock: number | null; months_of_stock: number | null }[];
 };
 
 const MARKET_ALIASES: Record<string, string> = {
@@ -132,7 +134,7 @@ export async function parseWorkbook(buffer: ArrayBuffer): Promise<ParseResult> {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer);
 
-  const result: ParseResult = { items: [], accounts: [], sheets: [], warnings: [], orderEtas: new Map() };
+  const result: ParseResult = { items: [], accounts: [], sheets: [], warnings: [], orderEtas: new Map(), extras: [] };
   const seenSku = new Map<string, number>();
   const seenAccount = new Map<string, number>();
 
@@ -147,6 +149,11 @@ export async function parseWorkbook(buffer: ArrayBuffer): Promise<ParseResult> {
       const orders = parseOrders(sheet);
       result.orderEtas = orders.etas;
       result.sheets.push({ name: sheet.name, kind: orders.ok ? "orders" : "skipped", rows: orders.rows, columns: orders.columns });
+      return;
+    }
+    if (/^\s*extras\s*$/i.test(sheet.name)) {
+      result.extras = parseExtras(sheet);
+      result.sheets.push({ name: sheet.name, kind: result.extras.length ? "extras" : "skipped", rows: result.extras.length, columns: {} });
       return;
     }
     const onlyItems = itemTabs.includes(sheet.name);
@@ -244,6 +251,22 @@ export async function parseWorkbook(buffer: ArrayBuffer): Promise<ParseResult> {
     );
   }
   return result;
+}
+
+/** EXTRAS tab: same columns as CURRENT STOCK (SKU in "CODE"). Only the stock figures are used. */
+function parseExtras(sheet: ExcelJS.Worksheet) {
+  const rows: string[][] = [];
+  sheet.eachRow({ includeEmpty: true }, (row) => rows.push((row.values as ExcelJS.CellValue[]).slice(1).map(cellText)));
+  for (let r = 0; r < Math.min(rows.length, 20); r++) {
+    const { map, ok } = matchColumns(rows[r], ITEM_FIELDS);
+    if (!ok) continue;
+    const get = (row: string[], key: keyof typeof map) => (map[key] !== undefined ? (row[map[key]] ?? "").trim() : "");
+    return rows.slice(r + 1).flatMap((row) => {
+      const sku = get(row, "sku");
+      return sku ? [{ sku, stock: toNumber(get(row, "stock")), months_of_stock: toNumber(get(row, "months_of_stock")) }] : [];
+    });
+  }
+  return [];
 }
 
 /**

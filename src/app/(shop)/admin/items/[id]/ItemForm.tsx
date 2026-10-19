@@ -68,6 +68,17 @@ export function ItemForm({ item, markets, brands }: { item: Item | null; markets
           <textarea id="description" name="description" className="field min-h-20" defaultValue={item?.description ?? ""} />
           <p className="mt-1 text-xs">Shown on the item card behind a round “i” button.</p>
         </div>
+        <div className="sm:col-span-2">
+          <label className="label" htmlFor="order_warning">Order warning (optional)</label>
+          <input
+            id="order_warning"
+            name="order_warning"
+            className="field"
+            defaultValue={item?.order_warning ?? ""}
+            placeholder="e.g. Not for consumers. OK for customer gifts."
+          />
+          <p className="mt-1 text-xs">The KAM must confirm this reminder before reviewing an order that includes the item.</p>
+        </div>
       </div>
 
       <fieldset>

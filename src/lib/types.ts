@@ -63,6 +63,7 @@ export type Item = {
   delisted: boolean;
   image_path: string | null;
   description: string | null;
+  order_warning: string | null;
 };
 
 export type OrderStatus = "submitted" | "processing" | "dispatched" | "delivered" | "cancelled";

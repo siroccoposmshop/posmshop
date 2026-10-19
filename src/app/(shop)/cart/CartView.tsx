@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCart } from "@/components/CartProvider";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCart, type CartLine } from "@/components/CartProvider";
+import { createClient } from "@/lib/supabase/client";
 import { OrderFor } from "@/components/OrderFor";
 import { ItemImage } from "@/components/ItemImage";
 import { money, qtyOptions } from "@/lib/format";
@@ -84,6 +87,7 @@ export function CartView() {
                             months_of_stock: null,
                             delisted: false,
                             description: null,
+                            order_warning: null,
                           },
                           Number(e.target.value),
                         )
@@ -118,13 +122,92 @@ export function CartView() {
               <Link href="/shop" className="btn bg-white/15 text-white hover:bg-white/25">
                 Add more
               </Link>
-              <Link href="/cart/confirm" className="btn bg-white text-brand-green hover:bg-brand-light">
-                Review order →
-              </Link>
+              <ReviewButton lines={cart.lines} />
             </div>
           </div>
         </>
       )}
     </div>
+  );
+}
+
+type Warning = { line: CartLine; text: string };
+
+/**
+ * Goes to the review page, but first shows a reminder for any item in the cart that has an
+ * order warning (e.g. "Not for consumers"). Warnings are read fresh from the database.
+ */
+function ReviewButton({ lines }: { lines: CartLine[] }) {
+  const router = useRouter();
+  const [checking, setChecking] = useState(false);
+  const [warnings, setWarnings] = useState<Warning[] | null>(null);
+
+  async function review() {
+    setChecking(true);
+    const { data, error } = await createClient()
+      .from("items")
+      .select("id, order_warning")
+      .in("id", lines.map((l) => l.item_id))
+      .not("order_warning", "is", null);
+    setChecking(false);
+    const found = error
+      ? []
+      : lines.flatMap((line) => {
+          const text = data?.find((d) => d.id === line.item_id)?.order_warning?.trim();
+          return text ? [{ line, text }] : [];
+        });
+    if (found.length) setWarnings(found);
+    else router.push("/cart/confirm");
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={review}
+        disabled={checking}
+        className="btn bg-white text-brand-green hover:bg-brand-light disabled:!opacity-100"
+      >
+        {checking ? "Checking…" : "Review order →"}
+      </button>
+
+      {warnings && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="warning-title"
+          onClick={() => setWarnings(null)}
+        >
+          <div className="w-full max-w-md rounded-[var(--radius-bento)] bg-white p-5 text-brand-grey shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 id="warning-title" className="accent-square text-2xl text-brand-black">
+              Reminder
+            </h2>
+            <ul className="mt-4 space-y-3">
+              {warnings.map(({ line, text }) => (
+                <li key={line.item_id} className="flex items-center gap-3 rounded-lg bg-brand-red/5 p-3 ring-1 ring-brand-red/20">
+                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-brand-light">
+                    <ItemImage path={line.image_path} alt="" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium leading-tight text-brand-black">{line.name}</p>
+                    <p className="text-xs">SKU {line.sku}</p>
+                    <p className="mt-1 text-sm font-medium text-brand-red">{text}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button type="button" className="btn btn-secondary" onClick={() => setWarnings(null)}>
+                Back to cart
+              </button>
+              <button type="button" className="btn btn-primary" autoFocus onClick={() => router.push("/cart/confirm")}>
+                Understood, continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
