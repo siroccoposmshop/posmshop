@@ -2,12 +2,11 @@ import "server-only";
 import JSZip from "jszip";
 import { MMI_ORDER_TEMPLATE_BASE64 } from "@/lib/templates/mmi-order-template";
 import type { Order, OrderItem } from "@/lib/types";
-import { friendlyAccountName } from "@/lib/format";
 
 /**
  * The order sheet attached for MMI Customer Service, built from their template
- * (src/lib/templates/mmi-order.xlsx). Only the sheet's cell data is rewritten, so the logo,
- * "NEW ORDER" box, column widths and styles stay exactly as designed.
+ * (src/lib/templates/mmi-order.xlsx). Only the cell data and the widths of columns C and D are
+ * rewritten, so the header image, frame and styles stay exactly as designed.
  */
 
 // Cell style ids in the template's styles.xml.
@@ -28,7 +27,43 @@ const S = {
   tableHead: 15, // bottom border
   tableGap: 16,
 };
-const MIN_ITEM_ROWS = 6;
+// Template column widths (Excel character units); widened per order so long text stays inside the frame.
+const WIDTH = { C: 50, D: 17.42578125, E: 9.140625 };
+
+/** Rough Excel width (character units) needed for 10pt Roboto text. */
+function textWidth(text: string) {
+  let w = 0;
+  for (const ch of text) w += /[MW@]/.test(ch) ? 1.1 : /[A-Z]/.test(ch) ? 0.92 : /[a-z0-9]/.test(ch) ? 0.78 : 0.55;
+  return Math.ceil(w + 3);
+}
+
+// The workbook's default font has a 7px max digit width, so a column of width w is about 7w pixels.
+const px = (width: number) => Math.round(width * 7);
+const EMU = 9525; // per pixel
+
+/**
+ * Header: the logo + POSM SHOP image at the left of C2, and NEW ORDER at the right edge of E2
+ * (anchored inside D, so it follows the frame however wide the columns are).
+ */
+function drawingXml(widthD: number) {
+  const pic = (id: number, rid: string, name: string, from: string, w: number, h: number) =>
+    `<xdr:oneCellAnchor><xdr:from>${from}</xdr:from><xdr:ext cx="${w * EMU}" cy="${h * EMU}"/>` +
+    `<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id}" name="${name}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>` +
+    `<xdr:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="${rid}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>` +
+    `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${w * EMU}" cy="${h * EMU}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic>` +
+    `<xdr:clientData/></xdr:oneCellAnchor>`;
+  const at = (col: number, colPx: number) =>
+    `<xdr:col>${col}</xdr:col><xdr:colOff>${colPx * EMU}</xdr:colOff><xdr:row>1</xdr:row><xdr:rowOff>${3 * EMU}</xdr:rowOff>`;
+  const RIGHT_W = 120;
+  const rightOff = Math.max(0, px(widthD) + px(WIDTH.E) - RIGHT_W - 6);
+  return (
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n` +
+    `<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">` +
+    pic(2, "rId1", "Sirocco POSM SHOP", at(2, 0), 200, 48) +
+    pic(3, "rId2", "New order", at(3, rightOff), RIGHT_W, 48) +
+    `</xdr:wsDr>`
+  );
+}
 
 function xmlEsc(v: string) {
   return v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -78,6 +113,7 @@ export async function buildMmiOrderXlsx(order: Order, items: OrderItem[]): Promi
   const label = (text: string): Cell => ({ s: S.text, text });
   const blank = (s = S.text): Cell => ({ s });
   const customer = order.parent_number ?? order.account_number;
+  const accountName = order.parent_name ?? order.account_name;
 
   const rows: string[] = [
     rowXml(1, [blank(S.frame), blank(S.frame), blank(S.frame)], 6),
@@ -87,7 +123,7 @@ export async function buildMmiOrderXlsx(order: Order, items: OrderItem[]): Promi
     rowXml(5, [label("Order Number:"), { s: S.value, text: order.order_number }, blank()]),
     rowXml(6, [label("KAM:"), { s: S.kamLink, text: order.kam_email }, blank()]),
     rowXml(7, [blank(S.gap), blank(S.gapLeft), blank(S.gap)], 4.5),
-    rowXml(8, [label("Account:"), { s: S.value, text: (friendlyAccountName(order.parent_name) || order.account_name).toUpperCase() }, blank()]),
+    rowXml(8, [label("Account:"), { s: S.value, text: accountName }, blank()]),
     rowXml(9, [
       label("Customer Number:"),
       /^\d+$/.test(customer) ? { s: S.value, num: Number(customer) } : { s: S.value, text: customer },
@@ -98,15 +134,16 @@ export async function buildMmiOrderXlsx(order: Order, items: OrderItem[]): Promi
     rowXml(12, [label("Contact email:"), { s: S.emailLink, text: order.contact_email }, blank()]),
     rowXml(13, [label("Contact Number:"), { s: S.phone, text: order.contact_mobile.replace(/\s+/g, "") }, blank()]),
     rowXml(14, [blank(S.frame), blank(S.gapLeft2), blank(S.frame)], 4.5),
-    rowXml(15, [{ s: S.tableHead, text: "Item Name" }, { s: S.tableHead, text: "SKU Code" }, { s: S.tableHead, text: "Qty " }]),
+    // Taller than the template so the column labels sit clear of the grey separator above.
+    rowXml(15, [{ s: S.tableHead, text: "Item Name" }, { s: S.tableHead, text: "SKU Code" }, { s: S.tableHead, text: "Qty" }], 26),
     rowXml(16, [blank(S.tableGap), blank(S.tableGap), blank(S.tableGap)], 6),
   ];
 
+  // One row per item (Qty left-aligned, like the other values), then a blank row before the comments.
   let r = 17;
   for (const i of items) {
-    rows.push(rowXml(r++, [{ s: S.text, text: i.name }, { s: S.text, text: i.sku }, { s: S.text, num: i.qty }]));
+    rows.push(rowXml(r++, [{ s: S.text, text: i.name }, { s: S.text, text: i.sku }, { s: S.value, num: i.qty }]));
   }
-  while (r < 17 + MIN_ITEM_ROWS) rows.push(rowXml(r++, [blank(), blank(), blank()]));
   rows.push(rowXml(r++, [blank(), blank(), blank()]));
   rows.push(rowXml(r++, [blank(S.frame), blank(S.frame), blank(S.frame)], 4.5));
   rows.push(rowXml(r++, [label("Comments:"), blank(), blank()]));
@@ -115,7 +152,28 @@ export async function buildMmiOrderXlsx(order: Order, items: OrderItem[]): Promi
   rows.push(rowXml(r, [blank(S.frame), blank(S.frame), blank(S.frame)], 5.25));
   const lastRow = r;
 
+  // Item names sit in column C; detail values start in D and may run on into E (empty on those rows).
+  const detailValues = [
+    order.order_number,
+    order.kam_email,
+    accountName,
+    customer,
+    order.account_name,
+    order.contact_name,
+    order.contact_email,
+    order.contact_mobile,
+    "Wednesday, September 30, 2026",
+  ];
+  const widthC = Math.max(WIDTH.C, ...items.map((i) => textWidth(i.name)));
+  const widthD = Math.max(
+    WIDTH.D,
+    ...items.map((i) => textWidth(i.sku)),
+    ...detailValues.map((v) => textWidth(v) - WIDTH.E),
+  );
+
   const out = sheet
+    .replace(/(<col min="3" max="3" width=")[^"]*"/, `$1${widthC}"`)
+    .replace(/(<col min="4" max="4" width=")[^"]*"/, `$1${widthD}"`)
     .replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="B1:F${lastRow}"/>`)
     .replace(/<selection [^>]*\/>/, `<selection activeCell="D5" sqref="D5"/>`)
     .replace(/<sheetData>[\s\S]*<\/sheetData>/, `<sheetData>${rows.join("")}</sheetData>`)
@@ -129,6 +187,7 @@ export async function buildMmiOrderXlsx(order: Order, items: OrderItem[]): Promi
     .replace(/(Id="rId1"[^>]*Target=")mailto:[^"]*"/, `$1mailto:${xmlEsc(order.contact_email)}"`);
 
   zip.file(sheetPath, out);
+  zip.file("xl/drawings/drawing1.xml", drawingXml(widthD));
   zip.file(relsPath, outRels);
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }
