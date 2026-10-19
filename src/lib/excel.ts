@@ -269,10 +269,13 @@ function parseExtras(sheet: ExcelJS.Worksheet) {
   return [];
 }
 
+/** Days added to an ORDERS-tab ETA (arrival at port) to allow for clearing and delivery to the warehouse. */
+export const ETA_BUFFER_DAYS = 14;
+
 /**
  * ORDERS tab: purchase orders with an "Item Codes" list and an "ETA" date.
  * Delivered orders and ETAs that aren't dates (CANCELLED, "END NOV"…) are ignored;
- * when a code is on several open orders the soonest ETA wins.
+ * when a code is on several open orders the soonest ETA wins. ETA_BUFFER_DAYS is added to each.
  */
 function parseOrders(sheet: ExcelJS.Worksheet) {
   const etas = new Map<string, string>();
@@ -294,8 +297,9 @@ function parseOrders(sheet: ExcelJS.Worksheet) {
   let count = 0;
   for (const row of rows.slice(headerIdx + 1)) {
     if (col.delivered >= 0 && /^y/i.test(cellText(row[col.delivered]))) continue;
-    const eta = toIsoDate(row[col.eta]);
-    if (!eta) continue;
+    const sheetEta = toIsoDate(row[col.eta]);
+    if (!sheetEta) continue;
+    const eta = addDays(sheetEta, ETA_BUFFER_DAYS);
     const codes = splitItemCodes(cellText(row[col.codes]));
     if (!codes.length) continue;
     count++;
@@ -308,6 +312,12 @@ function parseOrders(sheet: ExcelJS.Worksheet) {
   const columns: Record<string, string> = { codes: raw[col.codes], eta: raw[col.eta] };
   if (col.delivered >= 0) columns.delivered = raw[col.delivered];
   return { ok: true, etas, rows: count, columns };
+}
+
+function addDays(isoDate: string, days: number) {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 function toIsoDate(value: ExcelJS.CellValue): string | null {

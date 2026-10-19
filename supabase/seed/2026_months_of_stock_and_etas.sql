@@ -1,4 +1,4 @@
--- Months of stock (CURRENT STOCK column H) and ETAs (ORDERS tab) from the 2026 POSM Budgeting workbook
+-- Months of stock (CURRENT STOCK column H) and ETAs (ORDERS tab, plus 14 days) from the 2026 POSM Budgeting workbook
 alter table public.items add column if not exists months_of_stock numeric;
 
 update public.items i set months_of_stock = v.m, updated_at = now()
@@ -112,19 +112,19 @@ where i.sku = v.sku;
 
 update public.items i set eta = v.eta, updated_at = now()
 from (values
-  ('MOR002', date '2026-10-07'),
-  ('MOR003', date '2026-10-07'),
-  ('HKN140', date '2026-10-07'),
-  ('HKN348', date '2026-10-07'),
-  ('HKN81', date '2026-10-27'),
-  ('HKN558', date '2026-10-27'),
-  ('HKN08', date '2026-10-27'),
-  ('HKN09', date '2026-10-27'),
-  ('HKN98', date '2026-10-27'),
-  ('HKN125', date '2026-10-27'),
-  ('KRN011', date '2026-12-12'),
-  ('HKN365', date '2026-12-01'),
-  ('MOR015', date '2026-12-01')
+  ('MOR002', date '2026-10-21'),
+  ('MOR003', date '2026-10-21'),
+  ('HKN140', date '2026-10-21'),
+  ('HKN348', date '2026-10-21'),
+  ('HKN81', date '2026-11-10'),
+  ('HKN558', date '2026-11-10'),
+  ('HKN08', date '2026-11-10'),
+  ('HKN09', date '2026-11-10'),
+  ('HKN98', date '2026-11-10'),
+  ('HKN125', date '2026-11-10'),
+  ('KRN011', date '2026-12-26'),
+  ('HKN365', date '2026-12-15'),
+  ('MOR015', date '2026-12-15')
 ) as v(sku, eta)
 where i.sku = v.sku;
 
