@@ -60,6 +60,7 @@ export type Item = {
   visible: boolean;
   eta: string | null;
   months_of_stock: number | null;
+  delisted: boolean;
   image_path: string | null;
   description: string | null;
 };

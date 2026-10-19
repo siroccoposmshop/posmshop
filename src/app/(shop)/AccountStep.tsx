@@ -81,21 +81,33 @@ export function AccountStep() {
       .then(({ data }) => setOutlets((data as Account[]) ?? []));
   }, [parent]);
 
-  // Load the outlet's saved contacts and pre-fill the one used on the last order there.
+  // Contacts are shared across a parent account: load those saved at any of its outlets, and pre-fill
+  // the one used on the last order here (or, failing that, anywhere under the same parent).
   useEffect(() => {
     if (!account) return;
     const supabase = createClient();
+    const contactsQuery = account.parent_number
+      ? supabase
+          .from("contacts")
+          .select("*, accounts!inner(parent_number)")
+          .eq("accounts.parent_number", account.parent_number)
+      : supabase.from("contacts").select("*").eq("account_id", account.id);
+    const ordersQuery = account.parent_number
+      ? supabase.from("orders").select("account_id, contact_email").eq("parent_number", account.parent_number)
+      : supabase.from("orders").select("account_id, contact_email").eq("account_id", account.id);
     Promise.all([
-      supabase.from("contacts").select("*").eq("account_id", account.id).order("created_at", { ascending: false }),
-      supabase
-        .from("orders")
-        .select("contact_email")
-        .eq("account_id", account.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    ]).then(([{ data }, { data: lastOrder }]) => {
-      const list = (data as Contact[]) ?? [];
+      contactsQuery.order("created_at", { ascending: false }),
+      ordersQuery.order("created_at", { ascending: false }).limit(20),
+    ]).then(([{ data }, { data: orders }]) => {
+      // One entry per email: this outlet's own record first, otherwise the newest.
+      const byEmail = new Map<string, Contact>();
+      for (const c of (data as Contact[]) ?? []) {
+        const seen = byEmail.get(c.email);
+        if (!seen || (c.account_id === account.id && seen.account_id !== account.id)) byEmail.set(c.email, c);
+      }
+      // Drop the joined account row so the contact stays a plain record.
+      const list: Contact[] = [...byEmail.values()].map(({ id, account_id, name, mobile, email }) => ({ id, account_id, name, mobile, email }));
+      const lastOrder = orders?.find((o) => o.account_id === account.id) ?? orders?.[0];
       setContacts(list);
       setFieldErrors({});
       const current = cart.contact;
@@ -159,7 +171,7 @@ export function AccountStep() {
     const existing = contacts.find((c) => c.id === id);
     const changed = !existing || existing.name !== contact.name || existing.mobile !== contact.mobile || existing.email !== contact.email;
     if (changed) {
-      // Save for next time. Matching email on the same account updates the existing record.
+      // Save for next time (shared across the parent account). Matching email on this outlet updates its record.
       const { data, error } = await supabase
         .from("contacts")
         .upsert({ account_id: account.id, ...contact, created_by: userId }, { onConflict: "account_id,email" })

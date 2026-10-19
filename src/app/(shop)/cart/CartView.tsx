@@ -82,6 +82,7 @@ export function CartView() {
                             visible: true,
                             eta: null,
                             months_of_stock: null,
+                            delisted: false,
                             description: null,
                           },
                           Number(e.target.value),

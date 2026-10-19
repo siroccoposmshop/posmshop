@@ -14,12 +14,13 @@ type Field<K extends string> = { key: K; aliases: string[]; required?: boolean }
 
 // Only these come from the workbook (plus ETAs from the ORDERS tab, see parseOrders).
 // Max per order, multiples, visibility and markets are set by admins and never overwritten.
-const ITEM_FIELDS: Field<"sku" | "brand" | "name" | "category" | "value" | "stock" | "months_of_stock">[] = [
+const ITEM_FIELDS: Field<"sku" | "brand" | "name" | "category" | "value" | "stock" | "months_of_stock" | "notes">[] = [
   { key: "sku", required: true, aliases: ["sku code", "sku", "item code", "material code", "material", "code", "article code", "article"] },
   { key: "name", required: true, aliases: ["item name", "posm item", "posm name", "item", "name", "item description", "description", "posm"] },
   { key: "brand", aliases: ["brand name", "brand"] },
   { key: "category", aliases: ["category", "item category", "posm category", "type", "item type", "posm type"] },
   { key: "value", aliases: ["total cost per unit", "cost per unit", "value", "unit value", "value aed", "unit cost", "unit cost aed", "cost", "cost aed", "unit price", "price"] },
+  { key: "notes", aliases: ["notes", "note", "comments"] },
   { key: "months_of_stock", aliases: ["months of stock", "months stock", "stock cover months", "months cover"] },
   { key: "stock", aliases: ["current stock level", "current stock", "stock level", "stock", "stock on hand", "soh", "available stock", "available", "qty available", "quantity"] },
 ];
@@ -41,6 +42,8 @@ export type ParsedItem = {
   value: number | null;
   stock: number | null;
   months_of_stock: number | null;
+  /** "Delist" in the Notes column. */
+  delisted: boolean;
 };
 
 export type ParsedAccount = {
@@ -193,6 +196,7 @@ export async function parseWorkbook(buffer: ArrayBuffer): Promise<ParseResult> {
           value: toNumber(get(row, "value")),
           stock: toNumber(get(row, "stock")),
           months_of_stock: toNumber(get(row, "months_of_stock")),
+          delisted: /delist/i.test(get(row, "notes")),
         };
         const existing = seenSku.get(sku);
         if (existing !== undefined) {
