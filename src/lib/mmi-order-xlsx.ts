@@ -30,10 +30,13 @@ const S = {
 // Template column widths (Excel character units); widened per order so long text stays inside the frame.
 const WIDTH = { C: 50, D: 17.42578125, E: 9.140625 };
 
-/** Rough Excel width (character units) needed for 10pt Roboto text. */
+/**
+ * Excel width (character units) needed for 10pt Roboto text. Calibrated against Excel, which draws
+ * Roboto noticeably wider than the workbook's default font units; errs on the generous side.
+ */
 function textWidth(text: string) {
   let w = 0;
-  for (const ch of text) w += /[MW@]/.test(ch) ? 1.1 : /[A-Z]/.test(ch) ? 0.92 : /[a-z0-9]/.test(ch) ? 0.78 : 0.55;
+  for (const ch of text) w += /[MW@]/.test(ch) ? 1.45 : /[A-Z]/.test(ch) ? 1.22 : /[a-z0-9]/.test(ch) ? 1.02 : 0.72;
   return Math.ceil(w + 3);
 }
 
