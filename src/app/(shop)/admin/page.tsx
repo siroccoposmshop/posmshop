@@ -34,7 +34,10 @@ export default async function AdminDashboard() {
 
   const value30 = (orders30.data ?? []).reduce((n, o) => n + Number(o.total_value), 0);
   const [items, accounts, users] = counts.map((c) => c.count ?? 0);
-  const oosItems = (oos.data as Item[]) ?? [];
+  // Items with an ETA first, soonest at the top; then those with no ETA (by brand).
+  const oosItems = ((oos.data as Item[]) ?? []).sort((a, b) =>
+    a.eta && b.eta ? a.eta.localeCompare(b.eta) : a.eta ? -1 : b.eta ? 1 : 0,
+  );
   const recentOrders = (recent.data as Order[]) ?? [];
 
   // Running low: under 6 months of cover that runs out before the next delivery (or none is due).
