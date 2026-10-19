@@ -1,8 +1,11 @@
 import "server-only";
 import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { formatDate, money } from "@/lib/format";
+import { formatDate, friendlyAccountName, money } from "@/lib/format";
+
+export { friendlyAccountName };
 import { DEFAULT_ORDER_DESK } from "@/lib/markets";
+import { buildMmiOrderXlsx, mmiOrderFilename } from "@/lib/mmi-order-xlsx";
 import type { Market, Order, OrderItem } from "@/lib/types";
 
 /** "kam": the order confirmation, sent to the KAM and the order desk (MMI) together. "customer": the outlet contact. */
@@ -31,24 +34,6 @@ function outletLabel(order: Order) {
   return order.parent_name && order.parent_name !== order.account_name
     ? `${order.account_name} (${order.parent_name})`
     : order.account_name;
-}
-
-/**
- * Customer-facing version of a parent account name: drops the legal entity
- * part ("LLC", "(Br of …)", " - Ennismore") and title-cases it, e.g.
- * "25 HOURS HOTEL DUBAI ONE CENTRAL LLC - Ennismore" → "25 Hours Hotel Dubai One Central".
- */
-export function friendlyAccountName(name: string | null | undefined) {
-  if (!name) return "";
-  let s = name.split(" - ")[0];
-  for (let i = 0; i < 3; i++) s = s.replace(/\([^()]*\)/g, " ");
-  s = s
-    .replace(/\b(L\.?\s?L\.?\s?C|FZ-?LLC|FZE|FZCO|P\.?J\.?S\.?C|LTD|LIMITED)\b\.?/gi, " ")
-    .replace(/\s+/g, " ")
-    .replace(/[\s,.&-]+$/, "")
-    .trim();
-  if (!s) return name;
-  return s.toLowerCase().replace(/(^|[\s/(-])([a-z])/g, (_, p: string, c: string) => p + c.toUpperCase());
 }
 
 function firstName(name: string) {
@@ -85,7 +70,7 @@ export function renderOrderEmail(order: Order, items: OrderItem[], market: Marke
 
   const intro = isCustomer
     ? `Dear ${esc(firstName(order.contact_name))},<br>Here is the POSM ordered for ${outletAtVenue}. Delivery is expected within <strong>${market.delivery_days} days</strong>.`
-    : `${esc(kam)} placed this order for ${outletAtVenue}.<br>Customer Service: please execute. KAM: keep this as your proof of execution.`;
+    : `${esc(kam)} placed this order for ${outletAtVenue}.<br>Customer Service: please execute (order sheet attached). KAM: keep this as your proof of execution.`;
 
   const rows = items
     .map(
@@ -201,21 +186,30 @@ export async function sendOrderEmails(orderId: string) {
     { to: [order.contact_email], audience: "customer" },
   ];
 
-  const results = await resend.batch.send(
-    messages.map((m) => ({
-      from,
-      to: m.to,
-      replyTo: order.kam_email,
-      subject: emailSubject(order, m.audience),
-      html: renderOrderEmail(order, items, market, m.audience),
-    })),
+  // The confirmation carries MMI's order sheet. Sent one by one: Resend's batch endpoint takes no attachments.
+  const sheet = await buildMmiOrderXlsx(order, items).catch((e) => {
+    console.error("Order sheet failed", order.order_number, e);
+    return null;
+  });
+  const results = await Promise.all(
+    messages.map((m) =>
+      resend.emails.send({
+        from,
+        to: m.to,
+        replyTo: order.kam_email,
+        subject: emailSubject(order, m.audience),
+        html: renderOrderEmail(order, items, market, m.audience),
+        attachments: m.audience === "kam" && sheet ? [{ filename: mmiOrderFilename(order), content: sheet }] : undefined,
+      }),
+    ),
   );
 
-  if (results.error) {
-    console.error("Order email failed", order.order_number, results.error);
-    return { sent: 0, skipped: results.error.message };
+  const failed = results.filter((r) => r.error);
+  if (failed.length) console.error("Order email failed", order.order_number, failed.map((r) => r.error));
+  const sent = results.length - failed.length;
+  if (sent) {
+    await createAdminClient().from("orders").update({ emails_sent_at: new Date().toISOString() }).eq("id", order.id);
   }
-
-  await createAdminClient().from("orders").update({ emails_sent_at: new Date().toISOString() }).eq("id", order.id);
-  return { sent: messages.length, skipped: null };
+  const problems = [...failed.map((r) => r.error?.message), sheet ? null : "the order sheet couldn't be attached"].filter(Boolean);
+  return { sent, skipped: problems.length ? problems.join("; ") : null };
 }
