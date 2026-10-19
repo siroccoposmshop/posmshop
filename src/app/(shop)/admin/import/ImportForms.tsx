@@ -102,7 +102,7 @@ export function ImportForm() {
             <ul className="mt-2 space-y-1">
               {s.sheets.map((sh) => (
                 <li key={sh.name}>
-                  <strong>{sh.name}</strong>: {sh.kind === "skipped" ? "skipped (not used)" : `${sh.rows} ${sh.kind === "orders" ? "open orders with an ETA" : sh.kind}`}
+                  <strong>{sh.name}</strong>: {sh.kind === "skipped" ? "skipped (not used)" : `${sh.rows} ${sh.kind === "orders" ? "open orders with an ETA" : sh.kind === "extras" ? "rows (stock updated for items already in the shop)" : sh.kind}`}
                   {sh.kind !== "skipped" && (
                     <span className="block text-xs">
                       {Object.entries(sh.columns)

@@ -77,6 +77,22 @@ export async function importWorkbook(input: { path: string; filename: string; de
     }
   }
 
+  const fileSkus = new Set(parsed.items.map((i) => i.sku));
+  const extraSkus = new Set(parsed.extras.map((x) => x.sku));
+  const missingFromFile = parsed.items.length
+    ? [...existingSkus].filter((s) => !fileSkus.has(s) && !extraSkus.has(s))
+    : [];
+
+  // EXTRAS tab: refresh stock for items that were added by hand from it (never creates items).
+  const extras = parsed.extras.filter((x) => existingSkus.has(x.sku) && !fileSkus.has(x.sku));
+  for (const x of extras) {
+    const row: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (x.stock !== null) row.stock = Math.max(0, Math.floor(x.stock));
+    if (x.months_of_stock !== null) row.months_of_stock = Math.round(x.months_of_stock * 100) / 100;
+    const { error } = await db.from("items").update(row).eq("sku", x.sku);
+    if (error) warnings.push(`Couldn't update ${x.sku} from EXTRAS: ${error.message}`);
+  }
+
   // ETAs from the ORDERS tab: the soonest open order per item. Items not on an open order keep their ETA.
   let etaCount = 0;
   if (parsed.orderEtas.size) {
@@ -91,8 +107,6 @@ export async function importWorkbook(input: { path: string; filename: string; de
     }
     if (unmatched.length) warnings.push(`ORDERS tab codes with no matching item (ETA not set): ${unmatched.join(", ")}.`);
   }
-  const fileSkus = new Set(parsed.items.map((i) => i.sku));
-  const missingFromFile = parsed.items.length ? [...existingSkus].filter((s) => !fileSkus.has(s)) : [];
 
   // Accounts — upsert by account number.
   const { data: existingAccounts } = await db.from("accounts").select("account_number");
@@ -158,6 +172,7 @@ const itemSchema = z.object({
   name: z.string().trim().min(1).max(200),
   category: z.string().trim().max(80).optional().transform((v) => v || null),
   description: z.string().trim().max(2000).optional().transform((v) => v || null),
+  order_warning: z.string().trim().max(300).optional().transform((v) => v || null),
   value: z.coerce.number().min(0),
   stock: z.coerce.number().int().min(0),
   max_per_order: z
@@ -179,6 +194,7 @@ export async function saveItem(_: unknown, formData: FormData): Promise<{ error?
     name: formData.get("name"),
     category: formData.get("category") ?? "",
     description: formData.get("description") ?? "",
+    order_warning: formData.get("order_warning") ?? "",
     value: formData.get("value"),
     stock: formData.get("stock"),
     max_per_order: formData.get("max_per_order") ?? "",
