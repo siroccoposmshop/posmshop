@@ -1,7 +1,7 @@
 "use client";
 import { compareItems } from "@/lib/item-order";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/components/CartProvider";
 import { OrderFor } from "@/components/OrderFor";
@@ -171,8 +171,11 @@ function ItemCard({ item }: { item: Item }) {
           </span>
         )}
       </div>
-      <div className="flex flex-1 flex-col p-3 sm:p-4">
-        <p className="font-display text-xs uppercase tracking-wide text-brand-green">{item.brand}</p>
+      <div className="relative flex flex-1 flex-col p-3 sm:p-4">
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-display text-xs uppercase tracking-wide text-brand-green">{item.brand}</p>
+          {item.description && <ItemInfo text={item.description} />}
+        </div>
         <h3 className="mt-0.5 text-base leading-tight text-brand-black sm:text-lg">{item.name}</h3>
         <p className="text-xs">SKU {item.sku}</p>
         <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-sm">
@@ -220,5 +223,48 @@ function ItemCard({ item }: { item: Item }) {
         </div>
       </div>
     </article>
+  );
+}
+
+/** Round ⓘ button that shows the item's comment in a small pop-over. */
+function ItemInfo({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent ? e.key === "Escape" : !ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", close);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", close);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label="Item information"
+        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-serif text-xs font-bold italic leading-none ring-1 transition-colors ${
+          open ? "bg-brand-green text-white ring-brand-green" : "text-brand-green ring-brand-green hover:bg-brand-green hover:text-white"
+        }`}
+      >
+        i
+      </button>
+      {open && (
+        <div
+          role="note"
+          className="absolute inset-x-2 top-9 z-10 whitespace-pre-line rounded-lg bg-white p-3 text-xs leading-snug text-brand-black shadow-lg ring-1 ring-black/10 sm:inset-x-3 sm:top-10 sm:text-sm"
+        >
+          {text}
+        </div>
+      )}
+    </div>
   );
 }
