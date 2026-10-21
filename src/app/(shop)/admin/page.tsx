@@ -151,9 +151,11 @@ export default async function AdminDashboard() {
                         <span className="font-medium text-brand-black">{monthsLabel(Number(item.months_of_stock))}</span>
                         <span className="block text-xs">{item.stock.toLocaleString()} units</span>
                       </td>
-                      <td className="text-right">
+                      <td className="whitespace-nowrap text-right">
                         <EtaButton id={item.id} eta={item.eta} />
-                        {toEta !== null && <span className="block text-xs">in {monthsLabel(toEta)}</span>}
+                        {toEta !== null && (
+                          <span className="block text-xs">{toEta < 0 ? "Overdue" : `in ${monthsLabel(toEta)}`}</span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -214,8 +216,9 @@ function DbUpdateNote({ message }: { message: string }) {
   );
 }
 
+/** "3 weeks" under two months, otherwise "2.5 months". */
 function monthsLabel(months: number) {
-  if (months < 1) {
+  if (months < 2) {
     const weeks = Math.max(1, Math.round((months * DAYS_PER_MONTH) / 7));
     return `${weeks} week${weeks === 1 ? "" : "s"}`;
   }
