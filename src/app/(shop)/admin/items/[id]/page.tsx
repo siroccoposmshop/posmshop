@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Item, Market } from "@/lib/types";
 import { ItemForm } from "./ItemForm";
 import { ImageManager } from "./ImageManager";
+import { BackToItems } from "../ListMemory";
 
 export const metadata = { title: "Edit item" };
 export const dynamic = "force-dynamic";
@@ -24,9 +24,7 @@ export default async function EditItem({ params }: { params: Promise<{ id: strin
 
   return (
     <div className="mx-auto max-w-4xl">
-      <Link href="/admin/items" className="text-sm underline">
-        ← All items
-      </Link>
+      <BackToItems />
       <h1 className="accent-square mt-2 text-3xl text-brand-black">{item ? item.name : "New item"}</h1>
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
         <ItemForm item={item} markets={(markets as Market[]) ?? []} brands={brands} />

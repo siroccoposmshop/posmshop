@@ -5,13 +5,20 @@ import { useRouter } from "next/navigation";
 import type { Item, Market } from "@/lib/types";
 import { USD_TO_AED } from "@/lib/format";
 import { deleteItem, saveItem } from "../../actions";
+import { flagSaved, itemsListHref } from "../ListMemory";
 
 export function ItemForm({ item, markets, brands }: { item: Item | null; markets: Market[]; brands: string[] }) {
   const router = useRouter();
   const [state, action, pending] = useActionState(saveItem, null);
 
+  // A new item stays on its page so an image can be added; an edited one goes back to the list.
   useEffect(() => {
-    if (state?.ok && !item && state.id) router.replace(`/admin/items/${state.id}`);
+    if (!state?.ok) return;
+    if (!item && state.id) router.replace(`/admin/items/${state.id}`);
+    else if (item) {
+      flagSaved(`${item.sku} · ${item.name}`);
+      router.push(itemsListHref());
+    }
   }, [state, item, router]);
 
   return (
@@ -99,7 +106,6 @@ export function ItemForm({ item, markets, brands }: { item: Item | null; markets
       </label>
 
       {state?.error && <p className="rounded-lg bg-brand-red/10 p-3 text-sm text-brand-red">{state.error}</p>}
-      {state?.ok && item && <p className="text-sm text-brand-green">Saved.</p>}
 
       <div className="flex flex-wrap justify-between gap-3">
         <button className="btn btn-primary" disabled={pending}>
@@ -113,7 +119,7 @@ export function ItemForm({ item, markets, brands }: { item: Item | null; markets
               if (!confirm(`Delete ${item.name}? Past orders keep their copy of the item.`)) return;
               const res = await deleteItem(item.id);
               if (res?.error) alert(res.error);
-              else router.replace("/admin/items");
+              else router.replace(itemsListHref());
             }}
           >
             Delete

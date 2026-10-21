@@ -6,7 +6,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate, money } from "@/lib/format";
 import { ItemImage } from "@/components/ItemImage";
 import type { Item } from "@/lib/types";
+import { Suspense } from "react";
 import { VisibilityToggle } from "./VisibilityToggle";
+import { ItemsListMemory } from "./ListMemory";
 
 export const metadata = { title: "Items" };
 export const dynamic = "force-dynamic";
@@ -40,7 +42,13 @@ export default async function AdminItems({ searchParams }: { searchParams: Promi
         </Link>
       </div>
 
-      <LiveFilters className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_auto]">
+      <Suspense>
+        <ItemsListMemory />
+      </Suspense>
+
+      {/* On desktop the filters stay pinned under the site header while the list scrolls. */}
+      <div className="mt-4 lg:sticky lg:top-16 lg:z-20 lg:-mx-6 lg:border-b lg:border-black/5 lg:bg-brand-light/95 lg:px-6 lg:py-3 lg:backdrop-blur">
+      <LiveFilters className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_auto]">
         <input name="q" defaultValue={sp.q} placeholder="Search name, SKU, category" type="search" autoComplete="off" className="field sm:col-span-2 lg:col-span-1" />
         <select name="brand" defaultValue={sp.brand ?? ""} className="field">
           <option value="">All brands</option>
@@ -63,6 +71,7 @@ export default async function AdminItems({ searchParams }: { searchParams: Promi
             <option value="hidden">Hidden</option>
           </select>
       </LiveFilters>
+      </div>
 
       <p className="mt-3 text-sm">{items.length} items</p>
       <div className="bento mt-2 overflow-x-auto !p-0">
