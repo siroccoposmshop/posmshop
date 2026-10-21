@@ -200,3 +200,15 @@
     background: #fff;
   }
 }
+
+/* Floating "Saved" notice on the admin items list. */
+@keyframes saved-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
