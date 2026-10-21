@@ -25,7 +25,7 @@ export function EtaButton({ id, eta }: { id: string; eta: string | null }) {
 
   if (!editing) {
     return eta ? (
-      <button type="button" onClick={() => setEditing(true)} className="text-xs underline decoration-dotted" title="Change ETA">
+      <button type="button" onClick={() => setEditing(true)} className="whitespace-nowrap text-xs underline decoration-dotted" title="Change ETA">
         ETA {formatDate(eta)}
       </button>
     ) : (
