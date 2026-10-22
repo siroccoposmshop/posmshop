@@ -77,12 +77,20 @@ export function InviteForm({ markets }: { markets: Market[] }) {
           ))}
         </select>
       </div>
-      <div className="flex items-center gap-3 sm:col-span-2 lg:col-span-5">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3 sm:col-span-2 lg:col-span-5">
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="send_invite" defaultChecked className="h-5 w-5 accent-[var(--color-brand-green)]" />
+          Email an invite
+        </label>
         <button className="btn btn-primary" disabled={pending}>
           {pending ? "Adding…" : "Add user"}
         </button>
         {state?.error && <span className="text-sm text-brand-red">{state.error}</span>}
-        {state?.ok && <span className="text-sm text-brand-green">Added. They can now sign in with their email.</span>}
+        {state?.ok && (
+          <span className="text-sm text-brand-green">
+            {state.invited ? "Added and invite emailed." : "Added. They can now sign in with their email."}
+          </span>
+        )}
       </div>
     </form>
   );
