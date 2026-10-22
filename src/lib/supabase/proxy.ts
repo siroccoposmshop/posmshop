@@ -25,6 +25,15 @@ export async function updateSession(request: NextRequest) {
   const signedIn = !!data?.claims;
   const path = request.nextUrl.pathname;
 
+  // Already signed in: skip the sign-in page (e.g. opened from a bookmark or browser history).
+  if (signedIn && path.startsWith("/login")) {
+    const next = request.nextUrl.searchParams.get("next");
+    const url = request.nextUrl.clone();
+    url.pathname = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+    url.search = "";
+    return redirectWithCookies(url, response);
+  }
+
   if (!signedIn && !PUBLIC_PATHS.some((p) => path.startsWith(p))) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
@@ -33,4 +42,11 @@ export async function updateSession(request: NextRequest) {
   }
 
   return response;
+}
+
+/** Redirect while keeping any session cookies that were just refreshed. */
+function redirectWithCookies(url: URL, from: NextResponse) {
+  const redirect = NextResponse.redirect(url);
+  from.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+  return redirect;
 }
