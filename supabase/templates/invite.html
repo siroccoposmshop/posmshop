@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light only">
+<title>You're invited to POSM SHOP</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@500;700&family=Vazirmatn:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body style="margin:0;padding:0;background:#ebe9e9">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ebe9e9"><tr><td align="center" style="padding:24px 10px">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:10px;overflow:hidden">
+    <tr><td style="background:#58a244;padding:14px 22px;border-right:6px solid #cb3727">
+      <img src="{{ .SiteURL }}/email-logo-white.png" width="100" alt="SIROCCO" style="display:block;width:100px;height:auto;border:0">
+    </td></tr>
+    <tr><td style="padding:26px 24px 8px">
+      <p style="margin:0 0 4px;font-family:'Roboto Condensed','Arial Narrow',Arial,sans-serif;font-size:12px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:#545658">POSM SHOP</p>
+      <h1 style="margin:0 0 14px;font-family:'Roboto Condensed','Arial Narrow',Arial,sans-serif;font-weight:700;font-size:26px;line-height:1.1;text-transform:uppercase;color:#58a244">You&rsquo;re invited</h1>
+      <p style="margin:0 0 14px;font-family:Vazirmatn,'Segoe UI',Arial,sans-serif;font-size:15px;line-height:1.55;color:#545658">{{ if .Data.full_name }}Hi {{ .Data.full_name }},{{ else }}Hello,{{ end }}</p>
+      <p style="margin:0 0 18px;font-family:Vazirmatn,'Segoe UI',Arial,sans-serif;font-size:15px;line-height:1.55;color:#545658">You now have access to <strong style="color:#000000">POSM SHOP</strong>, Sirocco&rsquo;s ordering site for point-of-sale materials. Order glassware, coasters, bar mats, buckets and more for your outlets in a few taps.</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 8px">
+        <tr>
+          <td width="34" valign="top" style="padding:0 0 12px"><div style="width:24px;height:24px;border-radius:999px;background:#58a244;color:#ffffff;font-family:'Roboto Condensed','Arial Narrow',Arial,sans-serif;font-size:13px;font-weight:700;line-height:24px;text-align:center">1</div></td>
+          <td valign="top" style="padding:2px 0 12px;font-family:Vazirmatn,'Segoe UI',Arial,sans-serif;font-size:14px;line-height:1.45;color:#545658"><strong style="color:#000000">Choose the outlet</strong><br>Search the hotel or group, pick the outlet and its contact.</td>
+        </tr>
+        <tr>
+          <td width="34" valign="top" style="padding:0 0 12px"><div style="width:24px;height:24px;border-radius:999px;background:#58a244;color:#ffffff;font-family:'Roboto Condensed','Arial Narrow',Arial,sans-serif;font-size:13px;font-weight:700;line-height:24px;text-align:center">2</div></td>
+          <td valign="top" style="padding:2px 0 12px;font-family:Vazirmatn,'Segoe UI',Arial,sans-serif;font-size:14px;line-height:1.45;color:#545658"><strong style="color:#000000">Pick the items</strong><br>Browse by brand. Stock, limits and pack sizes are shown on each item.</td>
+        </tr>
+        <tr>
+          <td width="34" valign="top" style="padding:0 0 12px"><div style="width:24px;height:24px;border-radius:999px;background:#58a244;color:#ffffff;font-family:'Roboto Condensed','Arial Narrow',Arial,sans-serif;font-size:13px;font-weight:700;line-height:24px;text-align:center">3</div></td>
+          <td valign="top" style="padding:2px 0 12px;font-family:Vazirmatn,'Segoe UI',Arial,sans-serif;font-size:14px;line-height:1.45;color:#545658"><strong style="color:#000000">Place the order</strong><br>You, MMI Customer Service and the outlet contact are emailed straight away.</td>
+        </tr>
+      </table>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 4px"><tr><td style="border-radius:999px;background:#58a244">
+        <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/" style="display:inline-block;padding:12px 26px;font-family:'Roboto Condensed','Arial Narrow',Arial,sans-serif;font-size:15px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#ffffff;text-decoration:none;border-radius:999px">Accept invite</a>
+      </td></tr></table>
+      <p style="margin:20px 0 0;font-family:Vazirmatn,'Segoe UI',Arial,sans-serif;font-size:15px;line-height:1.55;color:#545658">After today, just go to <a href="{{ .SiteURL }}" style="color:#58a244;font-weight:600">{{ .SiteURL }}</a>, enter your @sirocco.ae email and we&rsquo;ll send you a 4-digit code. No password needed.</p>
+      <p style="margin:14px 0 0;font-family:Vazirmatn,'Segoe UI',Arial,sans-serif;font-size:12px;line-height:1.5;color:#545658">If the button has expired, sign in at the address above with your email instead. It works the same way.</p>
+    </td></tr>
+    <tr><td style="padding:22px 24px 24px;border-top:1px solid #eeeded;font-family:Vazirmatn,'Segoe UI',Arial,sans-serif;font-size:11px;line-height:1.5;color:#545658">
+      Sirocco · POSM SHOP · <a href="{{ .SiteURL }}" style="color:#545658">{{ .SiteURL }}</a><br>
+      Internal use only. Sent to {{ .Email }}.
+    </td></tr>
+  </table>
+</td></tr></table>
+</body>
+</html>

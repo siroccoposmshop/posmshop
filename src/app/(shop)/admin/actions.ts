@@ -351,8 +351,11 @@ export async function saveUser(_: unknown, formData: FormData): Promise<{ error?
   return { ok: true };
 }
 
-/** Pre-registers a user so their market/role is ready before their first sign-in. */
-export async function inviteUser(_: unknown, formData: FormData): Promise<{ error?: string; ok?: boolean }> {
+/**
+ * Adds a user with their market/role ready before their first sign-in. With "Email an invite"
+ * ticked, Supabase sends the "Invite user" email (supabase/templates/invite.html).
+ */
+export async function inviteUser(_: unknown, formData: FormData): Promise<{ error?: string; ok?: boolean; invited?: boolean }> {
   await requireAdmin();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!isAllowedEmail(email)) return { error: "Only @sirocco.ae email addresses are allowed." };
@@ -361,13 +364,20 @@ export async function inviteUser(_: unknown, formData: FormData): Promise<{ erro
   const market = (MARKETS as readonly string[]).includes(marketRaw) ? marketRaw : null;
   const full_name = String(formData.get("full_name") ?? "").trim() || null;
 
+  const sendInvite = formData.get("send_invite") === "on";
+
   const db = createAdminClient();
-  const { data, error } = await db.auth.admin.createUser({ email, email_confirm: true });
-  if (error) return { error: error.message.includes("already") ? "That user already exists — edit them in the list." : error.message };
+  const { data, error } = sendInvite
+    ? await db.auth.admin.inviteUserByEmail(email, { data: full_name ? { full_name } : {} })
+    : await db.auth.admin.createUser({ email, email_confirm: true });
+  if (error) {
+    if (/already|registered|exists/i.test(error.message)) return { error: "That user already exists. They can sign in with their email." };
+    return { error: sendInvite ? `Couldn't send the invite: ${error.message}` : error.message };
+  }
   const { error: upd } = await db.from("profiles").update({ role, market, full_name }).eq("id", data.user.id);
   if (upd) return { error: upd.message };
   revalidatePath("/admin/users");
-  return { ok: true };
+  return { ok: true, invited: sendInvite };
 }
 
 // ---------------------------------------------------------------------------
