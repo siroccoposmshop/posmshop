@@ -16,6 +16,17 @@ export function MarketForm({ market }: { market: Market }) {
         <input id={`cs-${market.code}`} name="cs_email" defaultValue={market.cs_email ?? ""} placeholder={DEFAULT_ORDER_DESK} className="field" />
         <p className="mt-1 text-xs">Leave blank to use {DEFAULT_ORDER_DESK}.</p>
       </div>
+      <div>
+        <label className="label" htmlFor={`sf-${market.code}`}>Salesforce company codes</label>
+        <input
+          id={`sf-${market.code}`}
+          name="salesforce_company_codes"
+          defaultValue={(market.salesforce_company_codes ?? []).join(", ")}
+          placeholder="e.g. M10"
+          className="field"
+        />
+        <p className="mt-1 text-xs">Outlets with these codes in Salesforce belong to {market.name}.</p>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label" htmlFor={`dd-${market.code}`}>Delivery days</label>
