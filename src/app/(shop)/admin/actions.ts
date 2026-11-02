@@ -8,6 +8,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { matchOrderEtas, normaliseMarket, parseWorkbook } from "@/lib/excel";
 import { isAllowedEmail, slugify } from "@/lib/format";
 import { MARKET_CODES } from "@/lib/markets";
+import { salesforceConfig } from "@/lib/salesforce";
+import { runSalesforceSync } from "@/lib/salesforce-sync";
 import type { OrderStatus } from "@/lib/types";
 
 const MARKETS = MARKET_CODES;
@@ -108,7 +110,12 @@ export async function importWorkbook(input: { path: string; filename: string; de
     if (unmatched.length) warnings.push(`ORDERS tab codes with no matching item (ETA not set): ${unmatched.join(", ")}.`);
   }
 
-  // Accounts — upsert by account number.
+  // Accounts — upsert by account number. Once Salesforce is connected it owns the outlet list,
+  // so the CUSTOMER LIST tab is ignored.
+  if (salesforceConfig() && parsed.accounts.length) {
+    warnings.push("Outlets come from Salesforce, so the CUSTOMER LIST tab was ignored.");
+    parsed.accounts = [];
+  }
   const { data: existingAccounts } = await db.from("accounts").select("account_number");
   const existingNumbers = new Set((existingAccounts ?? []).map((r) => r.account_number as string));
   let skipped = 0;
@@ -389,10 +396,18 @@ export async function saveMarket(_: unknown, formData: FormData): Promise<{ erro
   const cs_email = String(formData.get("cs_email") ?? "").trim() || null;
   const delivery_days = Math.max(1, Math.floor(Number(formData.get("delivery_days") ?? 7)));
   const currency = "USD"; // stored values are USD; the site displays AED
+  const salesforce_company_codes = [
+    ...new Set(
+      String(formData.get("salesforce_company_codes") ?? "")
+        .split(/[,;\s]+/)
+        .map((c) => c.trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  ];
   if (cs_email && !cs_email.split(/[,;\s]+/).filter(Boolean).every((e) => /^\S+@\S+\.\S+$/.test(e))) {
     return { error: "Enter valid email addresses, separated by commas." };
   }
-  const { error } = await createAdminClient().from("markets").update({ cs_email, delivery_days, currency }).eq("code", code);
+  const { error } = await createAdminClient().from("markets").update({ cs_email, delivery_days, currency, salesforce_company_codes }).eq("code", code);
   if (error) return { error: error.message };
   revalidatePath("/admin/settings");
   return { ok: true };
@@ -411,4 +426,12 @@ export async function setItemEta(id: string, eta: string | null): Promise<{ erro
   revalidatePath("/admin/items");
   revalidatePath("/shop");
   return { ok: true };
+}
+
+export async function syncSalesforceNow(): Promise<{ ok: boolean; error?: string }> {
+  const admin = await getAdmin();
+  if (!admin) return { ok: false, error: "You've been signed out. Sign in again and retry." };
+  const { ok, summary } = await runSalesforceSync({ triggeredBy: admin.id });
+  revalidatePath("/admin/accounts");
+  return ok ? { ok } : { ok, error: summary.error ?? "Sync failed." };
 }

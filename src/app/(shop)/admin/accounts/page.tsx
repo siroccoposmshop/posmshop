@@ -2,6 +2,7 @@ import { MARKETS } from "@/lib/markets";
 import { LiveFilters } from "@/components/LiveFilters";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Account } from "@/lib/types";
+import { SalesforcePanel } from "./SalesforcePanel";
 
 export const metadata = { title: "Accounts" };
 export const dynamic = "force-dynamic";
@@ -21,7 +22,11 @@ export default async function AdminAccounts({ searchParams }: { searchParams: Pr
   return (
     <div>
       <h1 className="accent-square text-3xl text-brand-black">Accounts &amp; outlets</h1>
-      <p className="mt-2 text-sm">Outlets come from the CUSTOMER LIST tab of the budgeting Excel, grouped by parent account (first 5 digits of the account number). Upload a new file to add or update them.</p>
+      <p className="mt-2 text-sm">
+        Outlets are grouped by parent account. They come from Salesforce once it&apos;s connected (open outlets only,
+        synced nightly), otherwise from the CUSTOMER LIST tab of the budgeting Excel.
+      </p>
+      <SalesforcePanel />
       <LiveFilters className="mt-4 grid gap-2 sm:grid-cols-[2fr_1fr_auto]">
         <input name="q" type="search" autoComplete="off" defaultValue={sp.q} placeholder="Parent, outlet, number or KAM" className="field" />
         <select name="market" defaultValue={sp.market ?? ""} className="field">
@@ -53,7 +58,10 @@ export default async function AdminAccounts({ searchParams }: { searchParams: Pr
                   {a.parent_name}
                   <span className="block text-xs">#{a.parent_number}</span>
                 </td>
-                <td className="text-brand-black">{a.name}</td>
+                <td className="text-brand-black">
+                  {a.name}
+                  {!a.active && <span className="badge ml-2 bg-brand-light text-brand-grey">Closed</span>}
+                </td>
                 <td className="whitespace-nowrap">{a.account_number}</td>
                 <td>{a.kam_name}</td>
                 <td>{a.market}</td>

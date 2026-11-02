@@ -7,6 +7,7 @@ export type Market = {
   delivery_days: number;
   currency: string;
   sort: number;
+  salesforce_company_codes?: string[];
 };
 
 export type Profile = {
