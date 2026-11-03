@@ -10,7 +10,6 @@ import { Spinner } from "@/components/Spinner";
 import type { Account, Contact, ParentAccount } from "@/lib/types";
 import { submitBrief, type BriefInput } from "../actions";
 
-const ACCOUNT_FIELDS = "id, account_number, name, parent_number, parent_name, kam_name, market, channel, outlet_type";
 
 export type BriefDefaults = Partial<Omit<BriefInput, "accountId">> & { account?: Account | null };
 
@@ -391,6 +390,7 @@ function OutletPicker({ account, onChange, onContact }: { account: Account | nul
   const [results, setResults] = useState<ParentAccount[]>([]);
   const [parent, setParent] = useState<ParentAccount | null>(null);
   const [outlets, setOutlets] = useState<Account[] | null>(null);
+  const [outletError, setOutletError] = useState(false);
   const [searching, setSearching] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -414,14 +414,20 @@ function OutletPicker({ account, onChange, onContact }: { account: Account | nul
 
   useEffect(() => {
     if (!parent) return setOutlets(null);
+    setOutletError(false);
+    // "*" so the list still loads before newer columns (e.g. outlet_type) exist in the database.
     createClient()
       .from("accounts")
-      .select(ACCOUNT_FIELDS)
+      .select("*")
       .eq("parent_number", parent.parent_number)
       .eq("parent_name", parent.parent_name)
       .eq("active", true)
       .order("name")
-      .then(({ data }) => setOutlets((data as Account[]) ?? []));
+      .then(({ data, error }) => {
+        if (error) console.error("Loading outlets failed", error);
+        setOutletError(!!error);
+        setOutlets((data as Account[]) ?? []);
+      });
   }, [parent]);
 
   async function choose(o: Account) {
@@ -474,6 +480,10 @@ function OutletPicker({ account, onChange, onContact }: { account: Account | nul
         <p className="label">Outlet</p>
         {outlets === null ? (
           <p className="text-sm">Loading outlets…</p>
+        ) : outletError ? (
+          <p className="text-sm text-brand-red">Couldn&apos;t load the outlets. Reload the page and try again.</p>
+        ) : outlets.length === 0 ? (
+          <p className="text-sm">No open outlets under this customer.</p>
         ) : (
           <ul className="divide-y divide-black/5">
             {outlets.map((o) => (
