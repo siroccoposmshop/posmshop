@@ -73,3 +73,31 @@ export function friendlyAccountName(name: string | null | undefined) {
   if (!s) return name;
   return s.toLowerCase().replace(/(^|[\s/(-])([a-z])/g, (_, p: string, c: string) => p + c.toUpperCase());
 }
+
+const COMPANY_SUFFIX = /\b(L\.?\s?L\.?\s?C|FZ-?LLC|FZE|FZCO|P\.?J\.?S\.?C|LTD|LIMITED)\b\.?/gi;
+
+function tidyName(s: string) {
+  for (let i = 0; i < 3; i++) s = s.replace(/\([^()]*\)/g, " ");
+  s = s.replace(COMPANY_SUFFIX, " ").replace(/\s+/g, " ").replace(/^[\s,.&-]+|[\s,.&-]+$/g, "").trim();
+  return s.toLowerCase().replace(/(^|[\s/(-])([a-z])/g, (_, p: string, c: string) => p + c.toUpperCase());
+}
+
+/** Name parts split on a dash with a space on at least one side ("COMPANY LLC -OUTLET - AREA"). */
+const nameParts = (name: string) => name.split(/\s+-\s*|\s*-\s+/).map((x) => x.trim()).filter(Boolean);
+
+/**
+ * Short outlet name: "SAROOD HOSPITALITY L.L.C -THE DUCK HOOK RESTAURANT - JI" → "The Duck Hook Restaurant".
+ * When the first part is a company (LLC etc.) the outlet is the part after it.
+ */
+export function outletName(name: string | null | undefined) {
+  if (!name) return "";
+  const parts = nameParts(name);
+  const pick = parts.length > 1 && new RegExp(COMPANY_SUFFIX.source, "i").test(parts[0]) ? parts[1] : parts[0];
+  return tidyName(pick ?? name) || name;
+}
+
+/** Short company name: "SAROOD HOSPITALITY L.L.C -THE DUCK HOOK RESTAURANT - JI" → "Sarood Hospitality". */
+export function companyName(name: string | null | undefined) {
+  if (!name) return "";
+  return tidyName(nameParts(name)[0] ?? name) || name;
+}

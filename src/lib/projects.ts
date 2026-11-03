@@ -214,4 +214,4 @@ export async function usersWithRoles(roles: HubRole[]) {
   return (data ?? []) as { id: string; email: string; full_name: string | null }[];
 }
 
-export { projectTitle } from "@/lib/projects-shared";
+export { outletLine, projectTitle } from "@/lib/projects-shared";
