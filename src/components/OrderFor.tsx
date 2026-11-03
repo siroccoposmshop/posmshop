@@ -24,7 +24,7 @@ export function OrderFor({ showChange = false }: { showChange?: boolean }) {
         {showChange && (
           <p>
             <span className="hidden lg:inline">· </span>
-            <Link href="/" className="underline">
+            <Link href="/posm" className="underline">
               Change
             </Link>
           </p>

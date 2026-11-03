@@ -17,7 +17,7 @@ export function Catalogue({ items }: { items: Item[] }) {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    if (cart.ready && (!cart.account || !cart.contact)) router.replace("/");
+    if (cart.ready && (!cart.account || !cart.contact)) router.replace("/posm");
   }, [cart.ready, cart.account, cart.contact, router]);
 
   const market = cart.account?.market;

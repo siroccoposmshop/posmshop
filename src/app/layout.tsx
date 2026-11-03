@@ -17,8 +17,8 @@ const vazirmatn = Vazirmatn({
 });
 
 export const metadata: Metadata = {
-  title: { default: "POSM SHOP | Sirocco", template: "%s | POSM SHOP" },
-  description: "Sirocco point-of-sale materials ordering for Key Account Managers.",
+  title: { default: "Commerce Hub | Sirocco", template: "%s | Sirocco Commerce Hub" },
+  description: "Sirocco Commerce Hub: POSM Shop, projects and marketing library for the sales team.",
   robots: { index: false, follow: false },
   // Stop iOS turning phone numbers and emails into underlined blue links.
   formatDetection: { telephone: false, email: false, address: false },

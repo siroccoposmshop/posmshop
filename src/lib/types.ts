@@ -17,6 +17,9 @@ export type Profile = {
   role: Role;
   market: string | null;
   active: boolean;
+  hub_role?: import("./hub").HubRole;
+  manager_id?: string | null;
+  last_seen_at?: string | null;
 };
 
 /** An outlet. Outlets sit under a parent account (first 5 digits of the account number). */

@@ -1,0 +1,331 @@
+"use client";
+
+import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { formatDate } from "@/lib/format";
+import { planStages, todayIso, workingDaysBetween } from "@/lib/working-days";
+import { Spinner } from "@/components/Spinner";
+import { approveProject, cancelProject, completeProject, hideForMe, reallocateProject, runProject, sendBack, setOwner, setPaused } from "../actions";
+
+type Option = { id: string; name: string };
+type StageType = { key: string; name: string; default_days: number; sort: number };
+
+function useAction() {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const run = (fn: () => Promise<{ ok?: boolean; error?: string }>, after?: () => void) =>
+    start(async () => {
+      setError(null);
+      const res = await fn();
+      if (res.error) return setError(res.error);
+      after?.();
+      router.refresh();
+    });
+  return { pending, error, run };
+}
+
+/** SM / CM / TMM: approve the request or send it back with a reason. */
+export function ApprovalPanel({ id, step }: { id: string; step: string }) {
+  const { pending, error, run } = useAction();
+  const [back, setBack] = useState(false);
+  const [reason, setReason] = useState("");
+  return (
+    <section className="bento border-2 border-amber-500">
+      <h2 className="text-xl text-brand-black">Your approval</h2>
+      <p className="mt-1 text-sm">{step}</p>
+      {back ? (
+        <div className="mt-3 space-y-2">
+          <textarea className="field min-h-20" placeholder="What should the KAM change?" value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
+          <div className="flex gap-2">
+            <button className="btn btn-danger" disabled={pending} onClick={() => run(() => sendBack(id, reason))}>
+              Send back
+            </button>
+            <button className="btn btn-secondary" onClick={() => setBack(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button className="btn btn-primary" disabled={pending} onClick={() => run(() => approveProject(id))}>
+            {pending ? <Spinner /> : "✓"} Approve
+          </button>
+          <button className="btn btn-secondary" onClick={() => setBack(true)}>
+            Send back
+          </button>
+        </div>
+      )}
+      {error && <p className="mt-2 text-sm text-brand-red">{error}</p>}
+    </section>
+  );
+}
+
+/**
+ * Trade Marketing vets the request: tap the stages needed (each with its working days), see the
+ * estimated execution date against the KAM's desired date, name it and run it.
+ */
+export function RunProjectPanel({
+  id,
+  defaultName,
+  desiredDate,
+  stageTypes,
+  owners,
+  me,
+}: {
+  id: string;
+  defaultName: string;
+  desiredDate: string;
+  stageTypes: StageType[];
+  owners: Option[];
+  me: string;
+}) {
+  const { pending, error, run } = useAction();
+  const [name, setName] = useState(defaultName);
+  const [owner, setOwnerId] = useState(owners.some((o) => o.id === me) ? me : (owners[0]?.id ?? me));
+  const [chosen, setChosen] = useState<Record<string, number>>(() => Object.fromEntries(stageTypes.map((s) => [s.key, s.default_days])));
+  const [back, setBack] = useState(false);
+  const [reason, setReason] = useState("");
+
+  const selected = stageTypes.filter((s) => chosen[s.key] !== undefined).map((s) => ({ ...s, days: chosen[s.key] }));
+  const today = todayIso();
+  const plan = useMemo(() => planStages(today, selected), [today, selected]);
+  const end = plan.at(-1)?.due_date ?? today;
+  const slack = workingDaysBetween(end, desiredDate);
+  const totalDays = selected.reduce((n, s) => n + s.days, 0);
+
+  const toggle = (key: string, days: number) =>
+    setChosen((c) => {
+      const next = { ...c };
+      if (next[key] === undefined) next[key] = days;
+      else delete next[key];
+      return next;
+    });
+
+  return (
+    <section className="bento space-y-4 border-2 border-brand-green">
+      <div>
+        <h2 className="text-xl text-brand-black">Vet &amp; run</h2>
+        <p className="text-sm">Tap the stages this project needs. Days are working days (Mon–Fri) and can be adjusted.</p>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2">
+        {stageTypes.map((s, i) => {
+          const on = chosen[s.key] !== undefined;
+          return (
+            <div key={s.key} className={`flex items-center gap-2 rounded-xl p-2 pr-3 ring-1 transition ${on ? "bg-brand-green-tint ring-brand-green" : "bg-white ring-black/10"}`}>
+              <button
+                type="button"
+                aria-pressed={on}
+                onClick={() => toggle(s.key, s.default_days)}
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-display text-sm ${on ? "bg-brand-green text-white" : "bg-brand-light text-brand-grey"}`}
+              >
+                {on ? "✓" : i + 1}
+              </button>
+              <button type="button" onClick={() => toggle(s.key, s.default_days)} className={`min-w-0 flex-1 text-left font-display text-sm font-medium uppercase leading-tight ${on ? "text-brand-black" : "text-brand-grey"}`}>
+                {s.name}
+              </button>
+              {on && (
+                <label className="flex shrink-0 items-center gap-1 text-xs">
+                  <input
+                    type="number"
+                    min={1}
+                    max={120}
+                    value={chosen[s.key]}
+                    onChange={(e) => setChosen((c) => ({ ...c, [s.key]: Math.max(1, Number(e.target.value) || 1) }))}
+                    className="field !w-14 !px-2 !py-1 text-center text-sm"
+                    aria-label={`${s.name} working days`}
+                  />
+                  d
+                </label>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {selected.length > 0 && (
+        <div className="rounded-xl bg-brand-light p-3">
+          <ol className="flex flex-wrap items-center gap-x-1 gap-y-2 text-xs">
+            {plan.map((s, i) => (
+              <li key={s.key} className="flex items-center gap-1">
+                <span className="rounded-full bg-white px-2 py-1 text-brand-black">
+                  {s.name} <span className="text-brand-grey">· {formatDate(s.due_date)}</span>
+                </span>
+                {i < plan.length - 1 && <span aria-hidden>→</span>}
+              </li>
+            ))}
+          </ol>
+          <p className={`mt-3 text-sm font-medium ${slack >= 0 ? "text-brand-green-dark" : "text-brand-red"}`}>
+            Estimated execution {formatDate(end)} ({totalDays} working days).{" "}
+            {slack >= 0
+              ? `On time for the desired ${formatDate(desiredDate)}${slack ? `, ${slack} days to spare` : ""}.`
+              : `${-slack} working days after the desired ${formatDate(desiredDate)}.`}
+          </p>
+        </div>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="label" htmlFor="run-name">Project name</label>
+          <input id="run-name" className="field" value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div>
+          <label className="label" htmlFor="run-owner">Owner (Trade Marketing)</label>
+          <select id="run-owner" className="field" value={owner} onChange={(e) => setOwnerId(e.target.value)}>
+            {owners.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {back ? (
+        <div className="space-y-2">
+          <textarea className="field min-h-20" placeholder="What should the KAM change?" value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
+          <div className="flex gap-2">
+            <button className="btn btn-danger" disabled={pending} onClick={() => run(() => sendBack(id, reason))}>
+              Send back
+            </button>
+            <button className="btn btn-secondary" onClick={() => setBack(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="btn btn-primary"
+            disabled={pending || !selected.length}
+            onClick={() => run(() => runProject(id, { name, tmId: owner, stages: selected.map((s) => ({ key: s.key, days: s.days })) }))}
+          >
+            {pending ? <Spinner /> : "▶"} Run project
+          </button>
+          <button className="btn btn-secondary" onClick={() => setBack(true)}>
+            Send back to KAM
+          </button>
+        </div>
+      )}
+      {error && <p className="text-sm text-brand-red">{error}</p>}
+    </section>
+  );
+}
+
+/** Trade Marketing on a live / paused project: complete, pause, reassign, cancel. */
+export function ProjectAdminPanel({
+  id,
+  status,
+  lastStageActive,
+  kams,
+  owners,
+  kamId,
+  tmId,
+}: {
+  id: string;
+  status: string;
+  lastStageActive: boolean;
+  kams: Option[];
+  owners: Option[];
+  kamId: string;
+  tmId: string | null;
+}) {
+  const { pending, error, run } = useAction();
+  const [kam, setKam] = useState(kamId);
+  const [tm, setTm] = useState(tmId ?? "");
+  return (
+    <section className="bento space-y-3">
+      <h2 className="text-xl text-brand-black">Manage</h2>
+      <div className="flex flex-wrap gap-2">
+        {status === "live" && (
+          <button className={`btn ${lastStageActive ? "btn-primary" : "btn-secondary"}`} disabled={pending} onClick={() => confirm("Mark the whole project complete?") && run(() => completeProject(id))}>
+            ✓ Complete project
+          </button>
+        )}
+        {status === "live" && (
+          <button className="btn btn-secondary" disabled={pending} onClick={() => run(() => setPaused(id, true))}>
+            Pause
+          </button>
+        )}
+        {status === "paused" && (
+          <button className="btn btn-primary" disabled={pending} onClick={() => run(() => setPaused(id, false))}>
+            Resume
+          </button>
+        )}
+        {status !== "cancelled" && status !== "completed" && (
+          <button
+            className="btn btn-danger"
+            disabled={pending}
+            onClick={() => {
+              const why = prompt("Cancel this project? It moves to Past projects. Reason (optional):");
+              if (why !== null) run(() => cancelProject(id, why));
+            }}
+          >
+            Cancel project
+          </button>
+        )}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="label" htmlFor="m-kam">KAM</label>
+          <div className="flex gap-2">
+            <select id="m-kam" className="field" value={kam} onChange={(e) => setKam(e.target.value)}>
+              {kams.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+            <button className="btn btn-secondary !px-3" disabled={pending || kam === kamId} onClick={() => run(() => reallocateProject(id, kam))}>
+              Reallocate
+            </button>
+          </div>
+        </div>
+        <div>
+          <label className="label" htmlFor="m-tm">Owner (Trade Marketing)</label>
+          <div className="flex gap-2">
+            <select id="m-tm" className="field" value={tm} onChange={(e) => setTm(e.target.value)}>
+              <option value="">Not assigned</option>
+              {owners.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+            <button className="btn btn-secondary !px-3" disabled={pending || !tm || tm === tmId} onClick={() => run(() => setOwner(id, tm))}>
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+      {error && <p className="text-sm text-brand-red">{error}</p>}
+    </section>
+  );
+}
+
+/** The KAM's own options: update a sent-back or waiting request, or remove it from their view. */
+export function KamActions({ id, canEdit }: { id: string; canEdit: boolean }) {
+  const router = useRouter();
+  const { pending, error, run } = useAction();
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {canEdit && (
+        <Link href={`/projects/new?edit=${id}`} className="btn btn-primary">
+          Edit &amp; resubmit
+        </Link>
+      )}
+      <button
+        className="btn btn-secondary"
+        disabled={pending}
+        onClick={() =>
+          confirm("Remove this project from your view? Trade Marketing keeps a record of it.") && run(() => hideForMe(id), () => router.push("/projects"))
+        }
+      >
+        Remove from my view
+      </button>
+      {error && <span className="text-sm text-brand-red">{error}</span>}
+    </div>
+  );
+}

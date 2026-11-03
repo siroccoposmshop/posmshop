@@ -22,7 +22,7 @@ export function CartView() {
           <Link href="/orders" className="btn btn-secondary">
             My orders
           </Link>
-          <Link href="/" className="btn btn-primary">
+          <Link href="/posm" className="btn btn-primary">
             Start an order
           </Link>
         </div>
