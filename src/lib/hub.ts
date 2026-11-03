@@ -19,8 +19,10 @@ export const SEES_ALL: HubRole[] = ["tm", "tmm", "cm"];
 export const SM_APPROVAL_AED = 15000;
 export const CM_APPROVAL_AED = 50000;
 
-/** Estimated gross profit per incremental hectolitre (AED), used to sanity-check the spend. */
-export const GP_PER_HL_AED = 200;
+/** Estimated gross profit per incremental hectolitre: USD 200, at 3.6725 AED to the dollar. */
+export const GP_PER_HL_USD = 200;
+export const USD_TO_AED = 3.6725;
+export const GP_PER_HL_AED = GP_PER_HL_USD * USD_TO_AED;
 /** Spend as a share of the uplift's GP: from 75% it looks GP neutral, from 90% GP negative. */
 export const GP_NEUTRAL_FROM = 0.75;
 export const GP_NEGATIVE_FROM = 0.9;
@@ -47,7 +49,7 @@ export function gpCheck(spend: number, incrementalHl: number | null | undefined)
 
 export function gpWarningText(check: NonNullable<ReturnType<typeof gpCheck>>) {
   const pct = Number.isFinite(check.ratio) ? `${Math.floor(check.ratio * 100)}% of` : "more than";
-  return `The spend is ${pct} the estimated ${formatAed(check.gp)} GP from the volume uplift (AED ${GP_PER_HL_AED} per HL).`;
+  return `The spend is ${pct} the estimated ${formatAed(check.gp)} GP from the volume uplift (USD ${GP_PER_HL_USD} per HL at ${USD_TO_AED}).`;
 }
 
 export const PROJECT_TYPES = ["Bar", "Activation", "Furniture", "Cladding", "Fridges", "Brunch station"] as const;
