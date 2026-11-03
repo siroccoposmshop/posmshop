@@ -8,21 +8,24 @@ import type { Profile } from "@/lib/types";
 
 export function SiteHeader({ profile }: { profile: Profile }) {
   const links = [
-    { href: "/", label: "Order" },
+    { href: "/", label: "Home" },
+    { href: "/posm", label: "POSM Shop" },
     { href: "/orders", label: "My orders" },
+    { href: "/projects", label: "Projects" },
+    { href: "/library", label: "Library" },
     ...(profile.role === "admin" ? [{ href: "/admin", label: "Admin" }] : []),
   ];
   return (
     <header className="no-print sticky top-0 z-30 border-b border-black/5 bg-white/95 backdrop-blur">
       <div className="relative mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
         {profile.role === "admin" && <AdminBadge />}
-        <Link href="/" className="flex items-center gap-3" aria-label="POSM SHOP home">
+        <Link href="/" className="flex items-center gap-3" aria-label="Commerce Hub home">
           <Logo className="h-8 w-auto sm:h-9" />
           <span className="hidden border-l border-brand-grey/30 pl-3 font-display text-lg font-medium uppercase tracking-wide text-brand-black sm:inline">
-            POSM Shop
+            Commerce Hub
           </span>
         </Link>
-        <div className="hidden md:block">
+        <div className="hidden lg:block">
           <NavLinks links={links} />
         </div>
         <div className="ml-auto flex items-center gap-2">

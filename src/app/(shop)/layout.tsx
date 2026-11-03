@@ -1,4 +1,5 @@
 import { requireProfile } from "@/lib/auth";
+import { recordVisit } from "@/lib/visits";
 import { CartProvider } from "@/components/CartProvider";
 import { SiteHeader } from "@/components/SiteHeader";
 import { MobileCartBar } from "@/components/CartButton";
@@ -6,6 +7,7 @@ import { Logo } from "@/components/Logo";
 
 export default async function ShopLayout({ children }: { children: React.ReactNode }) {
   const profile = await requireProfile();
+  await recordVisit(profile.id);
   return (
     <CartProvider userId={profile.id}>
       {/* Column layout keeps the footer at the bottom of the screen on short pages */}

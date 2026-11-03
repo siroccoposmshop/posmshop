@@ -2,9 +2,11 @@
 
 import { useActionState } from "react";
 import type { Market, Profile } from "@/lib/types";
+import { HUB_ROLES } from "@/lib/hub";
+import { formatDate } from "@/lib/format";
 import { inviteUser, saveUser } from "../actions";
 
-export function UserRow({ user, markets }: { user: Profile; markets: Market[] }) {
+export function UserRow({ user, markets, managers }: { user: Profile; markets: Market[]; managers: { id: string; name: string }[] }) {
   const [state, action, pending] = useActionState(saveUser, null);
   const formId = `user-${user.id}`;
   return (
@@ -21,8 +23,29 @@ export function UserRow({ user, markets }: { user: Profile; markets: Market[] })
       </td>
       <td>
         <select form={formId} name="role" defaultValue={user.role} className="field !py-1.5 text-sm" aria-label="Role">
-          <option value="kam">KAM</option>
+          <option value="kam">User</option>
           <option value="admin">Admin</option>
+        </select>
+      </td>
+      <td>
+        <select form={formId} name="hub_role" defaultValue={user.hub_role ?? "kam"} className="field !py-1.5 text-sm" aria-label="Hub role">
+          {HUB_ROLES.map((r) => (
+            <option key={r.code} value={r.code}>
+              {r.short}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td>
+        <select form={formId} name="manager_id" defaultValue={user.manager_id ?? ""} className="field !py-1.5 text-sm" aria-label="Reports to">
+          <option value="">—</option>
+          {managers
+            .filter((m) => m.id !== user.id)
+            .map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
         </select>
       </td>
       <td>
@@ -35,6 +58,7 @@ export function UserRow({ user, markets }: { user: Profile; markets: Market[] })
           ))}
         </select>
       </td>
+      <td className="whitespace-nowrap text-xs">{user.last_seen_at ? formatDate(user.last_seen_at, true) : "Never"}</td>
       <td>
         <input form={formId} type="checkbox" name="active" defaultChecked={user.active} className="h-5 w-5 accent-[var(--color-brand-green)]" aria-label="Active" />
       </td>

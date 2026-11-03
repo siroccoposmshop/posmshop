@@ -94,7 +94,7 @@ export default async function OrderPage({
         <OrderActions orderId={order.id} emailsSentAt={order.emails_sent_at} />
       </div>
       {placed && (
-        <Link href="/" className="no-print btn btn-primary mt-5 w-full !py-4">
+        <Link href="/posm" className="no-print btn btn-primary mt-5 w-full !py-4">
           Start a new order
         </Link>
       )}

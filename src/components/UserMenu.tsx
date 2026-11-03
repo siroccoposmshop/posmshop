@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isActiveLink } from "./NavLinks";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -70,7 +71,7 @@ export function UserMenu({ profile, links }: { profile: Profile; links: { href: 
 
         <nav className="flex-1 overflow-y-auto p-2">
           {allLinks.map((l) => {
-            const active = l.href === "/" ? pathname === "/" || pathname.startsWith("/shop") : pathname.startsWith(l.href);
+            const active = isActiveLink(l.href, pathname);
             return (
               <Link
                 key={l.href}

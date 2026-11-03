@@ -352,7 +352,11 @@ export async function saveUser(_: unknown, formData: FormData): Promise<{ error?
   const full_name = String(formData.get("full_name") ?? "").trim() || null;
   const active = formData.get("active") === "on";
   if (id === me.id && (role !== "admin" || !active)) return { error: "You can't remove your own admin access." };
-  const { error } = await createAdminClient().from("profiles").update({ role, market, full_name, active }).eq("id", id);
+  const hubRaw = String(formData.get("hub_role") ?? "kam");
+  const hub_role = ["kam", "sm", "cm", "tm", "tmm"].includes(hubRaw) ? hubRaw : "kam";
+  const manager_id = String(formData.get("manager_id") ?? "") || null;
+  if (manager_id === id) return { error: "Someone can't report to themselves." };
+  const { error } = await createAdminClient().from("profiles").update({ role, market, full_name, active, hub_role, manager_id }).eq("id", id);
   if (error) return { error: error.message };
   revalidatePath("/admin/users");
   return { ok: true };

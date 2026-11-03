@@ -59,7 +59,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
           ) : (
             <>
               <p>You haven&apos;t placed any orders yet.</p>
-              <Link href="/" className="btn btn-primary mt-4">
+              <Link href="/posm" className="btn btn-primary mt-4">
                 Start an order
               </Link>
             </>
