@@ -41,3 +41,8 @@ export function planStages<T extends { days: number }>(start: string, stages: T[
     return { ...s, due_date: at };
   });
 }
+
+/** The Dubai calendar date of a timestamp. */
+export function dubaiDate(ts: string | Date) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dubai" }).format(new Date(ts));
+}
