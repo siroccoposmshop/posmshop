@@ -9,6 +9,7 @@ import type { Item } from "@/lib/types";
 import { Suspense } from "react";
 import { VisibilityToggle } from "./VisibilityToggle";
 import { ItemsListMemory } from "./ListMemory";
+import { ReorderItems } from "./ReorderItems";
 
 export const metadata = { title: "Items" };
 export const dynamic = "force-dynamic";
@@ -28,7 +29,20 @@ export default async function AdminItems({ searchParams }: { searchParams: Promi
     const q = sp.q.replace(/[%,()]/g, " ");
     query = query.or(`name.ilike.%${q}%,sku.ilike.%${q}%,category.ilike.%${q}%`);
   }
-  const [{ data }, { data: brandRows }] = await Promise.all([query, db.from("items").select("brand")]);
+  const [{ data }, { data: brandRows }, { data: brandItems }] = await Promise.all([
+    query,
+    db.from("items").select("brand"),
+    // Every item of the chosen brand (whatever the other filters), for Reorder.
+    sp.brand ? db.from("items").select("*").eq("brand", sp.brand) : Promise.resolve({ data: null }),
+  ]);
+  const reorderRows = ((brandItems as Item[] | null) ?? []).sort(compareItems).map((i) => ({
+    id: i.id,
+    name: i.name,
+    sku: i.sku,
+    image_path: i.image_path,
+    visible: i.visible,
+    positioned: i.sort_order !== null && i.sort_order !== undefined,
+  }));
   // Same order as the shop: brand, then 2026 glasses, pints, half pints, coasters, everything else
   const items = ((data as Item[]) ?? []).sort((a, b) => a.brand.localeCompare(b.brand) || compareItems(a, b));
   const brands = [...new Set((brandRows ?? []).map((b) => b.brand as string))].sort();
@@ -73,7 +87,14 @@ export default async function AdminItems({ searchParams }: { searchParams: Promi
       </LiveFilters>
       </div>
 
-      <p className="mt-3 text-sm">{items.length} items</p>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm">{items.length} items</p>
+        {sp.brand && reorderRows.length > 1 ? (
+          <ReorderItems brand={sp.brand} items={reorderRows} />
+        ) : (
+          <p className="text-xs">Pick a brand to reorder its items.</p>
+        )}
+      </div>
       <div className="bento mt-2 overflow-x-auto !p-0">
         <table className="table">
           <thead>

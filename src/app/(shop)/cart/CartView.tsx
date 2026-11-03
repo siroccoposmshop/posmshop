@@ -88,6 +88,7 @@ export function CartView() {
                             delisted: false,
                             description: null,
                             order_warning: null,
+                            sort_order: null,
                           },
                           Number(e.target.value),
                         )
