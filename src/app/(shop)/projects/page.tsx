@@ -58,12 +58,14 @@ export default async function ProjectsPage() {
     .order("created_at", { ascending: false })
     .limit(20);
 
-  const approvals = views.filter((p) => canApprove(profile, p));
-  const toVet = admin ? views.filter((p) => p.status === "awaiting_tm") : [];
-  const mine = role === "tm" ? views.filter((p) => p.tm_id === profile.id) : views;
+  // Projects a KAM deleted stay visible (under Past) but don't ask for action.
+  const open = views.filter((p) => !p.hidden_for_kam);
+  const approvals = open.filter((p) => canApprove(profile, p));
+  const toVet = admin ? open.filter((p) => p.status === "awaiting_tm") : [];
+  const mine = role === "tm" ? open.filter((p) => p.tm_id === profile.id) : open;
   const actions = admin ? actionItems(mine, today) : [];
-  const sentBack = views.filter((p) => p.status === "rejected" && p.kam_id === profile.id);
-  const live = views.filter((p) => p.status === "live");
+  const sentBack = open.filter((p) => p.status === "rejected" && p.kam_id === profile.id);
+  const live = open.filter((p) => p.status === "live");
 
   return (
     <div className="space-y-6">
@@ -85,8 +87,8 @@ export default async function ProjectsPage() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Tile label="Live" value={live.length} green />
         <Tile label="Behind schedule" value={live.filter((p) => p.health.state === "behind").length} red />
-        <Tile label="Requests" value={views.filter((p) => p.status.startsWith("awaiting")).length} />
-        <Tile label="Completed" value={views.filter((p) => p.status === "completed").length} />
+        <Tile label="Requests" value={open.filter((p) => p.status.startsWith("awaiting")).length} />
+        <Tile label="Completed" value={open.filter((p) => p.status === "completed").length} />
       </div>
 
       {(approvals.length > 0 || toVet.length > 0 || actions.length > 0 || sentBack.length > 0) && (

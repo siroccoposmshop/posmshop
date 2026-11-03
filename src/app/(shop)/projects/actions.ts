@@ -232,6 +232,7 @@ export async function runProject(id: string, input: { name: string; tmId: string
   if (!isProjectAdmin(profile)) return { error: "Only Trade Marketing can run projects." };
   const p = await loadProject(id, profile);
   if (!p || p.status !== "awaiting_tm") return { error: "This project isn't waiting to be run." };
+  if (p.hidden_for_kam) return { error: "The KAM deleted this project. Reallocate it to a KAM first." };
   if (input.name.trim().length < 3) return { error: "Give the project a name." };
   if (!input.stages.length) return { error: "Choose at least one stage." };
 

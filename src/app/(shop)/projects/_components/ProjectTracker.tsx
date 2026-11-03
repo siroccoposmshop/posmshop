@@ -18,7 +18,15 @@ export function ProjectTracker({ projects, viewer, today, showPeopleFilters }: {
   const [type, setType] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
-  const inTab = (p: ProjectView, t: Tab) => (t === "live" ? p.status === "live" || p.status === "paused" : t === "requests" ? isRequest(p.status) : isPast(p.status));
+  // Projects a KAM deleted are kept for the record under Past.
+  const inTab = (p: ProjectView, t: Tab) =>
+    p.hidden_for_kam
+      ? t === "past"
+      : t === "live"
+        ? p.status === "live" || p.status === "paused"
+        : t === "requests"
+          ? isRequest(p.status)
+          : isPast(p.status);
   const counts = { live: 0, requests: 0, past: 0 };
   for (const p of projects) for (const t of ["live", "requests", "past"] as Tab[]) if (inTab(p, t)) counts[t]++;
 

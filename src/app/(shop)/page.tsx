@@ -20,6 +20,7 @@ export default async function HubHome() {
   } catch {
     // Projects not set up yet: the tile still links there.
   }
+  projects = projects.filter((p) => !p.hidden_for_kam);
   const live = projects.filter((p) => p.status === "live");
   const behind = live.filter((p) => projectHealth(p).state === "behind").length;
   const approvals = projects.filter((p) => canApprove(profile, p)).length;

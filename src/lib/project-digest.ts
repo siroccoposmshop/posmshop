@@ -16,7 +16,7 @@ export async function sendWeeklyDigests() {
   ]);
   if (error) throw new Error(error.message);
   const projects = ((rows as Project[]) ?? [])
-    .filter((p) => !isPast(p.status))
+    .filter((p) => !isPast(p.status) && !p.hidden_for_kam)
     .map((p) => ({ ...p, project_stages: [...(p.project_stages ?? [])].sort((a, b) => a.sort - b.sort) }))
     .sort(byUrgency);
   const byId = new Map(((people as Person[]) ?? []).map((p) => [p.id, p]));
