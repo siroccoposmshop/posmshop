@@ -7,7 +7,7 @@ import { UAE_PREFIX, normaliseEmail, normaliseMobile } from "@/lib/contact";
 import { CM_APPROVAL_AED, GP_PER_HL_AED, GP_PER_HL_USD, MIN_BRIEF_CHARS, PROJECT_TYPES, SM_APPROVAL_AED, formatAed, gpCheck, gpWarningText, type ExtraSource } from "@/lib/hub";
 import { OUTLET_TYPES, PICOS_GROUPS, picosItemsFor, picosScores, pointsFor, scoringOutletType, type Picos } from "@/lib/picos";
 import { Spinner } from "@/components/Spinner";
-import type { Account, Contact, ParentAccount } from "@/lib/types";
+import type { Account, ParentAccount } from "@/lib/types";
 import { submitBrief, type BriefInput } from "../actions";
 
 
@@ -122,7 +122,6 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
               setChangingType(false);
             }
           }}
-          onContact={(c) => setContact(c)}
         />
         {err("account")}
       </Section>
@@ -132,7 +131,7 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
               <label className="label" htmlFor="b-cname">Name</label>
-              <input id="b-cname" className="field" value={contact.name} onChange={(e) => setContact({ ...contact, name: e.target.value })} />
+              <input id="b-cname" className="field" autoComplete="off" data-1p-ignore data-lpignore="true" value={contact.name} onChange={(e) => setContact({ ...contact, name: e.target.value })} />
               {err("contactName")}
             </div>
             <div>
@@ -142,6 +141,9 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
                 className="field"
                 type="tel"
                 inputMode="tel"
+                autoComplete="off"
+                data-1p-ignore
+                data-lpignore="true"
                 value={contact.mobile}
                 onChange={(e) => setContact({ ...contact, mobile: e.target.value })}
                 onBlur={() => {
@@ -153,7 +155,7 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
             </div>
             <div>
               <label className="label" htmlFor="b-cemail">Email</label>
-              <input id="b-cemail" className="field" type="email" inputMode="email" value={contact.email} onChange={(e) => setContact({ ...contact, email: e.target.value })} />
+              <input id="b-cemail" className="field" type="email" inputMode="email" autoComplete="off" data-1p-ignore data-lpignore="true" value={contact.email} onChange={(e) => setContact({ ...contact, email: e.target.value })} />
               {err("contactEmail")}
             </div>
           </div>
@@ -433,8 +435,8 @@ function ScoreTile({ label, value, highlight }: { label: string; value: number; 
   );
 }
 
-/** Parent account search → outlet, as in POSM Shop. Pre-fills the last contact used under the parent. */
-function OutletPicker({ account, onChange, onContact }: { account: Account | null; onChange: (a: Account | null) => void; onContact: (c: { name: string; mobile: string; email: string }) => void }) {
+/** Parent account search → outlet, as in POSM Shop. The contact isn't pre-filled (until it comes from Salesforce). */
+function OutletPicker({ account, onChange }: { account: Account | null; onChange: (a: Account | null) => void }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ParentAccount[]>([]);
   const [parent, setParent] = useState<ParentAccount | null>(null);
@@ -478,19 +480,6 @@ function OutletPicker({ account, onChange, onContact }: { account: Account | nul
         setOutlets((data as Account[]) ?? []);
       });
   }, [parent]);
-
-  async function choose(o: Account) {
-    onChange(o);
-    const { data } = await createClient()
-      .from("contacts")
-      .select("*, accounts!inner(parent_number)")
-      .eq("accounts.parent_number", o.parent_number)
-      .order("created_at", { ascending: false })
-      .limit(10);
-    const list = (data as Contact[]) ?? [];
-    const c = list.find((x) => x.account_id === o.id) ?? list[0];
-    if (c) onContact({ name: c.name, mobile: c.mobile, email: c.email });
-  }
 
   if (account) {
     return (
@@ -537,7 +526,7 @@ function OutletPicker({ account, onChange, onContact }: { account: Account | nul
           <ul className="divide-y divide-black/5">
             {outlets.map((o) => (
               <li key={o.id}>
-                <button type="button" onClick={() => choose(o)} className="flex w-full items-center justify-between rounded-lg px-2 py-2.5 text-left hover:bg-brand-green-tint">
+                <button type="button" onClick={() => onChange(o)} className="flex w-full items-center justify-between rounded-lg px-2 py-2.5 text-left hover:bg-brand-green-tint">
                   <span>
                     <span className="block font-medium text-brand-black">{o.name}</span>
                     <span className="text-xs">#{o.account_number}</span>
