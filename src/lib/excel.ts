@@ -25,12 +25,13 @@ const ITEM_FIELDS: Field<"sku" | "brand" | "name" | "category" | "value" | "stoc
   { key: "stock", aliases: ["current stock level", "current stock", "stock level", "stock", "stock on hand", "soh", "available stock", "available", "qty available", "quantity"] },
 ];
 
-const ACCOUNT_FIELDS: Field<"account_number" | "name" | "parent_name" | "kam_name" | "market" | "channel">[] = [
+const ACCOUNT_FIELDS: Field<"account_number" | "name" | "parent_name" | "kam_name" | "market" | "channel" | "outlet_type">[] = [
   { key: "account_number", required: true, aliases: ["account number", "account no", "account", "customer number", "customer no", "customer code", "account code", "acc no", "sold to", "ship to", "outlet code"] },
   { key: "name", required: true, aliases: ["account name", "customer name", "outlet name", "outlet", "customer", "name"] },
   { key: "parent_name", aliases: ["parent account account name", "parent account name", "parent account", "parent name", "parent"] },
   { key: "kam_name", aliases: ["parent sirocco kam", "sirocco kam", "kam name", "kam"] },
   { key: "market", aliases: ["market", "country", "region"] },
+  { key: "outlet_type", aliases: ["sirocco outlet type", "outlet type"] },
   { key: "channel", aliases: ["channel", "trade channel", "segment", "sub channel"] },
 ];
 
@@ -55,6 +56,8 @@ export type ParsedAccount = {
   kam_name: string | null;
   market: string | null;
   channel: string | null;
+  /** Undefined when the sheet has no outlet type column, so existing values aren't wiped. */
+  outlet_type?: string | null;
 };
 
 export type ParseResult = {
@@ -232,6 +235,7 @@ export async function parseWorkbook(buffer: ArrayBuffer): Promise<ParseResult> {
           kam_name: get(row, "kam_name") || null,
           market,
           channel: get(row, "channel") || null,
+          ...(detected.map.outlet_type !== undefined ? { outlet_type: get(row, "outlet_type") || null } : {}),
         };
         const existing = seenAccount.get(account_number);
         if (existing !== undefined) result.accounts[existing] = account;
@@ -393,8 +397,9 @@ export async function buildTemplate() {
     { header: "Account Name", key: "name", width: 30 },
     { header: "Parent Account: Account Name", key: "parent", width: 44 },
     { header: "Parent Sirocco KAM", key: "kam", width: 22 },
+    { header: "Sirocco Outlet Type", key: "type", width: 20 },
   ];
-  accounts.addRow({ market: "DUBAI", num: "53248-SF-3", name: "ERNST", parent: "25 HOURS HOTEL DUBAI ONE CENTRAL LLC - Ennismore", kam: "Manish Punjabi" });
+  accounts.addRow({ market: "DUBAI", num: "53248-SF-3", name: "ERNST", parent: "25 HOURS HOTEL DUBAI ONE CENTRAL LLC - Ennismore", kam: "Manish Punjabi", type: "Bar" });
 
   for (const ws of [items, accounts]) {
     ws.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };

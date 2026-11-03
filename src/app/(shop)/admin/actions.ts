@@ -134,6 +134,7 @@ export async function importWorkbook(input: { path: string; filename: string; de
         kam_name: a.kam_name,
         market,
         channel: a.channel,
+        ...(a.outlet_type !== undefined ? { outlet_type: a.outlet_type } : {}),
         active: true,
         updated_at: new Date().toISOString(),
       },

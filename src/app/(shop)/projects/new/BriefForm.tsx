@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { UAE_PREFIX, normaliseEmail, normaliseMobile } from "@/lib/contact";
 import { CM_APPROVAL_AED, MIN_BRIEF_CHARS, PROJECT_TYPES, SM_APPROVAL_AED, formatAed } from "@/lib/hub";
-import { OUTLET_TYPES, PICOS_GROUPS, picosItemsFor, picosScores, pointsFor, type Picos } from "@/lib/picos";
+import { OUTLET_TYPES, PICOS_GROUPS, picosItemsFor, picosScores, pointsFor, scoringOutletType, type Picos } from "@/lib/picos";
 import { Spinner } from "@/components/Spinner";
 import type { Account, Contact, ParentAccount } from "@/lib/types";
 import { submitBrief, type BriefInput } from "../actions";
 
-const ACCOUNT_FIELDS = "id, account_number, name, parent_number, parent_name, kam_name, market, channel";
+const ACCOUNT_FIELDS = "id, account_number, name, parent_number, parent_name, kam_name, market, channel, outlet_type";
 
 export type BriefDefaults = Partial<Omit<BriefInput, "accountId">> & { account?: Account | null };
 
@@ -20,7 +20,10 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
   const [contact, setContact] = useState(defaults?.contact ?? { name: "", mobile: `${UAE_PREFIX} `, email: "" });
   const [projectType, setProjectType] = useState(defaults?.projectType ?? "");
   const [chosenBrands, setChosenBrands] = useState<string[]>(defaults?.brands ?? []);
-  const [outletType, setOutletType] = useState(defaults?.outletType ?? "");
+  const [outletType, setOutletType] = useState(defaults?.outletType ?? scoringOutletType(defaults?.account?.outlet_type) ?? "");
+  const [changingType, setChangingType] = useState(false);
+  // The outlet type from the outlet's details (Excel / Salesforce), if it maps to a PICOS type.
+  const fromOutlet = scoringOutletType(account?.outlet_type);
   const [budget, setBudget] = useState(defaults?.budget ? String(defaults.budget) : "");
   const [brief, setBrief] = useState(defaults?.brief ?? "");
   const [volumeBudget, setVolumeBudget] = useState(defaults?.volumeBudget != null ? String(defaults.volumeBudget) : "");
@@ -106,6 +109,11 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
           onChange={(a) => {
             setAccount(a);
             setErrors((e) => ({ ...e, account: "" }));
+            const mapped = scoringOutletType(a?.outlet_type);
+            if (mapped) {
+              setOutletType(mapped);
+              setChangingType(false);
+            }
           }}
           onContact={(c) => setContact(c)}
         />
@@ -163,8 +171,24 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
           </div>
           <div data-section="outletType">
             <p className="label">Outlet type</p>
-            <Chips options={OUTLET_TYPES as readonly string[]} value={outletType ? [outletType] : []} onToggle={(v) => setOutletType(v)} />
-            <p className="mt-1 text-xs">Sets which PICOS items count and how many points each is worth.</p>
+            {fromOutlet && !changingType ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="rounded-full bg-brand-green px-3.5 py-1.5 font-display text-sm font-medium uppercase tracking-wide text-white">✓ {outletType}</span>
+                <span className="text-xs">
+                  From the outlet details{account?.outlet_type && account.outlet_type !== outletType ? ` (“${account.outlet_type}”)` : ""}.{" "}
+                  <button type="button" className="underline" onClick={() => setChangingType(true)}>
+                    Change
+                  </button>
+                </span>
+              </div>
+            ) : (
+              <>
+                <Chips options={OUTLET_TYPES as readonly string[]} value={outletType ? [outletType] : []} onToggle={(v) => setOutletType(v)} />
+                <p className="mt-1 text-xs">
+                  {account && !fromOutlet ? "Not in the outlet details yet, so choose one. " : ""}Sets which PICOS items count and how many points each is worth.
+                </p>
+              </>
+            )}
             {err("outletType")}
           </div>
         </div>

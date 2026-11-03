@@ -42,6 +42,7 @@ const FIELD_LABELS = {
   open: ["PICOS Tracking"],
   tempClosed: ["Temp Closed"],
   externalId: ["External ID"],
+  outletType: ["Sirocco Outlet Type"],
 } as const;
 export type FieldKey = keyof typeof FIELD_LABELS;
 const REQUIRED: FieldKey[] = ["companyCode", "open"];
@@ -146,6 +147,7 @@ export type AccountRow = {
   market: string;
   active: boolean;
   salesforce_id: string;
+  outlet_type: string | null;
 };
 
 /** Reads a value by select path, e.g. "Owner__r.Name". */
@@ -197,6 +199,7 @@ export function planAccountRows(records: SalesforceAccount[], fields: ResolvedFi
       market,
       active: !truthy(val(r, "tempClosed")),
       salesforce_id: text(r.Id),
+      outlet_type: text(val(r, "outletType")) || null,
     });
   }
   return { rows, skipped };

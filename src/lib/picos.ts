@@ -60,3 +60,19 @@ export function picosScores(outletType: string, picos: Picos) {
 export function promisedItems(outletType: string, picos: Picos) {
   return picosItemsFor(outletType).filter((p) => picos.items[p.key]?.promised && !picos.items[p.key]?.current);
 }
+
+/**
+ * Maps an outlet type as written in the outlet details (Excel / Salesforce "Sirocco Outlet Type")
+ * to one of the PICOS scoring types, or null if it doesn't clearly match one.
+ */
+export function scoringOutletType(raw: string | null | undefined): OutletType | null {
+  const s = (raw ?? "").toLowerCase();
+  if (!s.trim()) return null;
+  if (/night\s*club/.test(s)) return "Nightclub";
+  if (/pool|beach/.test(s)) return "Pool/Beach Bar";
+  if (/\bclub\b/.test(s)) return "Nightclub";
+  if (/\bpub\b|tavern|inn\b/.test(s)) return "Pub";
+  if (/restaurant|dining|bistro|brasserie|cafe|café|steak/.test(s)) return "Restaurant";
+  if (/\bbar\b|lounge|terrace|rooftop/.test(s)) return "Bar";
+  return null;
+}
