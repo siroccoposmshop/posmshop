@@ -27,7 +27,17 @@ function useAction() {
 }
 
 /** SM / CM / TMM: approve the request or send it back with a reason. */
-export function ApprovalPanel({ id, step }: { id: string; step: string }) {
+export function ApprovalPanel({
+  id,
+  step,
+  sirocco,
+  gpWarning,
+}: {
+  id: string;
+  step: string;
+  sirocco?: string;
+  gpWarning?: { level: "neutral" | "negative"; text: string };
+}) {
   const { pending, error, run } = useAction();
   const [back, setBack] = useState(false);
   const [reason, setReason] = useState("");
@@ -35,6 +45,15 @@ export function ApprovalPanel({ id, step }: { id: string; step: string }) {
     <section className="bento border-2 border-amber-500">
       <h2 className="text-xl text-brand-black">Your approval</h2>
       <p className="mt-1 text-sm">{step}</p>
+      {sirocco && (
+        <p className="mt-2 rounded-lg border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm font-medium text-brand-black">⚠ {sirocco}</p>
+      )}
+      {gpWarning && (
+        <div className="mt-2 rounded-lg bg-brand-red px-3 py-2 text-white">
+          <p className="font-display text-sm font-bold uppercase tracking-wide">Warning: This investment looks to be GP {gpWarning.level}</p>
+          <p className="text-xs text-white/90">{gpWarning.text}</p>
+        </div>
+      )}
       {back ? (
         <div className="mt-3 space-y-2">
           <textarea className="field min-h-20" placeholder="What should the KAM change?" value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />

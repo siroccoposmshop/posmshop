@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate } from "@/lib/format";
-import { STATUS_LABEL, formatAed, hubRoleShort } from "@/lib/hub";
+import { EXTRA_SOURCE_LABEL, STATUS_LABEL, budgetSplit, formatAed, gpCheck, gpWarningText, hubRoleShort } from "@/lib/hub";
 import { PICOS_GROUPS, picosItemsFor, pointsFor } from "@/lib/picos";
 import { todayIso } from "@/lib/working-days";
 import { canApprove, hubRole, isProjectAdmin, loadPeople, loadProject, loadStageTypes, personName, projectHealth, projectTitle } from "@/lib/projects";
@@ -57,6 +57,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const kams = all.filter((x) => ["kam", "sm"].includes(x.hub_role)).map((x) => ({ id: x.id, name: `${personName(x)} (${hubRoleShort(x.hub_role)})` }));
   const stages = p.project_stages ?? [];
   const isKam = p.kam_id === profile.id;
+  const budget = budgetSplit(p);
+  const gp = gpCheck(budget.total, p.incremental_volume_hl);
   const stageName = (key: unknown) => stages.find((s) => s.key === key)?.name ?? stageTypes.find((s) => s.key === key)?.name ?? String(key ?? "");
 
   return (
@@ -103,6 +105,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       {canApprove(profile, p) && (
         <ApprovalPanel
           id={p.id}
+          sirocco={budget.sirocco > 0 ? `Includes ${formatAed(budget.sirocco)} of Sirocco funding (BIF ${formatAed(budget.bif)}).` : undefined}
+          gpWarning={gp && gp.level !== "ok" ? { level: gp.level, text: gpWarningText(gp) } : undefined}
           step={
             p.status === "awaiting_sm"
               ? `Budget ${formatAed(p.budget_aed)} needs Sales Manager approval${p.budget_aed >= 50000 ? ", then CM/TMM" : ""}.`
@@ -148,7 +152,9 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           <h2 className="text-xl text-brand-black">Brief</h2>
           <p className="whitespace-pre-line text-sm text-brand-black">{p.brief}</p>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
-            <Item label="Budget" value={formatAed(p.budget_aed)} />
+            <Item label="Total budget" value={formatAed(budget.total)} />
+            <Item label="BIF" value={formatAed(budget.bif)} />
+            {budget.source && <Item label={`${EXTRA_SOURCE_LABEL[budget.source]} funding`} value={formatAed(budget.extra)} />}
             <Item label="Volume budget 2027" value={p.volume_budget_hl != null ? `${p.volume_budget_hl} HL` : "—"} />
             <Item label="Incremental vs budget" value={p.incremental_volume_hl != null ? `${p.incremental_volume_hl} HL` : "—"} />
             <Item label="Desired date" value={formatDate(p.desired_date)} />
@@ -158,6 +164,12 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             <Item label="Sales Manager" value={name(p.sm_id)} />
             <Item label="Trade Marketing" value={p.tm_id ? name(p.tm_id) : "Not assigned"} />
           </dl>
+          {gp && gp.level !== "ok" && (
+            <div className="rounded-lg bg-brand-red px-3 py-2 text-white">
+              <p className="font-display text-sm font-bold uppercase tracking-wide">Warning: This investment looks to be GP {gp.level}</p>
+              <p className="text-xs text-white/90">{gpWarningText(gp)}</p>
+            </div>
+          )}
           <div>
             <p className="label">Customer contact</p>
             <p className="text-sm text-brand-black">

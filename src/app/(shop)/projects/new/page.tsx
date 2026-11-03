@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hubRole, loadProject } from "@/lib/projects";
+import { budgetSplit } from "@/lib/hub";
 import type { Account } from "@/lib/types";
 import { BriefForm, type BriefDefaults } from "./BriefForm";
 
@@ -27,7 +28,9 @@ export default async function NewProjectPage({ searchParams }: { searchParams: P
         brands: p.brands,
         outletType: p.outlet_type,
         contact: { name: p.contact_name, mobile: p.contact_mobile, email: p.contact_email },
-        budget: Number(p.budget_aed),
+        budgetBif: budgetSplit(p).bif,
+        budgetExtra: budgetSplit(p).extra || null,
+        budgetExtraSource: budgetSplit(p).source,
         brief: p.brief,
         volumeBudget: p.volume_budget_hl,
         incrementalVolume: p.incremental_volume_hl,

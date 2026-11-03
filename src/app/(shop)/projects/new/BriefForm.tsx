@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { UAE_PREFIX, normaliseEmail, normaliseMobile } from "@/lib/contact";
-import { CM_APPROVAL_AED, MIN_BRIEF_CHARS, PROJECT_TYPES, SM_APPROVAL_AED, formatAed } from "@/lib/hub";
+import { CM_APPROVAL_AED, GP_PER_HL_AED, MIN_BRIEF_CHARS, PROJECT_TYPES, SM_APPROVAL_AED, formatAed, gpCheck, gpWarningText, type ExtraSource } from "@/lib/hub";
 import { OUTLET_TYPES, PICOS_GROUPS, picosItemsFor, picosScores, pointsFor, scoringOutletType, type Picos } from "@/lib/picos";
 import { Spinner } from "@/components/Spinner";
 import type { Account, Contact, ParentAccount } from "@/lib/types";
@@ -23,7 +23,9 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
   const [changingType, setChangingType] = useState(false);
   // The outlet type from the outlet's details (Excel / Salesforce), if it maps to a PICOS type.
   const fromOutlet = scoringOutletType(account?.outlet_type);
-  const [budget, setBudget] = useState(defaults?.budget ? String(defaults.budget) : "");
+  const [bif, setBif] = useState(defaults?.budgetBif ? String(defaults.budgetBif) : "");
+  const [extra, setExtra] = useState(defaults?.budgetExtra ? String(defaults.budgetExtra) : "");
+  const [extraSource, setExtraSource] = useState<ExtraSource | "">(defaults?.budgetExtraSource ?? "");
   const [brief, setBrief] = useState(defaults?.brief ?? "");
   const [volumeBudget, setVolumeBudget] = useState(defaults?.volumeBudget != null ? String(defaults.volumeBudget) : "");
   const [incremental, setIncremental] = useState(defaults?.incrementalVolume != null ? String(defaults.incrementalVolume) : "");
@@ -33,7 +35,10 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
-  const budgetNum = Number(budget.replace(/[^0-9.]/g, "")) || 0;
+  const bifNum = Number(bif.replace(/[^0-9.]/g, "")) || 0;
+  const extraNum = Number(extra.replace(/[^0-9.]/g, "")) || 0;
+  const budgetNum = bifNum + extraNum;
+  const gp = gpCheck(budgetNum, incremental === "" ? null : Number(incremental));
   const scores = useMemo(() => picosScores(outletType, picos), [outletType, picos]);
   const approval =
     budgetNum >= CM_APPROVAL_AED
@@ -60,7 +65,8 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
     if (!projectType) errs.projectType = "Choose the project type.";
     if (!chosenBrands.length) errs.brands = "Choose at least one brand.";
     if (!outletType) errs.outletType = "Choose the outlet type.";
-    if (!(budgetNum > 0)) errs.budget = "Enter the budget in AED.";
+    if (!(bifNum > 0)) errs.budget = "Enter the BIF value in AED.";
+    if (extraNum > 0 && !extraSource) errs.budgetExtra = "Choose Sirocco or Other for the extra funding.";
     if (brief.trim().length < MIN_BRIEF_CHARS) errs.brief = `Describe the project in at least ${MIN_BRIEF_CHARS} characters.`;
     if (volumeBudget === "") errs.volumeBudget = "Enter the 2027 volume budget in HL.";
     if (incremental === "") errs.incrementalVolume = "Enter the incremental volume in HL.";
@@ -82,7 +88,9 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
         brands: chosenBrands,
         outletType,
         contact: { name: contact.name, mobile: m.ok ? m.value : contact.mobile, email: em.ok ? em.value : contact.email },
-        budget: budgetNum,
+        budgetBif: bifNum,
+        budgetExtra: extraNum > 0 ? extraNum : null,
+        budgetExtraSource: extraNum > 0 && extraSource ? extraSource : null,
         brief,
         volumeBudget: Number(volumeBudget),
         incrementalVolume: Number(incremental),
@@ -196,9 +204,34 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
       <Section n={4} title="Budget & volume" id="budget">
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
-            <label className="label" htmlFor="b-budget">Budget (AED)</label>
-            <input id="b-budget" className="field" inputMode="decimal" placeholder="e.g. 25000" value={budget} onChange={(e) => setBudget(e.target.value)} />
+            <label className="label" htmlFor="b-budget">BIF value (AED)</label>
+            <input id="b-budget" className="field" inputMode="decimal" placeholder="e.g. 25000" value={bif} onChange={(e) => setBif(e.target.value)} />
             {err("budget")}
+          </div>
+          <div data-section="budgetExtra">
+            <label className="label" htmlFor="b-extra">
+              Extra funding (AED) <span className="normal-case tracking-normal text-brand-grey">· optional</span>
+            </label>
+            <div className="flex gap-2">
+              <select
+                className="field !w-28 shrink-0"
+                aria-label="Extra funding from"
+                value={extraSource}
+                onChange={(e) => setExtraSource(e.target.value as ExtraSource | "")}
+              >
+                <option value="">From…</option>
+                <option value="sirocco">Sirocco</option>
+                <option value="other">Other</option>
+              </select>
+              <input id="b-extra" className="field min-w-0" inputMode="decimal" placeholder="0" value={extra} onChange={(e) => setExtra(e.target.value)} />
+            </div>
+            {err("budgetExtra")}
+          </div>
+          <div>
+            <p className="label">Total budget</p>
+            <p className="field flex items-center !bg-brand-light font-medium text-brand-black" aria-live="polite">
+              {budgetNum > 0 ? formatAed(budgetNum) : "—"}
+            </p>
           </div>
           <div data-section="volumeBudget">
             <label className="label" htmlFor="b-vol">Volume budget 2027 (HL)</label>
@@ -210,11 +243,27 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
             <input id="b-inc" className="field" inputMode="decimal" value={incremental} onChange={(e) => setIncremental(e.target.value.replace(/[^0-9.]/g, ""))} />
             {err("incrementalVolume")}
           </div>
+          <div>
+            <p className="label">Est. GP from uplift</p>
+            <p className="field flex items-center !bg-brand-light text-brand-black" title={`AED ${GP_PER_HL_AED} per incremental HL`}>
+              {incremental !== "" ? formatAed(gp?.gp ?? Number(incremental) * GP_PER_HL_AED) : "—"}
+            </p>
+          </div>
         </div>
         {approval && (
           <p className="mt-3 rounded-lg bg-brand-light px-3 py-2 text-xs">
-            <strong className="text-brand-black">{formatAed(budgetNum)}</strong> · {approval}
+            <strong className="text-brand-black">{formatAed(budgetNum)}</strong>
+            {extraNum > 0 && extraSource === "sirocco" && <> (incl. {formatAed(extraNum)} Sirocco)</>} · {approval}
+            {extraNum > 0 && extraSource === "sirocco" && " The Sirocco funding will be shown to the approvers."}
           </p>
+        )}
+        {gp && gp.level !== "ok" && (
+          <div className="mt-2 rounded-lg bg-brand-red px-3 py-2 text-white" role="alert">
+            <p className="font-display text-sm font-bold uppercase tracking-wide">
+              Warning: This investment looks to be GP {gp.level}
+            </p>
+            <p className="text-xs text-white/90">{gpWarningText(gp)}</p>
+          </div>
         )}
       </Section>
 
