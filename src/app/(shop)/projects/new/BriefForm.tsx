@@ -252,7 +252,7 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
         {err("desiredDate")}
       </Section>
 
-      <div className="bento sticky bottom-3 z-10 flex flex-col gap-3 shadow-lg sm:flex-row sm:items-center sm:justify-between">
+      <div className="bento flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className={`text-sm ${formError ? "text-brand-red" : ""}`}>{formError ?? "Every section is required. Trade Marketing will be in touch once it's reviewed."}</p>
         <button className="btn btn-primary" disabled={pending}>
           {pending ? (
