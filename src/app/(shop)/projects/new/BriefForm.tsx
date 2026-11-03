@@ -211,22 +211,27 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
             {err("budget")}
           </div>
           <div data-section="budgetExtra">
-            <label className="label" htmlFor="b-extra">
-              Extra funding (AED) <span className="normal-case tracking-normal text-brand-grey">· optional</span>
-            </label>
-            <div className="flex gap-2">
-              <select
-                className="field !w-28 shrink-0"
-                aria-label="Extra funding from"
-                value={extraSource}
-                onChange={(e) => setExtraSource(e.target.value as ExtraSource | "")}
-              >
-                <option value="">From…</option>
-                <option value="sirocco">Sirocco</option>
-                <option value="other">Other</option>
-              </select>
-              <input id="b-extra" className="field min-w-0" inputMode="decimal" placeholder="0" value={extra} onChange={(e) => setExtra(e.target.value)} />
+            <div className="flex items-end justify-between gap-2">
+              <label className="label whitespace-nowrap" htmlFor="b-extra">
+                Extra funding
+              </label>
+              <div className="mb-1 flex shrink-0 overflow-hidden rounded-full ring-1 ring-black/15" role="group" aria-label="Extra funding from">
+                {(["sirocco", "other"] as const).map((src) => (
+                  <button
+                    key={src}
+                    type="button"
+                    aria-pressed={extraSource === src}
+                    onClick={() => setExtraSource(extraSource === src ? "" : src)}
+                    className={`px-2 py-0.5 font-display text-[0.65rem] uppercase tracking-wide transition ${
+                      extraSource === src ? "bg-brand-green text-white" : "bg-white text-brand-grey hover:text-brand-black"
+                    }`}
+                  >
+                    {src === "sirocco" ? "Sirocco" : "Other"}
+                  </button>
+                ))}
+              </div>
             </div>
+            <input id="b-extra" className="field" inputMode="decimal" placeholder="AED · optional" value={extra} onChange={(e) => setExtra(e.target.value)} />
             {err("budgetExtra")}
           </div>
           <div>
