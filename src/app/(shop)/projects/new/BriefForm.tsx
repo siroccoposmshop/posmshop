@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { UAE_PREFIX, normaliseEmail, normaliseMobile } from "@/lib/contact";
-import { CM_APPROVAL_AED, GP_PER_HL_AED, MIN_BRIEF_CHARS, PROJECT_TYPES, SM_APPROVAL_AED, formatAed, gpCheck, gpWarningText, type ExtraSource } from "@/lib/hub";
+import { CM_APPROVAL_AED, GP_PER_HL_AED, GP_PER_HL_USD, MIN_BRIEF_CHARS, PROJECT_TYPES, SM_APPROVAL_AED, formatAed, gpCheck, gpWarningText, type ExtraSource } from "@/lib/hub";
 import { OUTLET_TYPES, PICOS_GROUPS, picosItemsFor, picosScores, pointsFor, scoringOutletType, type Picos } from "@/lib/picos";
 import { Spinner } from "@/components/Spinner";
 import type { Account, Contact, ParentAccount } from "@/lib/types";
@@ -245,7 +245,7 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
           </div>
           <div>
             <p className="label">Est. GP from uplift</p>
-            <p className="field flex items-center !bg-brand-light text-brand-black" title={`AED ${GP_PER_HL_AED} per incremental HL`}>
+            <p className="field flex items-center !bg-brand-light text-brand-black" title={`USD ${GP_PER_HL_USD} (AED ${GP_PER_HL_AED.toFixed(2)}) per incremental HL`}>
               {incremental !== "" ? formatAed(gp?.gp ?? Number(incremental) * GP_PER_HL_AED) : "—"}
             </p>
           </div>
