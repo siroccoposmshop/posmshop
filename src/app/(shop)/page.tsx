@@ -40,7 +40,7 @@ export default async function HubHome() {
           href="/projects"
           title="Projects"
           text="Brief a new project, follow it through every stage and see what's due."
-          cta="Open projects"
+          cta="Projects dashboard"
           highlight
           stats={[
             { label: "Live", value: live.length },
@@ -60,7 +60,7 @@ export default async function HubHome() {
           text="Order glassware, coasters, bar mats and more for your outlets."
           cta="Start an order"
           extra={
-            <Link href="/orders" className="text-sm underline">
+            <Link href="/orders" className="btn btn-secondary">
               My orders
             </Link>
           }

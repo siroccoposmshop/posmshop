@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCart } from "./CartProvider";
 import { money } from "@/lib/format";
+import { isPosmPath } from "./NavLinks";
 
 export function CartIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
@@ -26,8 +27,11 @@ export function CartIcon({ className = "h-5 w-5" }: { className?: string }) {
   );
 }
 
+/** Shown only in POSM Shop. */
 export function CartButton() {
   const { count, ready } = useCart();
+  const pathname = usePathname();
+  if (!isPosmPath(pathname)) return null;
   return (
     <Link
       href="/cart"
@@ -49,7 +53,7 @@ export function MobileCartBar() {
   const { count, total, ready, account } = useCart();
   const pathname = usePathname();
   // Not needed on the cart and confirm pages — they have their own buttons.
-  if (!ready || !account || pathname.startsWith("/cart")) return null;
+  if (!ready || !account || pathname.startsWith("/cart") || !isPosmPath(pathname)) return null;
   return (
     <>
       {/* Spacer so the fixed bar never covers the footer */}
