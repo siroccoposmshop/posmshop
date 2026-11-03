@@ -1,7 +1,7 @@
 import "server-only";
 import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { formatDate, friendlyAccountName, money } from "@/lib/format";
+import { companyName, formatDate, friendlyAccountName, money, outletName } from "@/lib/format";
 
 export { friendlyAccountName };
 import { DEFAULT_ORDER_DESK } from "@/lib/markets";
@@ -30,10 +30,16 @@ function siteUrl() {
   return (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
 }
 
+/** Short names: "The Duck Hook Restaurant" at "Sarood Hospitality" (the company only when it adds something). */
+function shortNames(order: Order) {
+  const outlet = outletName(order.account_name);
+  const company = companyName(order.parent_name || order.account_name);
+  return { outlet, company: company && company.toLowerCase() !== outlet.toLowerCase() ? company : "" };
+}
+
 function outletLabel(order: Order) {
-  return order.parent_name && order.parent_name !== order.account_name
-    ? `${order.account_name} (${order.parent_name})`
-    : order.account_name;
+  const { outlet, company } = shortNames(order);
+  return company ? `${outlet} (${company})` : outlet;
 }
 
 function firstName(name: string) {
@@ -41,7 +47,7 @@ function firstName(name: string) {
 }
 
 export function emailSubject(order: Order, audience: Audience) {
-  if (audience === "customer") return `Your POSM order for ${order.account_name} · ${order.order_number}`;
+  if (audience === "customer") return `Your POSM order for ${shortNames(order).outlet} · ${order.order_number}`;
   return `[${order.market}] POSM order ${order.order_number} · ${outletLabel(order)}`;
 }
 
@@ -62,10 +68,9 @@ function fieldRow(left: string, right?: string) {
 
 export function renderOrderEmail(order: Order, items: OrderItem[], market: Market, audience: Audience) {
   const isCustomer = audience === "customer";
-  const venue = friendlyAccountName(order.parent_name);
-  const outletAtVenue = `<strong>${esc(order.account_name)}</strong>${
-    venue && venue.toLowerCase() !== order.account_name.toLowerCase() ? ` at ${esc(venue)}` : ""
-  }`;
+  const { outlet, company: venue } = shortNames(order);
+  const outletAtVenue = `<strong>${esc(outlet)}</strong>${venue ? ` at ${esc(venue)}` : ""}`;
+  const small = (s: string) => `<span style="font-size:12px;color:${GREY}">${s}</span>`;
   const kam = order.kam_name || order.kam_email;
 
   const intro = isCustomer
@@ -95,12 +100,12 @@ export function renderOrderEmail(order: Order, items: OrderItem[], market: Marke
   const details = isCustomer
     ? [
         fieldRow(orderNo, date),
-        fieldRow(field("Delivering to", `<strong>${esc(order.account_name)}</strong>${venue ? `<br>${esc(venue)}` : ""}`), field("Contact", contact)),
+        fieldRow(field("Delivering to", `<strong>${esc(outlet)}</strong>${venue ? `<br>${esc(venue)}` : ""}`), field("Contact", contact)),
       ].join("")
     : [
         fieldRow(orderNo, date),
-        fieldRow(field("Outlet", `<strong>${esc(order.account_name)}</strong><br>#${esc(order.account_number)}`), field("Market", esc(market.name))),
-        fieldRow(field("Account", `${esc(order.parent_name ?? order.account_name)} · #${esc(order.parent_number ?? order.account_number)}`)),
+        fieldRow(field("Outlet", `<strong>${esc(outlet)}</strong><br>${small(`${esc(order.account_name)} · #${esc(order.account_number)}`)}`), field("Market", esc(market.name))),
+        fieldRow(field("Account", `${esc(companyName(order.parent_name ?? order.account_name))} ${small(`· #${esc(order.parent_number ?? order.account_number)}`)}`)),
         fieldRow(field("Contact", contact), field("KAM", `${esc(kam)}<br>${esc(order.kam_email)}`)),
         order.notes ? fieldRow(field("Notes", esc(order.notes))) : "",
       ].join("");

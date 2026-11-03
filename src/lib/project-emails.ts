@@ -1,8 +1,8 @@
 import "server-only";
 import { Resend } from "resend";
 import { EXTRA_SOURCE_LABEL, STATUS_LABEL, budgetSplit, gpCheck, gpWarningText } from "@/lib/hub";
-import { formatDate } from "@/lib/format";
-import { projectHealth, projectTitle, type Project } from "@/lib/projects";
+import { companyName, formatDate, outletName } from "@/lib/format";
+import { outletLine, projectHealth, projectTitle, type Project } from "@/lib/projects";
 
 // Same look as the POSM order emails.
 const GREEN = "#58a244";
@@ -68,6 +68,12 @@ function stagesTable(p: Project) {
     <tr><th colspan="3" align="left" style="padding:4px 0;border-bottom:2px solid ${GREEN};${LABEL};font-weight:500">Stages</th></tr>${rows}</table>`;
 }
 
+function outletHtml(p: Project) {
+  const outlet = outletName(p.account_name);
+  const company = companyName(p.parent_name || p.account_name);
+  return `<strong>${esc(outlet)}</strong>${company && company.toLowerCase() !== outlet.toLowerCase() ? `<br>${esc(company)}` : ""}<br><span style="font-size:12px;color:${GREY}">#${esc(p.account_number)}</span>`;
+}
+
 function budgetHtml(p: Project) {
   const b = budgetSplit(p);
   if (!b.source) return aed(b.total);
@@ -92,7 +98,7 @@ function approvalNotes(p: Project) {
 function summary(p: Project, people: { kam?: string; sm?: string; tm?: string }) {
   return [
     pair(field("Project", `<strong>${esc(projectTitle(p))}</strong><br><span style="color:${GREY};font-size:12px">${esc(p.ref)} · ${esc(p.project_type)}</span>`), field("Status", pill(p))),
-    pair(field("Outlet", `<strong>${esc(p.account_name)}</strong><br>${esc(p.parent_name ?? "")}`), field("Budget", budgetHtml(p))),
+    pair(field("Outlet", outletHtml(p)), field("Budget", budgetHtml(p))),
     pair(field("KAM", esc(people.kam ?? "—")), field("Trade Marketing", esc(people.tm ?? "Not assigned yet"))),
     pair(field("Desired date", date(p.desired_date)), field("Expected completion", date(projectHealth(p).forecast ?? p.target_date))),
   ].join("");
@@ -141,13 +147,13 @@ export function renderProjectEmail(
     approval_needed: {
       subject: `Approval needed: ${title} (${aed(p.budget_aed)})`,
       heading: "Approval needed",
-      intro: `${esc(people.kam)} has requested a ${esc(p.project_type.toLowerCase())} project for <strong>${esc(p.account_name)}</strong>. Please approve or send it back.`,
+      intro: `${esc(people.kam)} has requested a ${esc(p.project_type.toLowerCase())} project for <strong>${esc(outletName(p.account_name))}</strong>. Please approve or send it back.`,
       body: table(summary(p, people)) + approvalNotes(p) + brief + button(link, "Review request"),
     },
     sent_back: {
       subject: `Sent back: ${title}`,
       heading: "Request sent back",
-      intro: `Your request for <strong>${esc(p.account_name)}</strong> needs another look before it can go ahead.`,
+      intro: `Your request for <strong>${esc(outletName(p.account_name))}</strong> needs another look before it can go ahead.`,
       body:
         `<div style="margin:0 0 14px;padding:12px;border-left:4px solid ${RED};background:#fbeeec;${VALUE}">${esc(extra.reason ?? "")}</div>` +
         table(summary(p, people)) +
@@ -168,7 +174,7 @@ export function renderProjectEmail(
     completed: {
       subject: `Completed: ${title}`,
       heading: "Project completed",
-      intro: `<strong>${esc(title)}</strong> for ${esc(p.account_name)} is complete. Remember to check the PICOS promised are in place.`,
+      intro: `<strong>${esc(title)}</strong> for ${esc(outletName(p.account_name))} is complete. Remember to check the PICOS promised are in place.`,
       body: table(summary(p, people)) + stagesTable(p) + button(link, "View project"),
     },
   };
@@ -188,7 +194,7 @@ export function renderDigest(firstName: string, scope: string, projects: Project
       const h = projectHealth(p);
       const where = h.active ? `${esc(h.active.name)} · due ${date(h.active.due_date)}` : esc(STATUS_LABEL[p.status]);
       return `<tr>
-        <td style="padding:9px 8px 9px 0;border-bottom:1px solid #eeeded;${VALUE}"><strong>${esc(projectTitle(p))}</strong><div style="font-size:12px;color:${GREY}">${esc(p.account_name)} · ${esc(kamName(p))}</div><div style="font-size:12px;color:${GREY}">${where}</div></td>
+        <td style="padding:9px 8px 9px 0;border-bottom:1px solid #eeeded;${VALUE}"><strong>${esc(projectTitle(p))}</strong><div style="font-size:12px;color:${GREY}">${esc(outletLine(p))} · ${esc(kamName(p))}</div><div style="font-size:12px;color:${GREY}">${where}</div></td>
         <td align="right" style="padding:9px 0;border-bottom:1px solid #eeeded;vertical-align:top">${pill(p)}</td>
       </tr>`;
     })
