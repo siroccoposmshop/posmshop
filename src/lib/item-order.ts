@@ -4,15 +4,13 @@
  *   2. Pints   3. Half pints   4. Coasters   5. Everything else
  * Within pints and half pints, standard glass comes first, then pre-2025 / refurbished,
  * then poly / plastic / paper.
- * PINNED overrides all of this: listed SKUs come first within their brand, in the order given.
+ * A manual position (sort_order, set in Admin → Items → Reorder) overrides all of this: positioned
+ * items come first within their brand, in that order, then the rest by the rules above.
  */
-type Sortable = { name: string; category: string | null; sku?: string };
+type Sortable = { name: string; category: string | null; sku?: string; sort_order?: number | null };
 
-const PINNED = ["PAUL18", "PAUL22", "PAUL17", "PAUL40", "PAUL16", "PAUL25"];
-
-function pinned(i: Sortable) {
-  const n = i.sku ? PINNED.indexOf(i.sku.toUpperCase()) : -1;
-  return n < 0 ? PINNED.length : n;
+function position(i: Sortable) {
+  return i.sort_order ?? Number.MAX_SAFE_INTEGER;
 }
 
 const FEATURED = /\b2026\b|1859|STAR GLASS/i;
@@ -38,5 +36,5 @@ function variant(i: Sortable) {
 export function compareItems(a: Sortable, b: Sortable) {
   const fa = FEATURED.test(a.name) ? 0 : 1;
   const fb = FEATURED.test(b.name) ? 0 : 1;
-  return pinned(a) - pinned(b) || fa - fb || kind(a) - kind(b) || variant(a) - variant(b) || a.name.localeCompare(b.name);
+  return position(a) - position(b) || fa - fb || kind(a) - kind(b) || variant(a) - variant(b) || a.name.localeCompare(b.name);
 }

@@ -65,6 +65,7 @@ export type Item = {
   image_path: string | null;
   description: string | null;
   order_warning: string | null;
+  sort_order: number | null;
 };
 
 export type OrderStatus = "submitted" | "processing" | "dispatched" | "delivered" | "cancelled";

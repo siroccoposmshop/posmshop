@@ -435,3 +435,26 @@ export async function syncSalesforceNow(): Promise<{ ok: boolean; error?: string
   revalidatePath("/admin/accounts");
   return ok ? { ok } : { ok, error: summary.error ?? "Sync failed." };
 }
+
+/** Saves the manual order of a brand's items (ids in display order), or clears it with an empty list. */
+export async function setItemOrder(brand: string, ids: string[]): Promise<{ ok?: boolean; error?: string }> {
+  const admin = await getAdmin();
+  if (!admin) return { error: "You've been signed out. Sign in again and retry." };
+  const db = createAdminClient();
+  const now = new Date().toISOString();
+  if (!ids.length) {
+    const { error } = await db.from("items").update({ sort_order: null, updated_at: now }).eq("brand", brand);
+    if (error) return { error: error.message };
+  } else {
+    const results = await Promise.all(
+      ids.map((id, i) => db.from("items").update({ sort_order: i + 1, updated_at: now }).eq("id", id).eq("brand", brand)),
+    );
+    const failed = results.find((r) => r.error);
+    if (failed?.error) {
+      return { error: /sort_order/.test(failed.error.message) ? "Run supabase/migrations/20261103000000_item_sort_order.sql in Supabase first." : failed.error.message };
+    }
+  }
+  revalidatePath("/admin/items");
+  revalidatePath("/shop");
+  return { ok: true };
+}
