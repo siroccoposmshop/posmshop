@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { formatDate } from "@/lib/format";
 import { formatAed, isRequest } from "@/lib/hub";
-import { projectTitle } from "@/lib/projects-shared";
+import { outletLine, projectTitle } from "@/lib/projects-shared";
 import { ProjectBadge } from "./StatusBadge";
 import { StageTrack } from "./StageTrack";
 import { PicosPromised } from "./PicosPromised";
@@ -21,8 +21,7 @@ export function ProjectCard({ p, viewer, today }: { p: ProjectView; viewer: View
         <div className="min-w-0 flex-1">
           <p className="font-display text-base font-medium uppercase leading-tight text-brand-black sm:text-lg">{projectTitle(p)}</p>
           <p className="mt-0.5 truncate text-xs">
-            {p.ref} · {p.account_name}
-            {p.parent_name && p.parent_name !== p.account_name ? ` · ${p.parent_name}` : ""} · {p.kamName}
+            {p.ref} · {outletLine(p)} · {p.kamName}
           </p>
           {p.status === "live" && h.total > 0 && (
             <div className="mt-2 flex items-center gap-2">

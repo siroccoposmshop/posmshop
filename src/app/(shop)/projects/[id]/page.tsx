@@ -2,11 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { formatDate } from "@/lib/format";
+import { formatDate, outletName } from "@/lib/format";
 import { EXTRA_SOURCE_LABEL, STATUS_LABEL, budgetSplit, formatAed, gpCheck, gpWarningText, hubRoleShort } from "@/lib/hub";
 import { PICOS_GROUPS, picosItemsFor, pointsFor } from "@/lib/picos";
 import { todayIso } from "@/lib/working-days";
-import { canApprove, hubRole, isProjectAdmin, loadPeople, loadProject, loadStageTypes, personName, projectHealth, projectTitle } from "@/lib/projects";
+import { canApprove, hubRole, isProjectAdmin, loadPeople, loadProject, loadStageTypes, outletLine, personName, projectHealth, projectTitle } from "@/lib/projects";
 import { MARKETS } from "@/lib/markets";
 import { ProjectBadge } from "../_components/StatusBadge";
 import { PicosPromised } from "../_components/PicosPromised";
@@ -67,24 +67,23 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         ← Projects
       </Link>
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="font-display text-sm uppercase tracking-wide">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-display text-xs uppercase tracking-wide">
             {p.ref} · {p.project_type}
           </p>
-          <h1 className="accent-square text-3xl text-brand-black sm:text-4xl">{projectTitle(p)}</h1>
-          <p className="mt-1 text-sm">
-            {p.account_name} · #{p.account_number}
-            {p.parent_name ? ` · ${p.parent_name}` : ""} · {MARKETS.find((m) => m.code === p.market)?.name ?? p.market}
+          <h1 className="accent-square text-2xl leading-tight text-brand-black sm:text-3xl">{projectTitle(p)}</h1>
+          <p className="mt-1 text-sm" title={[p.account_name, p.parent_name].filter(Boolean).join(" · ")}>
+            {outletLine(p)} · #{p.account_number} · {MARKETS.find((m) => m.code === p.market)?.name ?? p.market}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <ProjectBadge p={{ status: p.status, health, hidden_for_kam: p.hidden_for_kam }} large />
-          {p.status === "live" && <span className="text-sm">Expected {formatDate(health.forecast ?? p.target_date!)}</span>}
+        <div className="flex shrink-0 flex-col items-end gap-1 pt-1 text-right">
+          <ProjectBadge p={{ status: p.status, health, hidden_for_kam: p.hidden_for_kam }} />
+          {p.status === "live" && <span className="whitespace-nowrap text-xs">Expected {formatDate(health.forecast ?? p.target_date!)}</span>}
         </div>
       </div>
 
-      {submitted && (
+      {submitted && p.status.startsWith("awaiting") && (
         <p className="rounded-xl bg-brand-green-tint p-4 text-sm text-brand-green-dark">
           ✓ Request submitted. It&apos;s now {STATUS_LABEL[p.status].toLowerCase()}. You&apos;ll be notified as it moves on.
         </p>
@@ -118,7 +117,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       {admin && p.status === "awaiting_tm" && !p.hidden_for_kam && (
         <RunProjectPanel
           id={p.id}
-          defaultName={`${p.project_type} · ${p.account_name}`}
+          defaultName={`${p.project_type} · ${outletName(p.account_name)}`}
           desiredDate={p.desired_date}
           stageTypes={stageTypes}
           owners={owners}

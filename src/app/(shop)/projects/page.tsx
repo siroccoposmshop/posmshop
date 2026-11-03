@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { formatDate } from "@/lib/format";
+import { formatDate, outletName } from "@/lib/format";
 import { formatAed, hubRoleShort } from "@/lib/hub";
 import { todayIso } from "@/lib/working-days";
 import {
@@ -96,14 +96,14 @@ export default async function ProjectsPage() {
           {approvals.length > 0 && (
             <ListCard title="Approvals" count={approvals.length} tone="amber">
               {approvals.map((p) => (
-                <Row key={p.id} href={`/projects/${p.id}`} title={projectTitle(p)} sub={`${p.account_name} · ${p.kamName}`} right={formatAed(p.budget_aed)} />
+                <Row key={p.id} href={`/projects/${p.id}`} title={projectTitle(p)} sub={`${outletName(p.account_name)} · ${p.kamName}`} right={formatAed(p.budget_aed)} />
               ))}
             </ListCard>
           )}
           {toVet.length > 0 && (
             <ListCard title="To vet" count={toVet.length} tone="green">
               {toVet.map((p) => (
-                <Row key={p.id} href={`/projects/${p.id}`} title={projectTitle(p)} sub={`${p.account_name} · ${p.kamName}`} right={`Wanted ${formatDate(p.desired_date)}`} />
+                <Row key={p.id} href={`/projects/${p.id}`} title={projectTitle(p)} sub={`${outletName(p.account_name)} · ${p.kamName}`} right={`Wanted ${formatDate(p.desired_date)}`} />
               ))}
             </ListCard>
           )}
@@ -114,7 +114,7 @@ export default async function ProjectsPage() {
                   key={p.id}
                   href={`/projects/${p.id}`}
                   title={projectTitle(p)}
-                  sub={`${stage.name} · ${p.account_name}`}
+                  sub={`${stage.name} · ${outletName(p.account_name)}`}
                   right={<span className={overdue ? "font-medium text-brand-red" : ""}>{overdue ? "Overdue" : "Due"} {formatDate(stage.due_date!)}</span>}
                 />
               ))}
