@@ -10,7 +10,7 @@ import { canApprove, hubRole, isProjectAdmin, loadPeople, loadProject, loadStage
 import { MARKETS } from "@/lib/markets";
 import { ProjectBadge } from "../_components/StatusBadge";
 import { PicosPromised } from "../_components/PicosPromised";
-import { ApprovalPanel, KamActions, ProjectAdminPanel, RunProjectPanel } from "./Panels";
+import { ApprovalPanel, DeleteProject, EditRequest, ProjectAdminPanel, RunProjectPanel } from "./Panels";
 import { StagesSection } from "./StagesSection";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,7 @@ const EVENT_LABEL: Record<string, string> = {
   cancelled: "Cancelled",
   reallocated: "Reallocated to a new KAM",
   owner: "Owner changed",
-  hidden_by_kam: "Removed from the KAM's view",
+  hidden_by_kam: "Deleted by the KAM",
   stages_edited: "Stages edited",
   picos_delivered: "PICOS item ticked off",
   picos_undelivered: "PICOS item un-ticked",
@@ -77,7 +77,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           </p>
         </div>
         <div className="flex flex-col items-end gap-1">
-          <ProjectBadge p={{ status: p.status, health }} large />
+          <ProjectBadge p={{ status: p.status, health, hidden_for_kam: p.hidden_for_kam }} large />
           {p.status === "live" && <span className="text-sm">Expected {formatDate(health.forecast ?? p.target_date!)}</span>}
         </div>
       </div>
@@ -86,6 +86,12 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <p className="rounded-xl bg-brand-green-tint p-4 text-sm text-brand-green-dark">
           ✓ Request submitted. It&apos;s now {STATUS_LABEL[p.status].toLowerCase()}. You&apos;ll be notified as it moves on.
         </p>
+      )}
+      {p.hidden_for_kam && (
+        <div className="rounded-xl border-l-4 border-brand-red bg-brand-red/5 p-4 text-sm">
+          <p className="font-medium text-brand-black">Deleted by the KAM</p>
+          <p className="mt-1">It&apos;s kept here for the record and no longer counts in the dashboards or digests. Reallocate it to a KAM to bring it back, or cancel it.</p>
+        </div>
       )}
       {p.status === "rejected" && (
         <div className="rounded-xl border-l-4 border-brand-red bg-brand-red/5 p-4 text-sm">
@@ -105,7 +111,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         />
       )}
 
-      {admin && p.status === "awaiting_tm" && (
+      {admin && p.status === "awaiting_tm" && !p.hidden_for_kam && (
         <RunProjectPanel
           id={p.id}
           defaultName={`${p.project_type} · ${p.account_name}`}
@@ -130,19 +136,12 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         />
       )}
 
-      {admin && !["awaiting_sm", "awaiting_cm", "awaiting_tm", "rejected"].includes(p.status) && (
-        <ProjectAdminPanel
-          id={p.id}
-          status={p.status}
-          lastStageActive={stages.at(-1)?.status === "active"}
-          kams={kams}
-          owners={owners}
-          kamId={p.kam_id}
-          tmId={p.tm_id}
-        />
-      )}
 
-      {isKam && <KamActions id={p.id} canEdit={["rejected", "awaiting_sm", "awaiting_cm", "awaiting_tm"].includes(p.status)} />}
+      {isKam && ["rejected", "awaiting_sm", "awaiting_cm", "awaiting_tm"].includes(p.status) && (
+        <div>
+          <EditRequest id={p.id} />
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
         <section className="bento space-y-4">
@@ -194,6 +193,18 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         </section>
       </div>
 
+      {admin && !["awaiting_sm", "awaiting_cm", "awaiting_tm", "rejected"].includes(p.status) && (
+        <ProjectAdminPanel
+          id={p.id}
+          status={p.status}
+          lastStageActive={stages.at(-1)?.status === "active"}
+          kams={kams}
+          owners={owners}
+          kamId={p.kam_id}
+          tmId={p.tm_id}
+        />
+      )}
+
       <section className="bento">
         <h2 className="text-xl text-brand-black">History</h2>
         <ol className="mt-3 space-y-2">
@@ -215,6 +226,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           ))}
         </ol>
       </section>
+
+      {isKam && !p.hidden_for_kam && <DeleteProject id={p.id} />}
     </div>
   );
 }

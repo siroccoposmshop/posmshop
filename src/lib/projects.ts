@@ -112,6 +112,7 @@ export async function canView(profile: Profile, p: Project) {
 
 /** Whether this person approves this project at its current step. */
 export function canApprove(profile: Profile, p: Project) {
+  if (p.hidden_for_kam) return false;
   const role = hubRole(profile);
   if (p.status === "awaiting_sm") return p.sm_id === profile.id || role === "cm" || role === "tmm";
   if (p.status === "awaiting_cm") return role === "cm" || role === "tmm";

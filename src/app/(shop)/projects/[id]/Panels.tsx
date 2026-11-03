@@ -305,27 +305,33 @@ export function ProjectAdminPanel({
   );
 }
 
-/** The KAM's own options: update a sent-back or waiting request, or remove it from their view. */
-export function KamActions({ id, canEdit }: { id: string; canEdit: boolean }) {
+/** The KAM's "Edit & resubmit" for a request that's sent back or still waiting. */
+export function EditRequest({ id }: { id: string }) {
+  return (
+    <Link href={`/projects/new?edit=${id}`} className="btn btn-primary">
+      Edit &amp; resubmit
+    </Link>
+  );
+}
+
+/** The KAM deletes a project: it leaves their projects, but SM, CM, TM and TMM still see it as deleted. */
+export function DeleteProject({ id }: { id: string }) {
   const router = useRouter();
   const { pending, error, run } = useAction();
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {canEdit && (
-        <Link href={`/projects/new?edit=${id}`} className="btn btn-primary">
-          Edit &amp; resubmit
-        </Link>
-      )}
+    <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+      {error && <span className="text-xs text-brand-red">{error}</span>}
       <button
-        className="btn btn-secondary"
+        type="button"
         disabled={pending}
+        className="text-xs text-brand-red underline decoration-brand-red/40 hover:decoration-brand-red disabled:opacity-50"
         onClick={() =>
-          confirm("Remove this project from your view? Trade Marketing keeps a record of it.") && run(() => hideForMe(id), () => router.push("/projects"))
+          confirm("Delete this project? It will be removed from your projects. Trade Marketing keeps a record of it.") &&
+          run(() => hideForMe(id), () => router.push("/projects"))
         }
       >
-        Remove from my view
+        {pending ? "Deleting…" : "Delete project"}
       </button>
-      {error && <span className="text-sm text-brand-red">{error}</span>}
     </div>
   );
 }
