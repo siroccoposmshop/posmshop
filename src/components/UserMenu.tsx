@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { isActiveLink } from "./NavLinks";
+import { SECTIONS, isActivePage, isActiveSection } from "./NavLinks";
+import { hubRoleShort } from "@/lib/hub";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -9,7 +10,7 @@ import { useCart } from "./CartProvider";
 import type { Profile } from "@/lib/types";
 
 /** Avatar button that opens a slide-in panel from the right with the user's details and navigation. */
-export function UserMenu({ profile, links }: { profile: Profile; links: { href: string; label: string }[] }) {
+export function UserMenu({ profile }: { profile: Profile }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
@@ -33,8 +34,12 @@ export function UserMenu({ profile, links }: { profile: Profile; links: { href: 
 
   const firstName = profile.full_name?.trim().split(/\s+/)[0] || titleCase(profile.email.split("@")[0].split(/[._-]/)[0]);
   const initial = firstName.slice(0, 1);
-  const role = profile.role === "admin" ? "Admin" : "KAM";
-  const allLinks = [...links.slice(0, 2), { href: "/cart", label: count ? `Cart (${count})` : "Cart" }, ...links.slice(2)];
+  const isAdmin = profile.role === "admin";
+  const role = `${hubRoleShort(profile.hub_role)}${isAdmin ? " · Admin" : ""}`;
+  // POSM Shop lists its pages plus the cart underneath it.
+  const sections = SECTIONS.map((s) =>
+    s.href === "/posm" ? { ...s, children: [...(s.children ?? []), { href: "/cart", label: count ? `Cart (${count})` : "Cart" }] } : s,
+  );
 
   // Rendered into <body>: the header's backdrop blur would otherwise trap the fixed panel inside it.
   const panel = (
@@ -70,22 +75,51 @@ export function UserMenu({ profile, links }: { profile: Profile; links: { href: 
         </div>
 
         <nav className="flex-1 overflow-y-auto p-2">
-          {allLinks.map((l) => {
-            const active = isActiveLink(l.href, pathname);
+          {sections.map((sec) => {
+            const active = isActiveSection(sec.href, pathname);
             return (
-              <Link
-                key={l.href}
-                href={l.href}
-                className={`flex items-center justify-between rounded-lg px-3 py-2.5 font-display uppercase tracking-wide ${
-                  active ? "bg-brand-green-tint text-brand-green-dark" : "text-brand-black hover:bg-brand-light"
-                }`}
-              >
-                {l.label}
-                <span aria-hidden className="text-brand-green">→</span>
-              </Link>
+              <div key={sec.href} className="mb-1">
+                <Link
+                  href={sec.href}
+                  className={`flex items-center justify-between rounded-lg px-3 py-2.5 font-display uppercase tracking-wide ${
+                    active && !sec.children ? "bg-brand-green-tint text-brand-green-dark" : active ? "text-brand-green-dark" : "text-brand-black hover:bg-brand-light"
+                  }`}
+                >
+                  {sec.label}
+                  <span aria-hidden className="text-brand-green">→</span>
+                </Link>
+                {sec.children && (
+                  <div className="ml-3 border-l-2 border-brand-light pl-2">
+                    {sec.children.map((c) => (
+                      <Link
+                        key={c.href}
+                        href={c.href}
+                        className={`block rounded-lg px-3 py-2 font-display text-sm uppercase tracking-wide ${
+                          isActivePage(c.href, pathname) ? "bg-brand-green-tint text-brand-green-dark" : "text-brand-grey hover:bg-brand-light hover:text-brand-black"
+                        }`}
+                      >
+                        {c.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
             );
           })}
         </nav>
+        {isAdmin && (
+          <div className="border-t border-black/5 p-2">
+            <Link
+              href="/admin"
+              className={`flex items-center justify-between rounded-lg px-3 py-2.5 font-display uppercase tracking-wide text-white ${
+                pathname.startsWith("/admin") ? "bg-brand-black" : "bg-brand-grey hover:bg-brand-black"
+              }`}
+            >
+              Admin
+              <span aria-hidden>→</span>
+            </Link>
+          </div>
+        )}
 
         <form action="/auth/signout" method="post" className="border-t border-black/5 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <button className="btn btn-secondary w-full !py-2">Sign out</button>
