@@ -32,6 +32,7 @@ export type Account = {
   kam_name: string | null;
   market: string;
   channel: string | null;
+  outlet_type?: string | null;
 };
 
 export type ParentAccount = {
