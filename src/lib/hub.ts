@@ -19,6 +19,37 @@ export const SEES_ALL: HubRole[] = ["tm", "tmm", "cm"];
 export const SM_APPROVAL_AED = 15000;
 export const CM_APPROVAL_AED = 50000;
 
+/** Estimated gross profit per incremental hectolitre (AED), used to sanity-check the spend. */
+export const GP_PER_HL_AED = 200;
+/** Spend as a share of the uplift's GP: from 75% it looks GP neutral, from 90% GP negative. */
+export const GP_NEUTRAL_FROM = 0.75;
+export const GP_NEGATIVE_FROM = 0.9;
+
+export type ExtraSource = "sirocco" | "other";
+export const EXTRA_SOURCE_LABEL: Record<ExtraSource, string> = { sirocco: "Sirocco", other: "Other" };
+
+/** The budget split. Projects from before the split count the whole budget as BIF. */
+export function budgetSplit(p: { budget_aed: number; budget_bif?: number | null; budget_extra?: number | null; budget_extra_source?: string | null }) {
+  const extra = Number(p.budget_extra) || 0;
+  const source = extra > 0 && (p.budget_extra_source === "sirocco" || p.budget_extra_source === "other") ? (p.budget_extra_source as ExtraSource) : null;
+  const bif = p.budget_bif != null ? Number(p.budget_bif) : Number(p.budget_aed) - extra;
+  return { bif, extra: source ? extra : 0, source, total: Number(p.budget_aed), sirocco: source === "sirocco" ? extra : 0 };
+}
+
+/** Spend against the estimated GP from the volume uplift. */
+export function gpCheck(spend: number, incrementalHl: number | null | undefined) {
+  if (incrementalHl === null || incrementalHl === undefined || !(spend > 0)) return null;
+  const gp = Math.max(0, incrementalHl) * GP_PER_HL_AED;
+  const ratio = gp > 0 ? spend / gp : Infinity;
+  const level = ratio >= GP_NEGATIVE_FROM ? "negative" : ratio >= GP_NEUTRAL_FROM ? "neutral" : "ok";
+  return { gp, ratio, level } as const;
+}
+
+export function gpWarningText(check: NonNullable<ReturnType<typeof gpCheck>>) {
+  const pct = Number.isFinite(check.ratio) ? `${Math.floor(check.ratio * 100)}% of` : "more than";
+  return `The spend is ${pct} the estimated ${formatAed(check.gp)} GP from the volume uplift (AED ${GP_PER_HL_AED} per HL).`;
+}
+
 export const PROJECT_TYPES = ["Bar", "Activation", "Furniture", "Cladding", "Fridges", "Brunch station"] as const;
 
 export type ProjectStatus = "awaiting_sm" | "awaiting_cm" | "awaiting_tm" | "rejected" | "live" | "paused" | "completed" | "cancelled";

@@ -39,6 +39,9 @@ export type Project = {
   contact_mobile: string;
   contact_email: string;
   budget_aed: number;
+  budget_bif?: number | null;
+  budget_extra?: number | null;
+  budget_extra_source?: "sirocco" | "other" | null;
   brief: string;
   volume_budget_hl: number | null;
   incremental_volume_hl: number | null;

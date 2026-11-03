@@ -1,6 +1,6 @@
 import "server-only";
 import { Resend } from "resend";
-import { STATUS_LABEL } from "@/lib/hub";
+import { EXTRA_SOURCE_LABEL, STATUS_LABEL, budgetSplit, gpCheck, gpWarningText } from "@/lib/hub";
 import { formatDate } from "@/lib/format";
 import { projectHealth, projectTitle, type Project } from "@/lib/projects";
 
@@ -68,10 +68,31 @@ function stagesTable(p: Project) {
     <tr><th colspan="3" align="left" style="padding:4px 0;border-bottom:2px solid ${GREEN};${LABEL};font-weight:500">Stages</th></tr>${rows}</table>`;
 }
 
+function budgetHtml(p: Project) {
+  const b = budgetSplit(p);
+  if (!b.source) return aed(b.total);
+  const extra = `${EXTRA_SOURCE_LABEL[b.source]} ${aed(b.extra)}`;
+  return `<strong>${aed(b.total)}</strong><br><span style="font-size:12px;color:${GREY}">BIF ${aed(b.bif)} · ${b.source === "sirocco" ? `<strong style="color:${RED}">${extra}</strong>` : extra}</span>`;
+}
+
+/** Call-outs for approvers: Sirocco funding and a GP warning. */
+function approvalNotes(p: Project) {
+  const b = budgetSplit(p);
+  const gp = gpCheck(b.total, p.incremental_volume_hl);
+  const box = (bg: string, color: string, html: string) =>
+    `<div style="margin:0 0 12px;padding:10px 12px;border-radius:8px;background:${bg};${VALUE};font-size:13px;color:${color}">${html}</div>`;
+  return (
+    (b.sirocco > 0 ? box("#fff6e0", "#000", `<strong>Includes ${aed(b.sirocco)} of Sirocco funding</strong> (BIF ${aed(b.bif)}).`) : "") +
+    (gp && gp.level !== "ok"
+      ? box(RED, "#fff", `<strong style="font-family:${FONT};text-transform:uppercase;letter-spacing:.04em">Warning: This investment looks to be GP ${gp.level}</strong><br><span style="font-size:12px">${esc(gpWarningText(gp))}</span>`)
+      : "")
+  );
+}
+
 function summary(p: Project, people: { kam?: string; sm?: string; tm?: string }) {
   return [
     pair(field("Project", `<strong>${esc(projectTitle(p))}</strong><br><span style="color:${GREY};font-size:12px">${esc(p.ref)} · ${esc(p.project_type)}</span>`), field("Status", pill(p))),
-    pair(field("Outlet", `<strong>${esc(p.account_name)}</strong><br>${esc(p.parent_name ?? "")}`), field("Budget", aed(p.budget_aed))),
+    pair(field("Outlet", `<strong>${esc(p.account_name)}</strong><br>${esc(p.parent_name ?? "")}`), field("Budget", budgetHtml(p))),
     pair(field("KAM", esc(people.kam ?? "—")), field("Trade Marketing", esc(people.tm ?? "Not assigned yet"))),
     pair(field("Desired date", date(p.desired_date)), field("Expected completion", date(projectHealth(p).forecast ?? p.target_date))),
   ].join("");
@@ -121,7 +142,7 @@ export function renderProjectEmail(
       subject: `Approval needed: ${title} (${aed(p.budget_aed)})`,
       heading: "Approval needed",
       intro: `${esc(people.kam)} has requested a ${esc(p.project_type.toLowerCase())} project for <strong>${esc(p.account_name)}</strong>. Please approve or send it back.`,
-      body: table(summary(p, people)) + brief + button(link, "Review request"),
+      body: table(summary(p, people)) + approvalNotes(p) + brief + button(link, "Review request"),
     },
     sent_back: {
       subject: `Sent back: ${title}`,

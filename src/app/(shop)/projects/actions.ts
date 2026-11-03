@@ -79,7 +79,9 @@ export type BriefInput = {
   brands: string[];
   outletType: string;
   contact: { name: string; mobile: string; email: string };
-  budget: number;
+  budgetBif: number;
+  budgetExtra: number | null;
+  budgetExtraSource: "sirocco" | "other" | null;
   brief: string;
   volumeBudget: number | null;
   incrementalVolume: number | null;
@@ -104,7 +106,13 @@ export async function submitBrief(input: BriefInput): Promise<Result & { fieldEr
   if (!input.contact?.name?.trim()) errors.contactName = "Enter the contact's name.";
   if (!mobile.ok) errors.contactMobile = mobile.error;
   if (!email.ok) errors.contactEmail = email.error;
-  if (!(input.budget > 0)) errors.budget = "Enter the budget in AED.";
+  const bif = Number(input.budgetBif) || 0;
+  const extra = Number(input.budgetExtra) || 0;
+  const extraSource = extra > 0 ? input.budgetExtraSource : null;
+  if (!(bif > 0)) errors.budget = "Enter the BIF value in AED.";
+  if (extra < 0) errors.budgetExtra = "Enter a positive amount.";
+  else if (extra > 0 && extraSource !== "sirocco" && extraSource !== "other") errors.budgetExtra = "Choose Sirocco or Other for the extra funding.";
+  const budget = bif + Math.max(0, extra);
   if ((input.brief ?? "").trim().length < MIN_BRIEF_CHARS) errors.brief = `Describe the project in at least ${MIN_BRIEF_CHARS} characters.`;
   if (input.volumeBudget === null || !(input.volumeBudget >= 0)) errors.volumeBudget = "Enter the 2027 volume budget in HL.";
   if (input.incrementalVolume === null || !(input.incrementalVolume >= 0)) errors.incrementalVolume = "Enter the incremental volume in HL.";
@@ -125,8 +133,8 @@ export async function submitBrief(input: BriefInput): Promise<Result & { fieldEr
   const { data: kam } = await db.from("profiles").select("id, hub_role, manager_id").eq("id", kamId).single();
   const submitterIsSm = hubRole(profile) === "sm";
   const smId = submitterIsSm ? profile.id : ((kam?.manager_id as string | null) ?? null);
-  const needsSm = input.budget >= SM_APPROVAL_AED && !submitterIsSm;
-  const status: ProjectStatus = needsSm ? "awaiting_sm" : input.budget >= CM_APPROVAL_AED ? "awaiting_cm" : "awaiting_tm";
+  const needsSm = budget >= SM_APPROVAL_AED && !submitterIsSm;
+  const status: ProjectStatus = needsSm ? "awaiting_sm" : budget >= CM_APPROVAL_AED ? "awaiting_cm" : "awaiting_tm";
   const scores = picosScores(input.outletType, input.picos);
   const now = new Date().toISOString();
 
@@ -146,7 +154,10 @@ export async function submitBrief(input: BriefInput): Promise<Result & { fieldEr
     contact_name: input.contact.name.trim(),
     contact_mobile: mobile.ok ? mobile.value : "",
     contact_email: email.ok ? email.value : "",
-    budget_aed: input.budget,
+    budget_aed: budget,
+    budget_bif: bif,
+    budget_extra: extra > 0 ? extra : null,
+    budget_extra_source: extraSource,
     brief: input.brief.trim(),
     volume_budget_hl: input.volumeBudget,
     incremental_volume_hl: input.incrementalVolume,
@@ -166,6 +177,7 @@ export async function submitBrief(input: BriefInput): Promise<Result & { fieldEr
     ? await db.from("projects").update(row).eq("id", existing.id).select("id").single()
     : await db.from("projects").insert(row).select("id").single();
   if (saved.error) {
+    if (/budget_bif|budget_extra/.test(saved.error.message)) return { error: "Run supabase/migrations/20261106000000_budget_split.sql in Supabase first." };
     return { error: /relation .*projects|does not exist/.test(saved.error.message) ? "Run supabase/migrations/20261104000000_commerce_hub.sql in Supabase first." : saved.error.message };
   }
   const id = saved.data.id as string;
@@ -173,7 +185,7 @@ export async function submitBrief(input: BriefInput): Promise<Result & { fieldEr
   // Save the contact for next time (shared with POSM Shop).
   await db.from("contacts").upsert({ account_id: account.id, name: row.contact_name, mobile: row.contact_mobile, email: row.contact_email, created_by: profile.id }, { onConflict: "account_id,email" });
 
-  await logEvent(id, profile.id, existing ? "resubmitted" : "submitted", { status, budget: input.budget });
+  await logEvent(id, profile.id, existing ? "resubmitted" : "submitted", { status, budget });
   await announceNextStep({ id, status, sm_id: smId, account_name: account.name }, profile.id);
   refresh(id);
   return { ok: true, id };
