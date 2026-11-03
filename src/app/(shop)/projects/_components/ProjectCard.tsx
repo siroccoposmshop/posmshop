@@ -46,7 +46,17 @@ export function ProjectCard({ p, viewer, today }: { p: ProjectView; viewer: View
 
       {open && (
         <div className="space-y-4 border-t border-black/5 p-4">
-          <StageTrack projectId={p.id} stages={p.project_stages ?? []} canMove={viewer.isAdmin && p.status === "live"} today={today} />
+          <div>
+            <p className="label flex items-baseline gap-2">
+              Stages
+              {viewer.isAdmin && (p.status === "live" || p.status === "paused") && (
+                <Link href={`/projects/${p.id}?edit=stages#stages`} className="font-sans text-xs normal-case tracking-normal text-brand-green underline">
+                  Edit
+                </Link>
+              )}
+            </p>
+            <StageTrack projectId={p.id} stages={p.project_stages ?? []} canMove={viewer.isAdmin && p.status === "live"} today={today} />
+          </div>
           <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
               <Item label="Type" value={p.project_type} />

@@ -9,9 +9,9 @@ import { todayIso } from "@/lib/working-days";
 import { canApprove, hubRole, isProjectAdmin, loadPeople, loadProject, loadStageTypes, personName, projectHealth, projectTitle } from "@/lib/projects";
 import { MARKETS } from "@/lib/markets";
 import { ProjectBadge } from "../_components/StatusBadge";
-import { StageTrack } from "../_components/StageTrack";
 import { PicosPromised } from "../_components/PicosPromised";
 import { ApprovalPanel, KamActions, ProjectAdminPanel, RunProjectPanel } from "./Panels";
+import { StagesSection } from "./StagesSection";
 
 export const dynamic = "force-dynamic";
 
@@ -30,14 +30,15 @@ const EVENT_LABEL: Record<string, string> = {
   reallocated: "Reallocated to a new KAM",
   owner: "Owner changed",
   hidden_by_kam: "Removed from the KAM's view",
+  stages_edited: "Stages edited",
   picos_delivered: "PICOS item ticked off",
   picos_undelivered: "PICOS item un-ticked",
 };
 
-export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ submitted?: string }> }) {
+export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ submitted?: string; edit?: string }> }) {
   const profile = await requireProfile();
   const { id } = await params;
-  const { submitted } = await searchParams;
+  const { submitted, edit } = await searchParams;
   const p = await loadProject(id, profile);
   if (!p) notFound();
 
@@ -116,16 +117,17 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       )}
 
       {(p.status === "live" || p.status === "paused" || p.status === "completed") && (
-        <section className="bento space-y-3">
-          <div className="flex flex-wrap items-end justify-between gap-2">
-            <h2 className="text-xl text-brand-black">Stages</h2>
-            <p className="text-xs">
-              Target {formatDate(p.target_date!)}
-              {admin && p.status === "live" ? " · tap a stage to move the project there" : ""}
-            </p>
-          </div>
-          <StageTrack projectId={p.id} stages={stages} canMove={admin && p.status === "live"} today={today} />
-        </section>
+        <StagesSection
+          projectId={p.id}
+          stages={stages}
+          stageTypes={stageTypes}
+          canEdit={admin && (p.status === "live" || p.status === "paused")}
+          canMove={admin && p.status === "live"}
+          targetDate={p.target_date}
+          desiredDate={p.desired_date}
+          today={today}
+          startOpen={edit === "stages"}
+        />
       )}
 
       {admin && !["awaiting_sm", "awaiting_cm", "awaiting_tm", "rejected"].includes(p.status) && (
@@ -204,6 +206,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                 {e.kind === "cancelled" && e.detail?.reason ? `: ${e.detail.reason}` : ""}
                 {e.kind === "reallocated" ? ` (${name(e.detail?.to as string)})` : ""}
                 {e.kind === "owner" ? ` (${name(e.detail?.to as string)})` : ""}
+                {e.kind === "stages_edited" && e.detail?.to ? `: expected completion ${formatDate(e.detail.to as string)}` : ""}
               </span>
               <span className="text-xs">
                 {name(e.actor_id)} · {formatDate(e.created_at, true)}

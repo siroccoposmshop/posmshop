@@ -4,9 +4,10 @@ import { revalidatePath } from "next/cache";
 import { getProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normaliseEmail, normaliseMobile } from "@/lib/contact";
+import { formatDate } from "@/lib/format";
 import { CM_APPROVAL_AED, MIN_BRIEF_CHARS, PROJECT_TYPES, SM_APPROVAL_AED, type ProjectStatus } from "@/lib/hub";
 import { OUTLET_TYPES, picosScores, promisedItems, type Picos } from "@/lib/picos";
-import { addWorkingDays, planStages, todayIso } from "@/lib/working-days";
+import { addWorkingDays, dubaiDate, planStages, todayIso } from "@/lib/working-days";
 import {
   canApprove,
   hubRole,
@@ -426,3 +427,69 @@ export async function markNotificationsRead(ids: string[]): Promise<Result> {
   return { ok: true };
 }
 
+
+/**
+ * Trade Marketing edits a running project's stages: done stages stay as they are, the current stage
+ * can change its days (due counted from when it started), and later stages can be added, removed or
+ * re-timed. Stages are re-planned and the target date moves to the new end.
+ */
+export async function editStages(id: string, wanted: { key: string; days: number }[]): Promise<Result> {
+  const profile = await me();
+  if (!profile) return SIGNED_OUT;
+  if (!isProjectAdmin(profile)) return { error: "Only Trade Marketing can edit stages." };
+  const p = await loadProject(id, profile);
+  if (!p || !["live", "paused"].includes(p.status)) return { error: "Only live or paused projects can be edited." };
+
+  const db = createAdminClient();
+  const { data: types } = await db.from("project_stage_types").select("*").order("sort");
+  const typeByKey = new Map((types ?? []).map((t) => [t.key as string, t]));
+  const stages = p.project_stages ?? [];
+  const active = stages.find((s) => s.status === "active");
+  if (!active) return { error: "This project has no current stage." };
+  const wantedDays = new Map(wanted.map((w) => [w.key, Math.max(1, Math.min(250, Math.round(w.days)))]));
+  if (!wantedDays.has(active.key)) return { error: "The current stage can't be removed." };
+  for (const k of wantedDays.keys()) {
+    const t = typeByKey.get(k);
+    if (!t) return { error: "Unknown stage." };
+    const existing = stages.find((s) => s.key === k);
+    if (!existing && (t.sort as number) < active.sort) return { error: `${t.name} comes before the current stage, so it can't be added now.` };
+  }
+
+  // Current stage: due counted from when it started. Later stages follow on from it.
+  const activeDays = wantedDays.get(active.key)!;
+  const activeDue = addWorkingDays(dubaiDate(active.started_at ?? new Date()), activeDays);
+  const upcoming = [...wantedDays.keys()]
+    .filter((k) => (typeByKey.get(k)!.sort as number) > active.sort)
+    .map((k) => ({ key: k, name: typeByKey.get(k)!.name as string, sort: typeByKey.get(k)!.sort as number, days: wantedDays.get(k)! }))
+    .sort((a, b) => a.sort - b.sort);
+  // If the current stage is already late, the rest can only start from today.
+  const today = todayIso();
+  const planned = planStages(activeDue < today ? today : activeDue, upcoming);
+  const target = planned.at(-1)?.due_date ?? activeDue;
+
+  const removed = stages.filter((s) => s.status === "pending" && !wantedDays.has(s.key));
+  const added = planned.filter((s) => !stages.some((x) => x.key === s.key));
+  if (removed.length) await db.from("project_stages").delete().in("id", removed.map((s) => s.id));
+  const { error: aErr } = await db.from("project_stages").update({ days: activeDays, due_date: activeDue }).eq("id", active.id);
+  if (aErr) return { error: aErr.message };
+  for (const s of planned) {
+    const existing = stages.find((x) => x.key === s.key);
+    const { error } = existing
+      ? await db.from("project_stages").update({ days: s.days, due_date: s.due_date, status: "pending" }).eq("id", existing.id)
+      : await db.from("project_stages").insert({ project_id: id, key: s.key, name: s.name, sort: s.sort, days: s.days, due_date: s.due_date, status: "pending" });
+    if (error) return { error: error.message };
+  }
+  await db.from("projects").update({ target_date: target, updated_at: new Date().toISOString() }).eq("id", id);
+
+  await logEvent(id, profile.id, "stages_edited", {
+    added: added.map((s) => s.key),
+    removed: removed.map((s) => s.key),
+    from: p.target_date,
+    to: target,
+  });
+  if (target !== p.target_date || added.length || removed.length) {
+    await notify([p.kam_id, p.sm_id], id, `${projectTitle(p)}: stages updated. Expected completion is now ${formatDate(target)}.`, profile.id);
+  }
+  refresh(id);
+  return { ok: true };
+}
