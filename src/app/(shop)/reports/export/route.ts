@@ -1,11 +1,11 @@
 import type { NextRequest } from "next/server";
-import { requireAdmin } from "@/lib/auth";
-import { getReportRows, readFilters, toCsv, toXlsx } from "@/lib/reports";
+import { requireProfile } from "@/lib/auth";
+import { getReportRows, readFilters, reportScope, toCsv, toXlsx } from "@/lib/reports";
 
 export async function GET(request: NextRequest) {
-  await requireAdmin();
+  const profile = await requireProfile();
   const sp = Object.fromEntries(request.nextUrl.searchParams.entries());
-  const rows = await getReportRows(readFilters(sp));
+  const rows = await getReportRows(readFilters(sp), await reportScope(profile));
   const stamp = new Date().toISOString().slice(0, 10);
 
   if (sp.format === "csv") {

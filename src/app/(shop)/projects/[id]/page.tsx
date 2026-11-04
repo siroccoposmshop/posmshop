@@ -4,6 +4,7 @@ import { requireProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate, outletName } from "@/lib/format";
 import { EXTRA_SOURCE_LABEL, STATUS_LABEL, budgetSplit, formatAed, gpCheck, gpWarningText, hubRoleShort } from "@/lib/hub";
+import { loadHubSettings } from "@/lib/hub-settings";
 import { PICOS_GROUPS, picosItemsFor, pointsFor } from "@/lib/picos";
 import { todayIso } from "@/lib/working-days";
 import { canApprove, hubRole, isProjectAdmin, loadPeople, loadProject, loadStageTypes, outletLine, personName, projectHealth, projectTitle } from "@/lib/projects";
@@ -46,9 +47,10 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const health = projectHealth(p, today);
   const admin = isProjectAdmin(profile);
   const role = hubRole(profile);
-  const [people, stageTypes, { data: events }] = await Promise.all([
+  const [people, stageTypes, settings, { data: events }] = await Promise.all([
     loadPeople(),
     loadStageTypes(),
+    loadHubSettings(),
     createAdminClient().from("project_events").select("*").eq("project_id", id).order("created_at", { ascending: false }).limit(100),
   ]);
   const name = (uid: string | null | undefined) => (uid ? personName(people.get(uid)) : "—");
@@ -58,7 +60,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const stages = p.project_stages ?? [];
   const isKam = p.kam_id === profile.id;
   const budget = budgetSplit(p);
-  const gp = gpCheck(budget.total, p.incremental_volume_hl);
+  const gp = gpCheck(budget.total, p.incremental_volume_hl, settings);
   const stageName = (key: unknown) => stages.find((s) => s.key === key)?.name ?? stageTypes.find((s) => s.key === key)?.name ?? String(key ?? "");
 
   return (
@@ -105,10 +107,10 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <ApprovalPanel
           id={p.id}
           sirocco={budget.sirocco > 0 ? `Includes ${formatAed(budget.sirocco)} of Sirocco funding (BIF ${formatAed(budget.bif)}).` : undefined}
-          gpWarning={gp && gp.level !== "ok" ? { level: gp.level, text: gpWarningText(gp) } : undefined}
+          gpWarning={gp && gp.level !== "ok" ? { level: gp.level, text: gpWarningText(gp, settings) } : undefined}
           step={
             p.status === "awaiting_sm"
-              ? `Budget ${formatAed(p.budget_aed)} needs Sales Manager approval${p.budget_aed >= 50000 ? ", then CM/TMM" : ""}.`
+              ? `Budget ${formatAed(p.budget_aed)} needs Sales Manager approval${p.budget_aed >= settings.cmApprovalAed ? ", then CM/TMM" : ""}.`
               : `Budget ${formatAed(p.budget_aed)} needs CM/TMM approval.`
           }
         />
@@ -119,7 +121,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           id={p.id}
           defaultName={`${p.project_type} · ${outletName(p.account_name)}`}
           desiredDate={p.desired_date}
-          stageTypes={stageTypes}
+          stageTypes={stageTypes.filter((t) => t.active !== false)}
           owners={owners}
           me={profile.id}
         />
@@ -129,7 +131,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <StagesSection
           projectId={p.id}
           stages={stages}
-          stageTypes={stageTypes}
+          stageTypes={stageTypes.filter((t) => t.active !== false || stages.some((s) => s.key === t.key))}
           canEdit={admin && (p.status === "live" || p.status === "paused")}
           canMove={admin && p.status === "live"}
           targetDate={p.target_date}
@@ -166,7 +168,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           {gp && gp.level !== "ok" && (
             <div className="rounded-lg bg-brand-red px-3 py-2 text-white">
               <p className="font-display text-sm font-bold uppercase tracking-wide">Warning: This investment looks to be GP {gp.level}</p>
-              <p className="text-xs text-white/90">{gpWarningText(gp)}</p>
+              <p className="text-xs text-white/90">{gpWarningText(gp, settings)}</p>
             </div>
           )}
           <div>

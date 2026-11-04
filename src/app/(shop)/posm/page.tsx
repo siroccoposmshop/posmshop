@@ -1,4 +1,5 @@
 import { requireProfile } from "@/lib/auth";
+import { isAdminProfile } from "@/lib/hub";
 import { AccountStep } from "../AccountStep";
 
 export const metadata = { title: "New order" };
@@ -6,7 +7,7 @@ export const metadata = { title: "New order" };
 export default async function OrderStartPage() {
   const profile = await requireProfile();
 
-  if (profile.role !== "admin" && !profile.market) {
+  if (!isAdminProfile(profile) && !profile.market) {
     return (
       <div className="bento mx-auto max-w-xl text-center">
         <h1 className="text-3xl text-brand-black">Almost there</h1>

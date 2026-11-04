@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { UAE_PREFIX, normaliseEmail, normaliseMobile } from "@/lib/contact";
-import { CM_APPROVAL_AED, GP_PER_HL_AED, GP_PER_HL_USD, MIN_BRIEF_CHARS, PROJECT_TYPES, SM_APPROVAL_AED, formatAed, gpCheck, gpWarningText, type ExtraSource } from "@/lib/hub";
+import { MIN_BRIEF_CHARS, PROJECT_TYPES, formatAed, gpCheck, gpPerHlAed, gpWarningText, type ExtraSource, type HubSettings } from "@/lib/hub";
 import { OUTLET_TYPES, PICOS_GROUPS, picosItemsFor, picosScores, pointsFor, scoringOutletType, type Picos } from "@/lib/picos";
 import { Spinner } from "@/components/Spinner";
 import type { Account, ParentAccount } from "@/lib/types";
@@ -13,7 +13,7 @@ import { submitBrief, type BriefInput } from "../actions";
 
 export type BriefDefaults = Partial<Omit<BriefInput, "accountId">> & { account?: Account | null };
 
-export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[]; defaults?: BriefDefaults; submitterIsSm: boolean }) {
+export function BriefForm({ brands, defaults, submitterIsSm, settings }: { brands: string[]; defaults?: BriefDefaults; submitterIsSm: boolean; settings: HubSettings }) {
   const router = useRouter();
   const [account, setAccount] = useState<Account | null>(defaults?.account ?? null);
   const [contact, setContact] = useState(defaults?.contact ?? { name: "", mobile: `${UAE_PREFIX} `, email: "" });
@@ -38,14 +38,14 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
   const bifNum = Number(bif.replace(/[^0-9.]/g, "")) || 0;
   const extraNum = Number(extra.replace(/[^0-9.]/g, "")) || 0;
   const budgetNum = bifNum + extraNum;
-  const gp = gpCheck(budgetNum, incremental === "" ? null : Number(incremental));
+  const gp = gpCheck(budgetNum, incremental === "" ? null : Number(incremental), settings);
   const scores = useMemo(() => picosScores(outletType, picos), [outletType, picos]);
   const approval =
-    budgetNum >= CM_APPROVAL_AED
+    budgetNum >= settings.cmApprovalAed
       ? submitterIsSm
         ? "CM/TMM will approve this before Trade Marketing."
         : "Your Sales Manager, then CM/TMM, will approve this before Trade Marketing."
-      : budgetNum >= SM_APPROVAL_AED && !submitterIsSm
+      : budgetNum >= settings.smApprovalAed && !submitterIsSm
         ? "Your Sales Manager will approve this before Trade Marketing."
         : budgetNum > 0
           ? "Goes straight to Trade Marketing."
@@ -252,8 +252,8 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
           </div>
           <div>
             <p className="label">Est. GP from uplift</p>
-            <p className="field flex items-center !bg-brand-light text-brand-black" title={`USD ${GP_PER_HL_USD} (AED ${GP_PER_HL_AED.toFixed(2)}) per incremental HL`}>
-              {incremental !== "" ? formatAed(gp?.gp ?? Number(incremental) * GP_PER_HL_AED) : "—"}
+            <p className="field flex items-center !bg-brand-light text-brand-black" title={`USD ${settings.gpPerHlUsd} (AED ${gpPerHlAed(settings).toFixed(2)}) per incremental HL`}>
+              {incremental !== "" ? formatAed(gp?.gp ?? Number(incremental) * gpPerHlAed(settings)) : "—"}
             </p>
           </div>
         </div>
@@ -269,7 +269,7 @@ export function BriefForm({ brands, defaults, submitterIsSm }: { brands: string[
             <p className="font-display text-sm font-bold uppercase tracking-wide">
               Warning: This investment looks to be GP {gp.level}
             </p>
-            <p className="text-xs text-white/90">{gpWarningText(gp)}</p>
+            <p className="text-xs text-white/90">{gpWarningText(gp, settings)}</p>
           </div>
         )}
       </Section>

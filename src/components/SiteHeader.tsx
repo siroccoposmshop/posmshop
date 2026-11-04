@@ -5,9 +5,10 @@ import { CartButton } from "./CartButton";
 import { UserMenu } from "./UserMenu";
 import { AdminBadge } from "./AdminBadge";
 import type { Profile } from "@/lib/types";
+import { isAdminProfile } from "@/lib/hub";
 
 export function SiteHeader({ profile }: { profile: Profile }) {
-  const isAdmin = profile.role === "admin";
+  const isAdmin = isAdminProfile(profile);
   // The section bar sits below the sticky header (not inside it), so other sticky bars keep their 64px offset.
   return (
     <>

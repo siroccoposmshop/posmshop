@@ -22,9 +22,10 @@ export default async function UsersPage() {
           Anyone with an @sirocco.ae email can sign in. New sign-ins are KAMs with no market until you assign
           one. Add people here in advance to set their market and role before they first sign in.
           <br />
-          <strong>POSM role</strong> controls POSM Shop admin. <strong>Hub role</strong> (KAM, SM, CM, TM, TMM) controls Projects:
-          SMs approve and see their team; CM, TM and TMM see everything and run projects. Set <strong>Reports to</strong> on each KAM to
-          link them to their Sales Manager.
+          <strong>Access</strong>: Admin opens the Admin menu (every tool, plus Users, Accounts and Markets). TM and TMM are always
+          admins. <strong>Hub role</strong> (KAM, SM, CM, TM, TMM) sets what people see: KAMs their own projects and POSM reports,
+          SMs their team&apos;s (and they approve), CM everything. Set <strong>Reports to</strong> on each KAM to link them to their
+          Sales Manager.
         </p>
       </div>
       <InviteForm markets={(markets as Market[]) ?? []} />
@@ -34,7 +35,7 @@ export default async function UsersPage() {
             <tr>
               <th>Email</th>
               <th>Name</th>
-              <th title="POSM Shop access">POSM role</th>
+              <th title="Admin access">Access</th>
               <th>Hub role</th>
               <th>Reports to</th>
               <th>Market</th>

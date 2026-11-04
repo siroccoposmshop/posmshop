@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isAdminProfile } from "@/lib/hub";
 import type { Profile } from "@/lib/types";
 
 export const getProfile = cache(async (): Promise<Profile | null> => {
@@ -22,11 +23,11 @@ export async function requireProfile() {
 /** For server actions called from forms: returns null instead of redirecting, so the page can show a message. */
 export async function getAdmin() {
   const profile = await getProfile();
-  return profile && profile.active && profile.role === "admin" ? profile : null;
+  return profile && profile.active && isAdminProfile(profile) ? profile : null;
 }
 
 export async function requireAdmin() {
   const profile = await requireProfile();
-  if (profile.role !== "admin") redirect("/");
+  if (!isAdminProfile(profile)) redirect("/");
   return profile;
 }

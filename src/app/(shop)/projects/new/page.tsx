@@ -3,6 +3,7 @@ import { requireProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hubRole, loadProject } from "@/lib/projects";
 import { budgetSplit } from "@/lib/hub";
+import { loadHubSettings } from "@/lib/hub-settings";
 import type { Account } from "@/lib/types";
 import { BriefForm, type BriefDefaults } from "./BriefForm";
 
@@ -47,7 +48,7 @@ export default async function NewProjectPage({ searchParams }: { searchParams: P
       </Link>
       <h1 className="accent-square mt-2 text-4xl text-brand-black">{defaults ? "Update request" : "New project"}</h1>
       <p className="mt-2 text-sm">The briefing document for Trade Marketing. Complete every section, then submit.</p>
-      <BriefForm brands={brands} defaults={defaults} submitterIsSm={hubRole(profile) === "sm"} />
+      <BriefForm brands={brands} defaults={defaults} submitterIsSm={hubRole(profile) === "sm"} settings={await loadHubSettings()} />
     </div>
   );
 }

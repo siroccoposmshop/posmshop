@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { SECTIONS, isActivePage, isActiveSection } from "./NavLinks";
-import { hubRoleShort } from "@/lib/hub";
+import { ADMIN_MENU, SECTIONS, adminEntryFor, isActivePage, isActiveSection } from "./NavLinks";
+import { hubRoleShort, isAdminProfile } from "@/lib/hub";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -34,7 +34,8 @@ export function UserMenu({ profile }: { profile: Profile }) {
 
   const firstName = profile.full_name?.trim().split(/\s+/)[0] || titleCase(profile.email.split("@")[0].split(/[._-]/)[0]);
   const initial = firstName.slice(0, 1);
-  const isAdmin = profile.role === "admin";
+  const isAdmin = isAdminProfile(profile);
+  const adminCurrent = adminEntryFor(pathname);
   const role = `${hubRoleShort(profile.hub_role)}${isAdmin ? " · Admin" : ""}`;
   // POSM Shop lists its pages plus the cart underneath it.
   const sections = SECTIONS.map((s) =>
@@ -109,15 +110,25 @@ export function UserMenu({ profile }: { profile: Profile }) {
         </nav>
         {isAdmin && (
           <div className="border-t border-black/5 p-2">
-            <Link
-              href="/admin"
-              className={`flex items-center justify-between rounded-lg px-3 py-2.5 font-display uppercase tracking-wide text-white ${
-                pathname.startsWith("/admin") ? "bg-brand-black" : "bg-brand-grey hover:bg-brand-black"
-              }`}
-            >
-              Admin
-              <span aria-hidden>→</span>
-            </Link>
+            <p className="flex items-center rounded-lg bg-brand-grey px-3 py-2 font-display uppercase tracking-wide text-white">Admin</p>
+            <div className="ml-3 mt-1 border-l-2 border-brand-light pl-2">
+              {ADMIN_MENU.map((g, gi) => (
+                <div key={g.title}>
+                  {gi > 0 && <div className="my-1 mr-2 border-t border-black/10" aria-hidden />}
+                  {g.items.map((i) => (
+                    <Link
+                      key={i.href}
+                      href={i.href}
+                      className={`block rounded-lg px-3 py-2 font-display text-sm uppercase tracking-wide ${
+                        adminCurrent?.href === i.href ? "bg-brand-green-tint text-brand-green-dark" : "text-brand-grey hover:bg-brand-light hover:text-brand-black"
+                      }`}
+                    >
+                      {i.label}
+                    </Link>
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

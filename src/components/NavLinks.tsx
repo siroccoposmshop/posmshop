@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 export type NavItem = { href: string; label: string; children?: { href: string; label: string }[] };
 
@@ -14,6 +15,7 @@ export const SECTIONS: NavItem[] = [
     children: [
       { href: "/posm", label: "New order" },
       { href: "/orders", label: "My orders" },
+      { href: "/reports", label: "Reports" },
     ],
   },
   {
@@ -28,7 +30,7 @@ export const SECTIONS: NavItem[] = [
 ];
 
 /** Pages that belong to POSM Shop (where the cart is shown). */
-export const isPosmPath = (p: string) => ["/posm", "/shop", "/cart", "/orders"].some((x) => p.startsWith(x));
+export const isPosmPath = (p: string) => ["/posm", "/shop", "/cart", "/orders", "/reports"].some((x) => p.startsWith(x));
 
 /** Whether a main section is the current one. */
 export function isActiveSection(href: string, pathname: string) {
@@ -91,21 +93,112 @@ export function SectionNav() {
   );
 }
 
-/** Admin, kept apart from the sections: a charcoal button (black while in Admin). */
+/**
+ * Admin, by tool and then Hub-wide. Each tool's admin has its own pages (tabs); the Hub-wide
+ * pages apply to every tool.
+ */
+export const ADMIN_MENU: { title: string; items: { href: string; label: string; tabs?: { href: string; label: string }[] }[] }[] = [
+  {
+    title: "Tools",
+    items: [
+      {
+        href: "/admin",
+        label: "POSM Shop",
+        tabs: [
+          { href: "/admin", label: "Dashboard" },
+          { href: "/admin/orders", label: "Orders" },
+          { href: "/admin/items", label: "Items" },
+        ],
+      },
+      { href: "/admin/projects", label: "Projects" },
+      { href: "/admin/library", label: "Marketing Library" },
+    ],
+  },
+  {
+    title: "Across the Hub",
+    items: [
+      { href: "/admin/users", label: "Users" },
+      { href: "/admin/accounts", label: "Accounts" },
+      { href: "/admin/settings", label: "Markets" },
+    ],
+  },
+];
+
+const POSM_ADMIN = ["/admin/orders", "/admin/items", "/admin/import"];
+
+/** Which Admin menu entry a page belongs to (POSM Shop's admin includes its sub-pages and Upload). */
+export function adminEntryFor(pathname: string) {
+  const all = ADMIN_MENU.flatMap((g) => g.items);
+  if (pathname === "/admin" || POSM_ADMIN.some((x) => pathname.startsWith(x))) return all[0];
+  return all.find((i) => i.href !== "/admin" && pathname.startsWith(i.href)) ?? null;
+}
+
+const GEAR = (
+  <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+    <circle cx="10" cy="10" r="2.6" />
+    <path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4" strokeLinecap="round" />
+  </svg>
+);
+
+/** The Admin button in the header: opens a small menu of each tool's admin, then the Hub-wide pages. */
 export function AdminLink({ className = "" }: { className?: string }) {
-  const active = usePathname().startsWith("/admin");
+  const pathname = usePathname();
+  const active = pathname.startsWith("/admin");
+  const current = adminEntryFor(pathname);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => setOpen(false), [pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   return (
-    <Link
-      href="/admin"
-      className={`flex h-10 items-center gap-1.5 rounded-full px-4 font-display text-sm font-medium uppercase tracking-wide text-white transition-colors ${
-        active ? "bg-brand-black" : "bg-brand-grey hover:bg-brand-black"
-      } ${className}`}
-    >
-      <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-        <circle cx="10" cy="10" r="2.6" />
-        <path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4" strokeLinecap="round" />
-      </svg>
-      Admin
-    </Link>
+    <div ref={ref} className={`relative ${className}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={`flex h-10 items-center gap-1.5 rounded-full px-4 font-display text-sm font-medium uppercase tracking-wide text-white transition-colors ${
+          active || open ? "bg-brand-black" : "bg-brand-grey hover:bg-brand-black"
+        }`}
+      >
+        {GEAR}
+        Admin
+        <svg viewBox="0 0 20 20" className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+          <path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 top-full z-40 mt-2 w-56 overflow-hidden rounded-xl bg-white py-1 shadow-xl ring-1 ring-black/10">
+          {ADMIN_MENU.map((g, gi) => (
+            <div key={g.title} className={gi ? "mt-1 border-t border-black/10 pt-1" : ""}>
+              <p className="px-4 pb-0.5 pt-2 font-display text-[0.65rem] uppercase tracking-[0.15em] text-brand-grey">{g.title}</p>
+              {g.items.map((i) => (
+                <Link
+                  key={i.href}
+                  href={i.href}
+                  role="menuitem"
+                  className={`block px-4 py-2 font-display text-sm uppercase tracking-wide ${
+                    current?.href === i.href ? "bg-brand-green-tint text-brand-green-dark" : "text-brand-black hover:bg-brand-light"
+                  }`}
+                >
+                  {i.label}
+                </Link>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

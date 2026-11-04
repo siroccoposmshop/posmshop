@@ -1,6 +1,8 @@
 import "server-only";
 import ExcelJS from "exceljs";
 import { USD_TO_AED } from "@/lib/format";
+import { isAdminProfile } from "@/lib/hub";
+import type { Profile } from "@/lib/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export type ReportFilters = {
@@ -47,8 +49,22 @@ export function readFilters(sp: Record<string, string | string[] | undefined>): 
   return f;
 }
 
-export async function getReportRows(f: ReportFilters, limit = 50000): Promise<ReportRow[]> {
+/**
+ * Whose orders someone may report on: null = everyone (admins, TM, TMM, CM); an SM their team
+ * and themselves; anyone else their own.
+ */
+export async function reportScope(profile: Profile): Promise<string[] | null> {
+  if (isAdminProfile(profile) || profile.hub_role === "cm") return null;
+  if (profile.hub_role === "sm") {
+    const { data } = await createAdminClient().from("profiles").select("id").eq("manager_id", profile.id);
+    return [profile.id, ...(data ?? []).map((r) => r.id as string)];
+  }
+  return [profile.id];
+}
+
+export async function getReportRows(f: ReportFilters, scope: string[] | null, limit = 50000): Promise<ReportRow[]> {
   const db = createAdminClient();
+  if (scope && f.kam && !scope.includes(f.kam)) return [];
   const build = () => {
     let q = db
       .from("order_items")
@@ -60,6 +76,7 @@ export async function getReportRows(f: ReportFilters, limit = 50000): Promise<Re
     if (f.to) q = q.lte("orders.created_at", `${f.to}T23:59:59+04:00`);
     if (f.market) q = q.eq("orders.market", f.market);
     if (f.kam) q = q.eq("orders.kam_id", f.kam);
+    else if (scope) q = q.in("orders.kam_id", scope);
     if (f.status) q = q.eq("orders.status", f.status);
     else q = q.neq("orders.status", "cancelled");
     if (f.account) {
