@@ -40,14 +40,14 @@ export default async function AdminDashboard() {
   );
   const recentOrders = (recent.data as Order[]) ?? [];
 
-  // Running low: under 6 months of cover that runs out before the next delivery (or none is due).
+  // Running low: under 6 months of cover, with a traffic light for when the next delivery lands
+  // against when the stock runs out.
   const now = Date.now();
   const lowItems = ((low.data as Item[]) ?? [])
-    .map((item) => ({
-      item,
-      toEta: item.eta ? (Date.parse(item.eta) - now) / (86400000 * DAYS_PER_MONTH) : null,
-    }))
-    .filter(({ item, toEta }) => toEta === null || toEta > Number(item.months_of_stock))
+    .map((item) => {
+      const toEta = item.eta ? (Date.parse(item.eta) - now) / (86400000 * DAYS_PER_MONTH) : null;
+      return { item, toEta, light: deliveryLight(toEta, Number(item.months_of_stock)) };
+    })
     .sort((a, b) => Number(a.item.months_of_stock) - Number(b.item.months_of_stock));
 
   const tiles = [
@@ -120,8 +120,9 @@ export default async function AdminDashboard() {
 
           <Panel title="Running low" count={lowItems.length} tone="amber">
             <p className="mb-2 text-xs">
-              Under 6 months of stock (from the last Excel upload) that will run out before the next delivery arrives, or
-              with no delivery due.
+              Under 6 months of stock (from the last Excel upload). Next delivery:{" "}
+              <Light light="green" /> before it runs out · <Light light="amber" /> up to a month after ·{" "}
+              <Light light="red" /> more than a month after.
             </p>
             {low.error || withMonths.error ? (
               <DbUpdateNote message={(low.error ?? withMonths.error)!.message} />
@@ -142,7 +143,7 @@ export default async function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {lowItems.map(({ item, toEta }) => (
+                  {lowItems.map(({ item, toEta, light }) => (
                     <tr key={item.id}>
                       <td>
                         <ItemCell item={item} />
@@ -152,7 +153,10 @@ export default async function AdminDashboard() {
                         <span className="block text-xs">{item.stock.toLocaleString()} units</span>
                       </td>
                       <td className="whitespace-nowrap text-right">
-                        <EtaButton id={item.id} eta={item.eta} />
+                        <span className="inline-flex items-center gap-1.5">
+                          {light && <Light light={light} />}
+                          <EtaButton id={item.id} eta={item.eta} />
+                        </span>
                         {toEta !== null && (
                           <span className="block text-xs">{toEta < 0 ? "Overdue" : `in ${monthsLabel(toEta)}`}</span>
                         )}
@@ -195,6 +199,29 @@ export default async function AdminDashboard() {
 }
 
 const DAYS_PER_MONTH = 30.44;
+
+type LightColour = "green" | "amber" | "red";
+
+/**
+ * Delivery against the stock running out (both in months from today): green if it lands before,
+ * amber if up to a month after (or the ETA has passed), red if more than a month after. None without an ETA.
+ */
+function deliveryLight(toEta: number | null, monthsLeft: number): LightColour | null {
+  if (toEta === null) return null;
+  if (toEta < 0) return "amber";
+  const gap = toEta - monthsLeft;
+  return gap <= 0 ? "green" : gap <= 1 ? "amber" : "red";
+}
+
+const LIGHT: Record<LightColour, { cls: string; label: string }> = {
+  green: { cls: "bg-brand-green", label: "Delivery arrives before it runs out" },
+  amber: { cls: "bg-amber-500", label: "Delivery arrives up to a month after it runs out" },
+  red: { cls: "bg-brand-red", label: "Delivery arrives more than a month after it runs out" },
+};
+
+function Light({ light }: { light: LightColour }) {
+  return <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full align-middle ${LIGHT[light].cls}`} title={LIGHT[light].label} aria-label={LIGHT[light].label} role="img" />;
+}
 
 /** Shown when a dashboard query fails because a newer migration hasn't been run yet. */
 function DbUpdateNote({ message }: { message: string }) {
