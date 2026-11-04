@@ -1,7 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireProfile } from "@/lib/auth";
 import { getReportRows, nameFromEmail, readFilters, reportScope, summariseByItem, summariseByKam } from "@/lib/reports";
-import { formatDate, money, type DisplayCurrency } from "@/lib/format";
+import { companyName, formatDate, money, outletName, type DisplayCurrency } from "@/lib/format";
 
 export const metadata = { title: "Reports" };
 export const dynamic = "force-dynamic";
@@ -221,9 +221,11 @@ export default async function ReportsPage({
                 <td className="whitespace-nowrap">{r.order_number}</td>
                 <td className="whitespace-nowrap">{formatDate(r.created_at)}</td>
                 <td className="whitespace-nowrap">{r.kam_name || r.kam_email}</td>
-                <td>
-                  {r.account_name}
-                  {r.parent_name && <span className="block text-xs">{r.parent_name}</span>}
+                <td title={[r.account_name, r.parent_name].filter(Boolean).join(" · ")}>
+                  {outletName(r.account_name)}
+                  {companyName(r.parent_name || r.account_name).toLowerCase() !== outletName(r.account_name).toLowerCase() && (
+                    <span className="block text-xs">{companyName(r.parent_name || r.account_name)}</span>
+                  )}
                 </td>
                 <td>{r.name}<span className="block text-xs">{r.sku}</span></td>
                 <td className="text-right">{r.qty}</td>
