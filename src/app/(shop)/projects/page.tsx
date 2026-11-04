@@ -68,7 +68,7 @@ export default async function ProjectsPage() {
   const live = open.filter((p) => p.status === "live");
 
   return (
-    <div className="space-y-6">
+    <div className="stable-scrollbar space-y-6">
       <UpdatesPopup updates={(unread as Update[]) ?? []} />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
