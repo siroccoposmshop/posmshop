@@ -1,12 +1,13 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { CM_APPROVAL_AED, isPast } from "@/lib/hub";
+import { isPast } from "@/lib/hub";
+import { loadHubSettings } from "@/lib/hub-settings";
 import { byUrgency, personName, type Person, type Project } from "@/lib/projects";
 import { renderDigest, sendProjectEmail } from "@/lib/project-emails";
 
 /**
  * Monday digest: KAMs get their open projects, SMs their team's, CM/TMM every open project
- * from CM_APPROVAL_AED. Nobody with nothing open is emailed.
+ * from the CM/TMM approval threshold. Nobody with nothing open is emailed.
  */
 export async function sendWeeklyDigests() {
   const db = createAdminClient();
@@ -19,6 +20,7 @@ export async function sendWeeklyDigests() {
     .filter((p) => !isPast(p.status) && !p.hidden_for_kam)
     .map((p) => ({ ...p, project_stages: [...(p.project_stages ?? [])].sort((a, b) => a.sort - b.sort) }))
     .sort(byUrgency);
+  const { cmApprovalAed } = await loadHubSettings();
   const byId = new Map(((people as Person[]) ?? []).map((p) => [p.id, p]));
   const kamName = (p: Project) => personName(byId.get(p.kam_id));
 
@@ -36,8 +38,8 @@ export async function sendWeeklyDigests() {
       list = projects.filter((p) => team.has(p.kam_id) || p.sm_id === person.id);
       scope = "where your team's projects stand";
     } else if (person.hub_role === "cm" || person.hub_role === "tmm") {
-      list = projects.filter((p) => Number(p.budget_aed) >= CM_APPROVAL_AED);
-      scope = `every open project of AED ${CM_APPROVAL_AED.toLocaleString("en-US")} or more`;
+      list = projects.filter((p) => Number(p.budget_aed) >= cmApprovalAed);
+      scope = `every open project of AED ${cmApprovalAed.toLocaleString("en-US")} or more`;
     }
     if (!list.length) continue;
     await sendProjectEmail([person.email], renderDigest(name, scope, list, kamName));

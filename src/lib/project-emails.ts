@@ -1,6 +1,6 @@
 import "server-only";
 import { Resend } from "resend";
-import { EXTRA_SOURCE_LABEL, STATUS_LABEL, budgetSplit, gpCheck, gpWarningText } from "@/lib/hub";
+import { DEFAULT_HUB_SETTINGS, EXTRA_SOURCE_LABEL, STATUS_LABEL, budgetSplit, gpCheck, gpWarningText, type HubSettings } from "@/lib/hub";
 import { companyName, formatDate, outletName } from "@/lib/format";
 import { outletLine, projectHealth, projectTitle, type Project } from "@/lib/projects";
 
@@ -82,15 +82,15 @@ function budgetHtml(p: Project) {
 }
 
 /** Call-outs for approvers: Sirocco funding and a GP warning. */
-function approvalNotes(p: Project) {
+function approvalNotes(p: Project, s: HubSettings) {
   const b = budgetSplit(p);
-  const gp = gpCheck(b.total, p.incremental_volume_hl);
+  const gp = gpCheck(b.total, p.incremental_volume_hl, s);
   const box = (bg: string, color: string, html: string) =>
     `<div style="margin:0 0 12px;padding:10px 12px;border-radius:8px;background:${bg};${VALUE};font-size:13px;color:${color}">${html}</div>`;
   return (
     (b.sirocco > 0 ? box("#fff6e0", "#000", `<strong>Includes ${aed(b.sirocco)} of Sirocco funding</strong> (BIF ${aed(b.bif)}).`) : "") +
     (gp && gp.level !== "ok"
-      ? box(RED, "#fff", `<strong style="font-family:${FONT};text-transform:uppercase;letter-spacing:.04em">Warning: This investment looks to be GP ${gp.level}</strong><br><span style="font-size:12px">${esc(gpWarningText(gp))}</span>`)
+      ? box(RED, "#fff", `<strong style="font-family:${FONT};text-transform:uppercase;letter-spacing:.04em">Warning: This investment looks to be GP ${gp.level}</strong><br><span style="font-size:12px">${esc(gpWarningText(gp, s))}</span>`)
       : "")
   );
 }
@@ -137,6 +137,7 @@ export function renderProjectEmail(
   p: Project,
   people: { kam?: string; sm?: string; tm?: string },
   extra: { reason?: string; stage?: string } = {},
+  settings: HubSettings = DEFAULT_HUB_SETTINGS,
 ) {
   const title = projectTitle(p);
   const link = `${siteUrl()}/projects/${p.id}`;
@@ -148,7 +149,7 @@ export function renderProjectEmail(
       subject: `Approval needed: ${title} (${aed(p.budget_aed)})`,
       heading: "Approval needed",
       intro: `${esc(people.kam)} has requested a ${esc(p.project_type.toLowerCase())} project for <strong>${esc(outletName(p.account_name))}</strong>. Please approve or send it back.`,
-      body: table(summary(p, people)) + approvalNotes(p) + brief + button(link, "Review request"),
+      body: table(summary(p, people)) + approvalNotes(p, settings) + brief + button(link, "Review request"),
     },
     sent_back: {
       subject: `Sent back: ${title}`,

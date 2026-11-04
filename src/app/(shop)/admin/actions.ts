@@ -347,14 +347,15 @@ export async function setOrderStatus(id: string, status: OrderStatus) {
 export async function saveUser(_: unknown, formData: FormData): Promise<{ error?: string; ok?: boolean }> {
   const me = await requireAdmin();
   const id = String(formData.get("id") ?? "");
-  const role = formData.get("role") === "admin" ? "admin" : "kam";
   const marketRaw = String(formData.get("market") ?? "");
   const market = (MARKETS as readonly string[]).includes(marketRaw) ? marketRaw : null;
   const full_name = String(formData.get("full_name") ?? "").trim() || null;
   const active = formData.get("active") === "on";
-  if (id === me.id && (role !== "admin" || !active)) return { error: "You can't remove your own admin access." };
   const hubRaw = String(formData.get("hub_role") ?? "kam");
   const hub_role = ["kam", "sm", "cm", "tm", "tmm"].includes(hubRaw) ? hubRaw : "kam";
+  // TM and TMM are admins across everything.
+  const role = formData.get("role") === "admin" || hub_role === "tm" || hub_role === "tmm" ? "admin" : "kam";
+  if (id === me.id && (role !== "admin" || !active)) return { error: "You can't remove your own admin access." };
   const manager_id = String(formData.get("manager_id") ?? "") || null;
   if (manager_id === id) return { error: "Someone can't report to themselves." };
   const { error } = await createAdminClient().from("profiles").update({ role, market, full_name, active, hub_role, manager_id }).eq("id", id);

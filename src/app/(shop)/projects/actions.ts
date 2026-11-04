@@ -5,7 +5,8 @@ import { getProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normaliseEmail, normaliseMobile } from "@/lib/contact";
 import { formatDate } from "@/lib/format";
-import { CM_APPROVAL_AED, MIN_BRIEF_CHARS, PROJECT_TYPES, SM_APPROVAL_AED, type ProjectStatus } from "@/lib/hub";
+import { MIN_BRIEF_CHARS, PROJECT_TYPES, approvalStatus, isAdminProfile, type ProjectStatus } from "@/lib/hub";
+import { loadHubSettings } from "@/lib/hub-settings";
 import { OUTLET_TYPES, picosScores, promisedItems, type Picos } from "@/lib/picos";
 import { addWorkingDays, dubaiDate, planStages, todayIso } from "@/lib/working-days";
 import {
@@ -41,8 +42,8 @@ async function emailAbout(kind: ProjectEmailKind, projectId: string, to: (string
   const { data } = await createAdminClient().from("projects").select("*, project_stages(*)").eq("id", projectId).single();
   if (!data) return;
   const p = { ...(data as Project), project_stages: [...((data as Project).project_stages ?? [])].sort((a, b) => a.sort - b.sort) };
-  const people = await loadPeople();
-  const email = renderProjectEmail(kind, p, { kam: personName(people.get(p.kam_id)), sm: p.sm_id ? personName(people.get(p.sm_id)) : undefined, tm: p.tm_id ? personName(people.get(p.tm_id)) : undefined }, extra);
+  const [people, settings] = await Promise.all([loadPeople(), loadHubSettings()]);
+  const email = renderProjectEmail(kind, p, { kam: personName(people.get(p.kam_id)), sm: p.sm_id ? personName(people.get(p.sm_id)) : undefined, tm: p.tm_id ? personName(people.get(p.tm_id)) : undefined }, extra, settings);
   const kamEmail = people.get(p.kam_id)?.email;
   await sendProjectEmail(to, email, kind === "approval_needed" ? kamEmail : undefined);
 }
@@ -97,7 +98,7 @@ export async function submitBrief(input: BriefInput): Promise<Result & { fieldEr
   const errors: Record<string, string> = {};
   const { data: account } = await db.from("accounts").select("*").eq("id", input.accountId).maybeSingle();
   if (!account) errors.account = "Choose the customer and outlet.";
-  else if (!isProjectAdmin(profile) && profile.role !== "admin" && profile.market && account.market !== profile.market) errors.account = "That outlet isn't in your market.";
+  else if (!isProjectAdmin(profile) && !isAdminProfile(profile) && profile.market && account.market !== profile.market) errors.account = "That outlet isn't in your market.";
   if (!PROJECT_TYPES.includes(input.projectType as (typeof PROJECT_TYPES)[number])) errors.projectType = "Choose the project type.";
   if (!input.brands?.length) errors.brands = "Choose at least one brand.";
   if (!OUTLET_TYPES.includes(input.outletType as (typeof OUTLET_TYPES)[number])) errors.outletType = "Choose the outlet type.";
@@ -133,8 +134,7 @@ export async function submitBrief(input: BriefInput): Promise<Result & { fieldEr
   const { data: kam } = await db.from("profiles").select("id, hub_role, manager_id").eq("id", kamId).single();
   const submitterIsSm = hubRole(profile) === "sm";
   const smId = submitterIsSm ? profile.id : ((kam?.manager_id as string | null) ?? null);
-  const needsSm = budget >= SM_APPROVAL_AED && !submitterIsSm;
-  const status: ProjectStatus = needsSm ? "awaiting_sm" : budget >= CM_APPROVAL_AED ? "awaiting_cm" : "awaiting_tm";
+  const status: ProjectStatus = approvalStatus(budget, submitterIsSm, await loadHubSettings());
   const scores = picosScores(input.outletType, input.picos);
   const now = new Date().toISOString();
 
@@ -201,7 +201,8 @@ export async function approveProject(id: string): Promise<Result> {
   const p = await loadProject(id, profile);
   if (!p || !canApprove(profile, p)) return { error: "You can't approve this request." };
   const now = new Date().toISOString();
-  const next: ProjectStatus = p.status === "awaiting_sm" && p.budget_aed >= CM_APPROVAL_AED ? "awaiting_cm" : "awaiting_tm";
+  const { cmApprovalAed } = await loadHubSettings();
+  const next: ProjectStatus = p.status === "awaiting_sm" && p.budget_aed >= cmApprovalAed ? "awaiting_cm" : "awaiting_tm";
   const patch =
     p.status === "awaiting_sm"
       ? { status: next, sm_approved_at: now, sm_approved_by: profile.id, updated_at: now }

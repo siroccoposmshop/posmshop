@@ -22,7 +22,14 @@ export function UserRow({ user, markets, managers }: { user: Profile; markets: M
         <input form={formId} name="full_name" defaultValue={user.full_name ?? ""} className="field !py-1.5 text-sm" aria-label="Name" />
       </td>
       <td>
-        <select form={formId} name="role" defaultValue={user.role} className="field !py-1.5 text-sm" aria-label="Role">
+        <select
+          form={formId}
+          name="role"
+          defaultValue={user.role}
+          className="field !py-1.5 text-sm"
+          aria-label="Access"
+          title={user.hub_role === "tm" || user.hub_role === "tmm" ? "TM and TMM are always admins" : undefined}
+        >
           <option value="kam">User</option>
           <option value="admin">Admin</option>
         </select>
