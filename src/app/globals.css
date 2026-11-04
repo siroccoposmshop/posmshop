@@ -19,6 +19,12 @@
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    /*
+     * Always keep room for the scrollbar, on every page, so nothing shifts sideways when it
+     * appears or disappears (expanding a card, filtering a list, opening a pop-up).
+     * Keep this here rather than per page so new pages get it automatically.
+     */
+    scrollbar-gutter: stable;
   }
   body {
     background: var(--color-brand-light);
@@ -213,10 +219,3 @@
   }
 }
 
-/*
- * Keep room for the scrollbar so the page doesn't shift sideways when it appears
- * (e.g. expanding a card makes the page taller). Trial on the Projects dashboard first.
- */
-html:has(.stable-scrollbar) {
-  scrollbar-gutter: stable;
-}
