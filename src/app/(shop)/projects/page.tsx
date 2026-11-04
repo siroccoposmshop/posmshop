@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate, outletName } from "@/lib/format";
-import { formatAed, hubRoleShort } from "@/lib/hub";
+import { canSeeProjectReports, formatAed, hubRoleShort } from "@/lib/hub";
 import { todayIso } from "@/lib/working-days";
 import {
   actionItems,
@@ -79,9 +79,16 @@ export default async function ProjectsPage() {
             {role === "kam" ? "your projects" : role === "sm" ? "your team's projects" : "all projects"}
           </p>
         </div>
-        <Link href="/projects/new" className="btn btn-primary">
-          + New project
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          {canSeeProjectReports(profile) && (
+            <Link href="/projects/reports" className="btn btn-secondary">
+              Reports
+            </Link>
+          )}
+          <Link href="/projects/new" className="btn btn-primary">
+            + New project
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

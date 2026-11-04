@@ -5,7 +5,7 @@ import { CartButton } from "./CartButton";
 import { UserMenu } from "./UserMenu";
 import { AdminBadge } from "./AdminBadge";
 import type { Profile } from "@/lib/types";
-import { isAdminProfile } from "@/lib/hub";
+import { canSeeProjectReports, isAdminProfile } from "@/lib/hub";
 
 export function SiteHeader({ profile }: { profile: Profile }) {
   const isAdmin = isAdminProfile(profile);
@@ -36,7 +36,7 @@ export function SiteHeader({ profile }: { profile: Profile }) {
         </div>
       </div>
     </header>
-    <SectionNav />
+    <SectionNav managers={canSeeProjectReports(profile)} />
     </>
   );
 }

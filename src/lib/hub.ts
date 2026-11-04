@@ -15,6 +15,10 @@ export const hubRoleShort = (r: string | null | undefined) => HUB_ROLES.find((x)
 export const isAdminProfile = (p: { role?: string | null; hub_role?: string | null } | null | undefined) =>
   !!p && (p.role === "admin" || p.hub_role === "tm" || p.hub_role === "tmm");
 
+/** Project reports: SMs (their team), CM, TM, TMM and admins (everything). */
+export const canSeeProjectReports = (p: { role?: string | null; hub_role?: string | null } | null | undefined) =>
+  isAdminProfile(p) || ["sm", "cm", "tm", "tmm"].includes(p?.hub_role ?? "");
+
 /** Trade Marketing and the Channel Manager run projects: vetting, stages and admin actions. */
 export const PROJECT_ADMINS: HubRole[] = ["tm", "tmm", "cm"];
 /** Roles that see every project. */
