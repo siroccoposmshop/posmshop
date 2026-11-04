@@ -15,12 +15,12 @@ export default async function LoginPage({
         <Logo tone="white" className="h-14 w-auto self-start" />
         <div>
           <h1 className="accent-square text-6xl xl:text-7xl">
-            POSM
+            COMMERCE
             <br />
-            SHOP
+            HUB
           </h1>
           <p className="mt-6 max-w-md text-lg text-white/90">
-            Order point-of-sale materials for your accounts across Dubai, Abu Dhabi and the Northern Emirates.
+            POSM Shop, trade marketing projects and the marketing library for the Sirocco sales team, in one place.
           </p>
         </div>
         <div
@@ -34,7 +34,12 @@ export default async function LoginPage({
 
       <section className="flex flex-col justify-center px-5 py-12 sm:px-12">
         <div className="mx-auto w-full max-w-sm">
-          <Logo className="mb-10 h-12 w-auto lg:hidden" />
+          <div className="mb-10 flex items-center gap-3 lg:hidden">
+            <Logo className="h-12 w-auto" />
+            <span className="border-l border-brand-grey/30 pl-3 font-display text-lg font-medium uppercase tracking-wide text-brand-black">
+              Commerce Hub
+            </span>
+          </div>
           <h2 className="text-3xl text-brand-black">Sign in</h2>
           <p className="mt-2 text-sm">
             Use your <strong>@sirocco.ae</strong> email. We&apos;ll email you a sign-in code. You stay

@@ -17,7 +17,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
         <footer className="no-print relative overflow-hidden border-t border-black/5 bg-white">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-8 text-xs sm:px-6">
             <Logo className="h-7 w-auto" />
-            <p>© {new Date().getFullYear()} Sirocco · POSM SHOP · Internal use only</p>
+            <p>© {new Date().getFullYear()} Sirocco · Commerce Hub · Internal use only</p>
           </div>
         </footer>
       </div>
