@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-export type NavItem = { href: string; label: string; children?: { href: string; label: string }[] };
+export type NavItem = { href: string; label: string; children?: { href: string; label: string; managers?: boolean }[] };
 
 /** The Commerce Hub sections. POSM Shop and Projects have their own pages underneath. */
 export const SECTIONS: NavItem[] = [
@@ -24,6 +24,8 @@ export const SECTIONS: NavItem[] = [
     children: [
       { href: "/projects", label: "Dashboard" },
       { href: "/projects/new", label: "New project" },
+      // Only for SMs, CM, TM, TMM and admins.
+      { href: "/projects/reports", label: "Reports", managers: true },
     ],
   },
   { href: "/library", label: "Library" },
@@ -42,7 +44,7 @@ export function isActiveSection(href: string, pathname: string) {
 /** Whether a page under a section is the current one (exact, so "Dashboard" isn't lit on "New project"). */
 export function isActivePage(href: string, pathname: string) {
   if (href === "/posm") return pathname.startsWith("/posm") || pathname.startsWith("/shop") || pathname.startsWith("/cart");
-  if (href === "/projects") return pathname === "/projects" || (/^\/projects\/[^/]+$/.test(pathname) && pathname !== "/projects/new");
+  if (href === "/projects") return pathname === "/projects" || (/^\/projects\/[^/]+$/.test(pathname) && pathname !== "/projects/new" && pathname !== "/projects/reports");
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -66,9 +68,12 @@ export function NavLinks() {
 }
 
 /** Thin bar under the header with the current section's pages (e.g. New order · My orders). */
-export function SectionNav() {
+/** The sections for this person (manager-only pages left out for KAMs). */
+export const sectionsFor = (managers: boolean) => SECTIONS.map((s) => ({ ...s, children: s.children?.filter((c) => managers || !c.managers) }));
+
+export function SectionNav({ managers = false }: { managers?: boolean }) {
   const pathname = usePathname();
-  const section = SECTIONS.find((s) => s.children && isActiveSection(s.href, pathname));
+  const section = sectionsFor(managers).find((s) => s.children && isActiveSection(s.href, pathname));
   if (!section?.children) return null;
   return (
     <div className="no-print border-b border-black/5 bg-white/80">
