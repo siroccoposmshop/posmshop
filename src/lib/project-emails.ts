@@ -2,7 +2,8 @@ import "server-only";
 import { Resend } from "resend";
 import { DEFAULT_HUB_SETTINGS, EXTRA_SOURCE_LABEL, STATUS_LABEL, budgetSplit, gpCheck, gpWarningText, type HubSettings } from "@/lib/hub";
 import { companyName, formatDate, outletName } from "@/lib/format";
-import { outletLine, projectHealth, projectTitle, type Project } from "@/lib/projects";
+import { outletLine, projectHealth, projectTitle, type Investment, type Project } from "@/lib/projects";
+import { otherOutletsWithTicks, otherPromised, picosScores, promisedItems } from "@/lib/picos";
 
 // Same look as the POSM order emails.
 const GREEN = "#58a244";
@@ -81,6 +82,36 @@ function budgetHtml(p: Project) {
   return `<strong>${aed(b.total)}</strong><br><span style="font-size:12px;color:${GREY}">BIF ${aed(b.bif)} · ${b.source === "sirocco" ? `<strong style="color:${RED}">${extra}</strong>` : extra}</span>`;
 }
 
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/** Earlier investment in the outlet and its customer (nothing when there's none). */
+function investmentBox(inv: Investment | undefined, p: Project) {
+  if (!inv || (!inv.outlet.count && !inv.group.count && !inv.pending.count)) return "";
+  const lines = [
+    inv.outlet.count
+      ? `<strong>Previously invested: ${aed(inv.outlet.total)}</strong> in this outlet (${plural(inv.outlet.count, "project")}${inv.outlet.latest ? `, latest ${esc(inv.outlet.latest.ref)} · ${date(inv.outlet.latest.date)}` : ""}).`
+      : "",
+    inv.group.total > inv.outlet.total ? `${aed(inv.group.total)} across ${esc(companyName(p.parent_name || p.account_name))} (${plural(inv.group.count, "project")}).` : "",
+    inv.pending.count ? `${aed(inv.pending.total)} more is waiting for approval at this outlet (${plural(inv.pending.count, "request")}).` : "",
+  ].filter(Boolean);
+  return `<div style="margin:0 0 12px;padding:10px 12px;border-radius:8px;background:#fff6e0;border-left:4px solid #f59e0b;${VALUE};font-size:13px;color:#000">${lines.join("<br>")}</div>`;
+}
+
+/** PICOS: this outlet's score now → after the deal, and any other outlets in the deal. */
+function picosBox(p: Project) {
+  const main = picosScores(p.outlet_type, p.picos);
+  const row = (name: string, sub: string, now: number, after: number) =>
+    `<tr><td style="padding:6px 8px 6px 0;border-bottom:1px solid #eeeded;${VALUE};font-size:13px"><strong>${esc(name)}</strong><div style="font-size:12px;color:${GREY}">${esc(sub)}</div></td>
+      <td align="right" style="padding:6px 0;border-bottom:1px solid #eeeded;font-family:${FONT};font-weight:700;font-size:14px;white-space:nowrap;color:#000">${now}% <span style="color:${GREY}">→</span> <span style="color:${GREEN}">${after}%</span></td></tr>`;
+  const others = otherOutletsWithTicks(p.picos).map(([, o]) => {
+    const sc = picosScores(o.outlet_type, { items: o.items, notes: {} });
+    return row(outletName(o.name), `${o.outlet_type} · ${plural(otherPromised(o).length, "change")} negotiated`, sc.current, sc.promised);
+  });
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px">
+    <tr><th colspan="2" align="left" style="padding:4px 0;border-bottom:2px solid ${GREEN};${LABEL};font-weight:500">PICOS${others.length ? " · this outlet and others in the deal" : ""}</th></tr>
+    ${row(outletName(p.account_name), `${p.outlet_type} · ${plural(promisedItems(p.outlet_type, p.picos).length, "change")} negotiated`, main.current, main.promised)}${others.join("")}</table>`;
+}
+
 /** Call-outs for approvers: Sirocco funding and a GP warning. */
 function approvalNotes(p: Project, s: HubSettings) {
   const b = budgetSplit(p);
@@ -136,7 +167,7 @@ export function renderProjectEmail(
   kind: ProjectEmailKind,
   p: Project,
   people: { kam?: string; sm?: string; tm?: string },
-  extra: { reason?: string; stage?: string } = {},
+  extra: { reason?: string; stage?: string; investment?: Investment } = {},
   settings: HubSettings = DEFAULT_HUB_SETTINGS,
 ) {
   const title = projectTitle(p);
@@ -149,7 +180,7 @@ export function renderProjectEmail(
       subject: `Approval needed: ${title} (${aed(p.budget_aed)})`,
       heading: "Approval needed",
       intro: `${esc(people.kam)} has requested a ${esc(p.project_type.toLowerCase())} project for <strong>${esc(outletName(p.account_name))}</strong>. Please approve or send it back.`,
-      body: table(summary(p, people)) + approvalNotes(p, settings) + brief + button(link, "Review request"),
+      body: table(summary(p, people)) + approvalNotes(p, settings) + investmentBox(extra.investment, p) + picosBox(p) + brief + button(link, "Review request"),
     },
     sent_back: {
       subject: `Sent back: ${title}`,

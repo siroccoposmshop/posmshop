@@ -9,10 +9,11 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
  * invested…"); on the project page it's neutral.
  */
 export function InvestmentNote({ investment: inv, company, you }: { investment: Investment; company?: string; you?: boolean }) {
-  const any = inv.outlet.count > 0 || inv.group.count > 0 || inv.pending.count > 0;
+  // Nothing to flag when there's been no investment.
+  if (!(inv.outlet.count > 0 || inv.group.count > 0 || inv.pending.count > 0)) return null;
   return (
-    <div className={`rounded-lg px-3 py-2 text-sm ${any ? "border-l-4 border-amber-500 bg-amber-50 text-brand-black" : "bg-brand-light"}`} role="status">
-      {inv.outlet.count > 0 ? (
+    <div className="rounded-lg border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-sm text-brand-black" role="status">
+      {inv.outlet.count > 0 && (
         <p>
           <strong>
             {you ? "You have invested" : "Previously invested:"} {formatAed(inv.outlet.total)}
@@ -20,8 +21,6 @@ export function InvestmentNote({ investment: inv, company, you }: { investment: 
           in this outlet{you ? " previously" : ""} ({plural(inv.outlet.count, "project")}
           {inv.outlet.latest ? `, latest ${inv.outlet.latest.ref} · ${formatDate(inv.outlet.latest.date)}` : ""}).
         </p>
-      ) : (
-        <p>No previous investment in this outlet.</p>
       )}
       {inv.group.total > inv.outlet.total && (
         <p className="mt-0.5">
