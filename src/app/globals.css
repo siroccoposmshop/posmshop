@@ -212,3 +212,11 @@
     transform: translate(-50%, 0);
   }
 }
+
+/*
+ * Keep room for the scrollbar so the page doesn't shift sideways when it appears
+ * (e.g. expanding a card makes the page taller). Trial on the Projects dashboard first.
+ */
+html:has(.stable-scrollbar) {
+  scrollbar-gutter: stable;
+}
