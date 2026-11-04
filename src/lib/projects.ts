@@ -215,3 +215,39 @@ export async function usersWithRoles(roles: HubRole[]) {
 }
 
 export { outletLine, projectTitle } from "@/lib/projects-shared";
+
+// ---------------------------------------------------------------------------
+// Previous investment
+// ---------------------------------------------------------------------------
+
+export type Investment = {
+  /** Approved projects at this outlet (live, paused or completed). */
+  outlet: { total: number; count: number; latest: { ref: string; date: string } | null };
+  /** The same across every outlet of the customer (parent account). */
+  group: { total: number; count: number };
+  /** Requests at this outlet still waiting for approval. */
+  pending: { total: number; count: number };
+};
+
+const INVESTED = ["live", "paused", "completed"];
+const WAITING = ["awaiting_sm", "awaiting_cm", "awaiting_tm"];
+
+/** What's been invested in an outlet and its customer before, leaving out one project (the one being looked at). */
+export async function investmentFor(accountId: string, parentNumber: string | null, excludeId?: string): Promise<Investment> {
+  const db = createAdminClient();
+  let q = db.from("projects").select("id, ref, status, budget_aed, account_id, submitted_at, started_at, hidden_for_kam");
+  q = parentNumber ? q.or(`account_id.eq.${accountId},parent_number.eq."${parentNumber.replace(/"/g, "")}"`) : q.eq("account_id", accountId);
+  const { data } = await q.limit(2000);
+  const rows = (data ?? []).filter((r) => r.id !== excludeId && !r.hidden_for_kam);
+  const sum = (list: typeof rows) => list.reduce((n, r) => n + Number(r.budget_aed || 0), 0);
+  const atOutlet = rows.filter((r) => r.account_id === accountId);
+  const invested = atOutlet.filter((r) => INVESTED.includes(r.status as string));
+  const latest = [...invested].sort((a, b) => String(b.started_at ?? b.submitted_at).localeCompare(String(a.started_at ?? a.submitted_at)))[0];
+  const groupInvested = rows.filter((r) => INVESTED.includes(r.status as string));
+  const waiting = atOutlet.filter((r) => WAITING.includes(r.status as string));
+  return {
+    outlet: { total: sum(invested), count: invested.length, latest: latest ? { ref: latest.ref as string, date: String(latest.started_at ?? latest.submitted_at) } : null },
+    group: { total: sum(groupInvested), count: groupInvested.length },
+    pending: { total: sum(waiting), count: waiting.length },
+  };
+}

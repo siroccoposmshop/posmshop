@@ -2,12 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { formatDate, outletName } from "@/lib/format";
+import { companyName, formatDate, outletName } from "@/lib/format";
 import { EXTRA_SOURCE_LABEL, STATUS_LABEL, budgetSplit, formatAed, gpCheck, gpWarningText, hubRoleShort } from "@/lib/hub";
 import { loadHubSettings } from "@/lib/hub-settings";
-import { PICOS_GROUPS, picosItemsFor, pointsFor } from "@/lib/picos";
+import { PICOS_GROUPS, otherOutletsWithTicks, picosItemsFor, picosScores, pointsFor } from "@/lib/picos";
+import { InvestmentNote } from "../_components/InvestmentNote";
 import { todayIso } from "@/lib/working-days";
-import { canApprove, hubRole, isProjectAdmin, loadPeople, loadProject, loadStageTypes, outletLine, personName, projectHealth, projectTitle } from "@/lib/projects";
+import { canApprove, hubRole, isProjectAdmin, loadPeople, loadProject, investmentFor, loadStageTypes, outletLine, personName, projectHealth, projectTitle } from "@/lib/projects";
 import { MARKETS } from "@/lib/markets";
 import { ProjectBadge } from "../_components/StatusBadge";
 import { PicosPromised } from "../_components/PicosPromised";
@@ -47,10 +48,11 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const health = projectHealth(p, today);
   const admin = isProjectAdmin(profile);
   const role = hubRole(profile);
-  const [people, stageTypes, settings, { data: events }] = await Promise.all([
+  const [people, stageTypes, settings, investment, { data: events }] = await Promise.all([
     loadPeople(),
     loadStageTypes(),
     loadHubSettings(),
+    p.account_id ? investmentFor(p.account_id, p.parent_number, p.id) : Promise.resolve(null),
     createAdminClient().from("project_events").select("*").eq("project_id", id).order("created_at", { ascending: false }).limit(100),
   ]);
   const name = (uid: string | null | undefined) => (uid ? personName(people.get(uid)) : "—");
@@ -165,6 +167,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             <Item label="Sales Manager" value={name(p.sm_id)} />
             <Item label="Trade Marketing" value={p.tm_id ? name(p.tm_id) : "Not assigned"} />
           </dl>
+          {investment && <InvestmentNote investment={investment} company={companyName(p.parent_name || p.account_name)} />}
           {gp && gp.level !== "ok" && (
             <div className="rounded-lg bg-brand-red px-3 py-2 text-white">
               <p className="font-display text-sm font-bold uppercase tracking-wide">Warning: This investment looks to be GP {gp.level}</p>
@@ -203,6 +206,32 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
               ))}
             </ul>
           </details>
+          {otherOutletsWithTicks(p.picos).length > 0 && (
+            <div className="space-y-2 border-t border-black/5 pt-3">
+              <p className="label">Other outlets in this deal</p>
+              {otherOutletsWithTicks(p.picos).map(([oid, o]) => {
+                const sc = picosScores(o.outlet_type, { items: o.items, notes: {} });
+                return (
+                  <details key={oid} className="rounded-lg bg-brand-light px-3 py-2">
+                    <summary className="flex cursor-pointer items-center justify-between gap-2 text-sm">
+                      <span className="min-w-0">
+                        <strong className="text-brand-black">{outletName(o.name)}</strong>{" "}
+                        <span className="text-xs">
+                          · {o.outlet_type} · #{o.account_number}
+                        </span>
+                      </span>
+                      <span className="shrink-0 font-display font-bold text-brand-black">
+                        {sc.current}% <span className="text-brand-grey">→</span> <span className="text-brand-green">{sc.promised}%</span>
+                      </span>
+                    </summary>
+                    <div className="mt-2">
+                      <PicosPromised projectId={p.id} outletType={o.outlet_type} picos={p.picos} canTick={admin || role === "sm"} outletId={oid} />
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          )}
         </section>
       </div>
 

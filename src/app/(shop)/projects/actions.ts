@@ -7,11 +7,12 @@ import { normaliseEmail, normaliseMobile } from "@/lib/contact";
 import { formatDate } from "@/lib/format";
 import { MIN_BRIEF_CHARS, PROJECT_TYPES, approvalStatus, isAdminProfile, type ProjectStatus } from "@/lib/hub";
 import { loadHubSettings } from "@/lib/hub-settings";
-import { OUTLET_TYPES, picosScores, promisedItems, type Picos } from "@/lib/picos";
+import { OUTLET_TYPES, anyNegotiated, otherOutletsWithTicks, picosScores, type Picos } from "@/lib/picos";
 import { addWorkingDays, dubaiDate, planStages, todayIso } from "@/lib/working-days";
 import {
   canApprove,
   hubRole,
+  investmentFor,
   isProjectAdmin,
   loadPeople,
   loadProject,
@@ -20,6 +21,7 @@ import {
   personName,
   projectTitle,
   usersWithRoles,
+  type Investment,
   type Project,
 } from "@/lib/projects";
 import { renderProjectEmail, sendProjectEmail, type ProjectEmailKind } from "@/lib/project-emails";
@@ -118,7 +120,24 @@ export async function submitBrief(input: BriefInput): Promise<Result & { fieldEr
   if (input.volumeBudget === null || !(input.volumeBudget >= 0)) errors.volumeBudget = "Enter the 2027 volume budget in HL.";
   if (input.incrementalVolume === null || !(input.incrementalVolume >= 0)) errors.incrementalVolume = "Enter the incremental volume in HL.";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.desiredDate ?? "") || input.desiredDate <= todayIso()) errors.desiredDate = "Choose a date in the future.";
-  if (!errors.outletType && !promisedItems(input.outletType, input.picos).length) errors.picos = "Tick at least one PICOS change negotiated in this deal.";
+  // Other outlets: only those under the same customer, with something ticked.
+  if (account && input.picos?.others) {
+    const entries = otherOutletsWithTicks(input.picos);
+    const ids = entries.map(([id]) => id).filter((id) => id !== account.id);
+    const { data: siblings } = ids.length
+      ? await db.from("accounts").select("id, account_number, name").in("id", ids).eq("parent_number", account.parent_number)
+      : { data: [] };
+    const ok = new Map((siblings ?? []).map((r) => [r.id as string, r]));
+    input.picos = {
+      ...input.picos,
+      others: Object.fromEntries(
+        entries
+          .filter(([id]) => ok.has(id))
+          .map(([id, o]) => [id, { account_number: ok.get(id)!.account_number as string, name: ok.get(id)!.name as string, outlet_type: o.outlet_type, items: o.items }]),
+      ),
+    };
+  }
+  if (!errors.outletType && !anyNegotiated(input.outletType, input.picos)) errors.picos = "Tick at least one PICOS change negotiated in this deal (at this outlet or another one).";
   if (Object.keys(errors).length) return { error: "Please complete the highlighted sections.", fieldErrors: errors };
 
   // Re-submitting a request that was sent back.
@@ -418,18 +437,25 @@ export async function hideForMe(id: string): Promise<Result> {
 }
 
 /** SMs and Trade Marketing tick off promised PICOS once they're in place at the outlet. */
-export async function togglePicosDelivered(id: string, key: string): Promise<Result> {
+export async function togglePicosDelivered(id: string, key: string, outletId?: string): Promise<Result> {
   const profile = await me();
   if (!profile) return SIGNED_OUT;
   if (!(isProjectAdmin(profile) || hubRole(profile) === "sm")) return { error: "Only Sales Managers and Trade Marketing can update this." };
   const p = await loadProject(id, profile);
   if (!p) return { error: "Project not found." };
-  const item = p.picos.items?.[key];
+  const other = outletId ? p.picos.others?.[outletId] : undefined;
+  if (outletId && !other) return { error: "That outlet isn't part of this project." };
+  const items = other ? other.items : p.picos.items;
+  const item = items?.[key];
   if (!item?.promised) return { error: "That item wasn't promised." };
   const delivered_at = item.delivered_at ? null : new Date().toISOString();
-  const picos: Picos = { ...p.picos, items: { ...p.picos.items, [key]: { ...item, delivered_at } } };
+  const nextItems = { ...items, [key]: { ...item, delivered_at } };
+  const picos: Picos =
+    other && outletId
+      ? { ...p.picos, others: { ...p.picos.others, [outletId]: { ...other, items: nextItems } } }
+      : { ...p.picos, items: nextItems };
   await createAdminClient().from("projects").update({ picos }).eq("id", id);
-  await logEvent(id, profile.id, delivered_at ? "picos_delivered" : "picos_undelivered", { key });
+  await logEvent(id, profile.id, delivered_at ? "picos_delivered" : "picos_undelivered", { key, ...(other ? { outlet: other.name } : {}) });
   refresh(id);
   return { ok: true };
 }
@@ -506,4 +532,13 @@ export async function editStages(id: string, wanted: { key: string; days: number
   }
   refresh(id);
   return { ok: true };
+}
+
+/** Previous investment in an outlet, for the brief (the KAM sees totals even for other KAMs' projects). */
+export async function outletInvestment(accountId: string, excludeProjectId?: string): Promise<Investment | null> {
+  const profile = await me();
+  if (!profile) return null;
+  const { data: account } = await createAdminClient().from("accounts").select("id, parent_number").eq("id", accountId).maybeSingle();
+  if (!account) return null;
+  return investmentFor(account.id as string, (account.parent_number as string | null) ?? null, excludeProjectId);
 }
