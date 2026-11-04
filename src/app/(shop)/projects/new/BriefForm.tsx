@@ -5,10 +5,13 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { UAE_PREFIX, normaliseEmail, normaliseMobile } from "@/lib/contact";
 import { MIN_BRIEF_CHARS, PROJECT_TYPES, formatAed, gpCheck, gpPerHlAed, gpWarningText, type ExtraSource, type HubSettings } from "@/lib/hub";
-import { OUTLET_TYPES, PICOS_GROUPS, picosItemsFor, picosScores, pointsFor, scoringOutletType, type Picos } from "@/lib/picos";
+import { OUTLET_TYPES, PICOS_GROUPS, anyNegotiated, otherPromised, picosItemsFor, picosScores, pointsFor, scoringOutletType, type OtherOutletPicos, type Picos } from "@/lib/picos";
+import { companyName, outletName } from "@/lib/format";
+import type { Investment } from "@/lib/projects";
+import { InvestmentNote } from "../_components/InvestmentNote";
 import { Spinner } from "@/components/Spinner";
 import type { Account, ParentAccount } from "@/lib/types";
-import { submitBrief, type BriefInput } from "../actions";
+import { outletInvestment, submitBrief, type BriefInput } from "../actions";
 
 
 export type BriefDefaults = Partial<Omit<BriefInput, "accountId">> & { account?: Account | null };
@@ -34,6 +37,27 @@ export function BriefForm({ brands, defaults, submitterIsSm, settings }: { brand
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  // Earlier investment in the chosen outlet, and the other outlets under the same customer (for PICOS).
+  const [investment, setInvestment] = useState<Investment | null>(null);
+  const [siblings, setSiblings] = useState<Account[] | null>(null);
+  useEffect(() => {
+    setInvestment(null);
+    setSiblings(null);
+    if (!account) return;
+    let live = true;
+    outletInvestment(account.id, defaults?.projectId).then((inv) => live && setInvestment(inv));
+    createClient()
+      .from("accounts")
+      .select("*")
+      .eq("parent_number", account.parent_number)
+      .eq("active", true)
+      .neq("id", account.id)
+      .order("name")
+      .then(({ data }) => live && setSiblings((data as Account[]) ?? []));
+    return () => {
+      live = false;
+    };
+  }, [account, defaults?.projectId]);
 
   const bifNum = Number(bif.replace(/[^0-9.]/g, "")) || 0;
   const extraNum = Number(extra.replace(/[^0-9.]/g, "")) || 0;
@@ -71,8 +95,8 @@ export function BriefForm({ brands, defaults, submitterIsSm, settings }: { brand
     if (volumeBudget === "") errs.volumeBudget = "Enter the 2027 volume budget in HL.";
     if (incremental === "") errs.incrementalVolume = "Enter the incremental volume in HL.";
     if (!desiredDate) errs.desiredDate = "Choose the desired execution date.";
-    if (outletType && !picosItemsFor(outletType).some((p) => picos.items[p.key]?.promised && !picos.items[p.key]?.current)) {
-      errs.picos = "Tick at least one PICOS change negotiated in this deal.";
+    if (outletType && !anyNegotiated(outletType, picos)) {
+      errs.picos = "Tick at least one PICOS change negotiated in this deal (at this outlet or another one).";
     }
     setErrors(errs);
     if (Object.keys(errs).length) {
@@ -123,6 +147,11 @@ export function BriefForm({ brands, defaults, submitterIsSm, settings }: { brand
             }
           }}
         />
+        {account && investment && (
+          <div className="mt-3">
+            <InvestmentNote investment={investment} company={companyName(account.parent_name || account.name)} you />
+          </div>
+        )}
         {err("account")}
       </Section>
 
@@ -291,7 +320,40 @@ export function BriefForm({ brands, defaults, submitterIsSm, settings }: { brand
         {!outletType ? (
           <p className="text-sm">Choose the outlet type in section 3 first.</p>
         ) : (
-          <PicosChecklist outletType={outletType} picos={picos} onChange={setPicos} scores={scores} />
+          <div className="space-y-4">
+            {!!siblings?.length && account && (
+              <p className="font-display text-sm font-medium uppercase tracking-wide text-brand-black">{outletName(account.name)}</p>
+            )}
+            <PicosChecklist outletType={outletType} picos={picos} onChange={setPicos} scores={scores} />
+            {!!siblings?.length && (
+              <div className="space-y-2 border-t border-black/10 pt-4">
+                <div>
+                  <p className="font-display text-sm font-medium uppercase tracking-wide text-brand-black">
+                    Other outlets at {companyName(account?.parent_name || account?.name)}
+                  </p>
+                  <p className="text-xs">
+                    If this deal also improves PICOS elsewhere in the group, open the outlet and tick what&apos;s in place and what&apos;s
+                    negotiated there.
+                  </p>
+                </div>
+                {siblings.map((o) => (
+                  <OtherOutletCard
+                    key={o.id}
+                    outlet={o}
+                    value={picos.others?.[o.id]}
+                    onChange={(v) =>
+                      setPicos((p) => {
+                        const others = { ...(p.others ?? {}) };
+                        if (v) others[o.id] = v;
+                        else delete others[o.id];
+                        return { ...p, others };
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         )}
         {err("picos")}
       </Section>
@@ -361,7 +423,19 @@ function Chips({ options, value, onToggle }: { options: readonly string[]; value
   );
 }
 
-function PicosChecklist({ outletType, picos, onChange, scores }: { outletType: string; picos: Picos; onChange: (p: Picos) => void; scores: { current: number; promised: number } }) {
+function PicosChecklist({
+  outletType,
+  picos,
+  onChange,
+  scores,
+  showNotes = true,
+}: {
+  outletType: string;
+  picos: Picos;
+  onChange: (p: Picos) => void;
+  scores: { current: number; promised: number };
+  showNotes?: boolean;
+}) {
   const items = picosItemsFor(outletType);
   const set = (key: string, field: "current" | "promised", v: boolean) => {
     const prev = picos.items[key] ?? {};
@@ -418,15 +492,69 @@ function PicosChecklist({ outletType, picos, onChange, scores }: { outletType: s
                 );
               })}
             </ul>
-            <input
+            {showNotes && (<input
               className="field mt-2 !py-2 text-sm"
               placeholder={g === "Availability" ? "Details, e.g. new listing: Birra Moretti draught" : `${g} details (optional)`}
               value={picos.notes[noteKey] ?? ""}
               onChange={(e) => onChange({ ...picos, notes: { ...picos.notes, [noteKey]: e.target.value } })}
-            />
+            />)}
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** Another outlet under the customer: collapsed, with its own outlet type and PICOS ticks. */
+function OtherOutletCard({ outlet, value, onChange }: { outlet: Account; value?: OtherOutletPicos; onChange: (v: OtherOutletPicos | undefined) => void }) {
+  const [open, setOpen] = useState(false);
+  const type = value?.outlet_type || scoringOutletType(outlet.outlet_type) || "";
+  const items = value?.items ?? {};
+  const scores = type ? picosScores(type, { items, notes: {} }) : null;
+  const negotiated = value && type ? otherPromised({ ...value, outlet_type: type }).length : 0;
+  const update = (outlet_type: string, next: OtherOutletPicos["items"]) =>
+    onChange(outlet_type || Object.keys(next).length ? { account_number: outlet.account_number, name: outlet.name, outlet_type, items: next } : undefined);
+
+  return (
+    <div className={`rounded-xl ring-1 ${negotiated ? "ring-brand-green" : "ring-black/10"}`}>
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left">
+        <span className="min-w-0">
+          <span className="block truncate font-medium text-brand-black">{outletName(outlet.name)}</span>
+          <span className="text-xs">
+            #{outlet.account_number}
+            {type ? ` · ${type}` : " · outlet type not set"}
+          </span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          {negotiated > 0 && <span className="badge bg-brand-green text-white">{negotiated} negotiated</span>}
+          {scores && (scores.current > 0 || scores.promised > 0) && (
+            <span className="font-display text-sm font-bold text-brand-black">
+              {scores.current}% <span className="text-brand-grey">→</span> <span className="text-brand-green">{scores.promised}%</span>
+            </span>
+          )}
+          <svg viewBox="0 0 20 20" className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      </button>
+      {open && (
+        <div className="space-y-3 border-t border-black/5 px-3 pb-3 pt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="label !mb-0" htmlFor={`ot-${outlet.id}`}>Outlet type</label>
+            <select id={`ot-${outlet.id}`} className="field !w-auto !py-1.5 text-sm" value={type} onChange={(e) => update(e.target.value, items)}>
+              <option value="">Choose…</option>
+              {OUTLET_TYPES.map((t) => (
+                <option key={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          {type ? (
+            <PicosChecklist outletType={type} picos={{ items, notes: {} }} onChange={(p) => update(type, p.items)} scores={scores!} showNotes={false} />
+          ) : (
+            <p className="text-sm">Choose the outlet type to score it.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

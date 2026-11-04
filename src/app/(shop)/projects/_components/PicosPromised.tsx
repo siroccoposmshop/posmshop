@@ -8,22 +8,36 @@ import { Spinner } from "@/components/Spinner";
 import { togglePicosDelivered } from "../actions";
 
 /** PICOS negotiated in the deal. SMs and Trade Marketing tick each one off once it's in place. */
-export function PicosPromised({ projectId, outletType, picos, canTick }: { projectId: string; outletType: string; picos: Picos; canTick: boolean }) {
+export function PicosPromised({
+  projectId,
+  outletType,
+  picos,
+  canTick,
+  outletId,
+}: {
+  projectId: string;
+  outletType: string;
+  picos: Picos;
+  canTick: boolean;
+  /** Another outlet under the customer (its items live in picos.others). */
+  outletId?: string;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   // The item being saved, and its new state, so the tick changes straight away.
   const [saving, setSaving] = useState<{ key: string; on: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const items = promisedItems(outletType, picos);
+  const source = outletId ? (picos.others?.[outletId]?.items ?? {}) : picos.items;
+  const items = promisedItems(outletType, { items: source, notes: {} });
   if (!items.length) return <p className="text-sm">No PICOS changes recorded.</p>;
-  const isOn = (key: string) => (saving?.key === key ? saving.on : !!picos.items[key]?.delivered_at);
+  const isOn = (key: string) => (saving?.key === key ? saving.on : !!source[key]?.delivered_at);
   const done = items.filter((i) => isOn(i.key)).length;
 
   const toggle = (key: string) => {
     setError(null);
     setSaving({ key, on: !isOn(key) });
     start(async () => {
-      const res = await togglePicosDelivered(projectId, key);
+      const res = await togglePicosDelivered(projectId, key, outletId);
       if (res.error) setError(res.error);
       router.refresh();
       setSaving(null);
@@ -37,7 +51,7 @@ export function PicosPromised({ projectId, outletType, picos, canTick }: { proje
       </p>
       <ul className="divide-y divide-black/5">
         {items.map((i) => {
-          const at = picos.items[i.key]?.delivered_at;
+          const at = source[i.key]?.delivered_at;
           const on = isOn(i.key);
           const busy = pending && saving?.key === i.key;
           return (
@@ -68,7 +82,7 @@ export function PicosPromised({ projectId, outletType, picos, canTick }: { proje
         })}
       </ul>
       {error && <p className="mt-1 text-xs text-brand-red">{error}</p>}
-      {(picos.notes.availability || picos.notes.visibility || picos.notes.affordability) && (
+      {!outletId && (picos.notes.availability || picos.notes.visibility || picos.notes.affordability) && (
         <dl className="mt-2 space-y-1 text-xs">
           {(["availability", "visibility", "affordability"] as const).map((k) =>
             picos.notes[k] ? (

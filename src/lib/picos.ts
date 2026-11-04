@@ -27,9 +27,14 @@ export const PICOS_ITEMS: { key: string; label: string; group: PicosGroup; point
 ];
 
 export type PicosItemState = { current?: boolean; promised?: boolean; delivered_at?: string | null };
+/** PICOS for another outlet under the same customer that this deal also improves. */
+export type OtherOutletPicos = { account_number: string; name: string; outlet_type: string; items: Record<string, PicosItemState> };
+
 export type Picos = {
   items: Record<string, PicosItemState>;
   notes: { availability?: string; visibility?: string; affordability?: string };
+  /** Other outlets under the same customer, by account id. */
+  others?: Record<string, OtherOutletPicos>;
 };
 
 export function pointsFor(key: string, outletType: string) {
@@ -75,4 +80,19 @@ export function scoringOutletType(raw: string | null | undefined): OutletType | 
   if (/restaurant|dining|bistro|brasserie|cafe|café|steak/.test(s)) return "Restaurant";
   if (/\bbar\b|lounge|terrace|rooftop/.test(s)) return "Bar";
   return null;
+}
+
+/** Negotiated items for another outlet. */
+export const otherPromised = (o: OtherOutletPicos) => promisedItems(o.outlet_type, { items: o.items, notes: {} });
+
+/** Whether the deal negotiates anything, at this outlet or another one under the customer. */
+export function anyNegotiated(outletType: string, picos: Picos) {
+  return promisedItems(outletType, picos).length > 0 || Object.values(picos.others ?? {}).some((o) => otherPromised(o).length > 0);
+}
+
+/** Other outlets with something ticked and a known outlet type, as entered (others are dropped). */
+export function otherOutletsWithTicks(picos: Picos) {
+  return Object.entries(picos.others ?? {}).filter(
+    ([, o]) => OUTLET_TYPES.includes(o.outlet_type as OutletType) && picosItemsFor(o.outlet_type).some((i) => o.items[i.key]?.current || o.items[i.key]?.promised),
+  );
 }
