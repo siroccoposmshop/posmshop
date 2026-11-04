@@ -44,8 +44,12 @@ async function emailAbout(kind: ProjectEmailKind, projectId: string, to: (string
   const { data } = await createAdminClient().from("projects").select("*, project_stages(*)").eq("id", projectId).single();
   if (!data) return;
   const p = { ...(data as Project), project_stages: [...((data as Project).project_stages ?? [])].sort((a, b) => a.sort - b.sort) };
-  const [people, settings] = await Promise.all([loadPeople(), loadHubSettings()]);
-  const email = renderProjectEmail(kind, p, { kam: personName(people.get(p.kam_id)), sm: p.sm_id ? personName(people.get(p.sm_id)) : undefined, tm: p.tm_id ? personName(people.get(p.tm_id)) : undefined }, extra, settings);
+  const [people, settings, investment] = await Promise.all([
+    loadPeople(),
+    loadHubSettings(),
+    kind === "approval_needed" && p.account_id ? investmentFor(p.account_id, p.parent_number, p.id) : Promise.resolve(undefined),
+  ]);
+  const email = renderProjectEmail(kind, p, { kam: personName(people.get(p.kam_id)), sm: p.sm_id ? personName(people.get(p.sm_id)) : undefined, tm: p.tm_id ? personName(people.get(p.tm_id)) : undefined }, { ...extra, investment }, settings);
   const kamEmail = people.get(p.kam_id)?.email;
   await sendProjectEmail(to, email, kind === "approval_needed" ? kamEmail : undefined);
 }
