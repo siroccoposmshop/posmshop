@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireProfile } from "@/lib/auth";
-import { getReportRows, readFilters, reportScope, summariseByItem, summariseByKam } from "@/lib/reports";
+import { getReportRows, nameFromEmail, readFilters, reportScope, summariseByItem, summariseByKam } from "@/lib/reports";
 import { formatDate, money, type DisplayCurrency } from "@/lib/format";
 
 export const metadata = { title: "Reports" };
@@ -82,7 +82,7 @@ export default async function ReportsPage({
           <select id="kam" name="kam" defaultValue={filters.kam ?? ""} className="field">
             <option value="">Everyone</option>
             {(kams ?? []).map((k) => (
-              <option key={k.id} value={k.id}>{k.full_name || k.email}</option>
+              <option key={k.id} value={k.id}>{k.full_name || nameFromEmail(k.email)}</option>
             ))}
           </select>
         </div>
@@ -148,7 +148,7 @@ export default async function ReportsPage({
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
+      <div className="grid gap-6 xl:grid-cols-[3fr_2fr]">
         <section className="bento overflow-x-auto">
           <h2 className="mb-3 text-xl text-brand-black">By item</h2>
           <table className="table">
@@ -191,7 +191,7 @@ export default async function ReportsPage({
             <tbody>
               {byKam.map((r) => (
                 <tr key={r.kam}>
-                  <td>{r.kam}</td>
+                  <td className="font-medium text-brand-black">{r.kam}</td>
                   <td className="text-right">{r.orders}</td>
                   <td className="whitespace-nowrap text-right">{money(r.value, cur)}</td>
                 </tr>
@@ -220,7 +220,7 @@ export default async function ReportsPage({
               <tr key={`${r.order_number}-${r.sku}-${i}`}>
                 <td className="whitespace-nowrap">{r.order_number}</td>
                 <td className="whitespace-nowrap">{formatDate(r.created_at)}</td>
-                <td>{r.kam_name || r.kam_email}</td>
+                <td className="whitespace-nowrap">{r.kam_name || r.kam_email}</td>
                 <td>
                   {r.account_name}
                   {r.parent_name && <span className="block text-xs">{r.parent_name}</span>}

@@ -102,16 +102,24 @@ export async function getReportRows(f: ReportFilters, scope: string[] | null, li
     if (!data || data.length < PAGE) break;
   }
 
+  // Show people by name: their profile name now, else the name on the order, else one made from the email.
+  const kamIds = [...new Set(raw.map((r) => (r.orders as unknown as { kam_id: string }).kam_id).filter(Boolean))];
+  const names = new Map<string, string>();
+  for (let i = 0; i < kamIds.length; i += 200) {
+    const { data } = await db.from("profiles").select("id, full_name").in("id", kamIds.slice(i, i + 200));
+    for (const p of data ?? []) if (p.full_name) names.set(p.id as string, p.full_name as string);
+  }
+
   return raw
     .map((r) => {
-      const o = r.orders as unknown as Omit<ReportRow, "brand" | "category" | "sku" | "name" | "qty" | "unit_value" | "line_value">;
+      const o = r.orders as unknown as Omit<ReportRow, "brand" | "category" | "sku" | "name" | "qty" | "unit_value" | "line_value"> & { kam_id: string };
       return {
         order_number: o.order_number,
         created_at: o.created_at,
         status: o.status,
         market: o.market,
         kam_email: o.kam_email,
-        kam_name: o.kam_name,
+        kam_name: names.get(o.kam_id) || o.kam_name || nameFromEmail(o.kam_email),
         account_number: o.account_number,
         account_name: o.account_name,
         parent_number: o.parent_number,
@@ -127,6 +135,16 @@ export async function getReportRows(f: ReportFilters, scope: string[] | null, li
       };
     })
     .sort((a, b) => b.created_at.localeCompare(a.created_at) || a.order_number.localeCompare(b.order_number));
+}
+
+/** "michael.smith@sirocco.ae" → "Michael Smith". */
+export function nameFromEmail(email: string | null | undefined) {
+  const local = (email ?? "").split("@")[0];
+  return local
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ") || (email ?? "");
 }
 
 export function summariseByItem(rows: ReportRow[]) {
