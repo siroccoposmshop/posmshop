@@ -1,5 +1,6 @@
 "use client";
 
+import { useDialog } from "@/components/Dialog";
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { Item, Market } from "@/lib/types";
@@ -10,6 +11,7 @@ import { flagSaved, itemsListHref } from "../ListMemory";
 export function ItemForm({ item, markets, brands }: { item: Item | null; markets: Market[]; brands: string[] }) {
   const router = useRouter();
   const [state, action, pending] = useActionState(saveItem, null);
+  const dialog = useDialog();
 
   // A new item stays on its page so an image can be added; an edited one goes back to the list.
   useEffect(() => {
@@ -116,9 +118,10 @@ export function ItemForm({ item, markets, brands }: { item: Item | null; markets
             type="button"
             className="btn btn-danger"
             onClick={async () => {
-              if (!confirm(`Delete ${item.name}? Past orders keep their copy of the item.`)) return;
+              const ok = await dialog.confirm({ title: `Delete ${item.name}?`, message: "Past orders keep their copy of the item.", confirmLabel: "Delete", tone: "danger" });
+              if (!ok) return;
               const res = await deleteItem(item.id);
-              if (res?.error) alert(res.error);
+              if (res?.error) await dialog.alert({ title: "Couldn't delete", message: res.error });
               else router.replace(itemsListHref());
             }}
           >

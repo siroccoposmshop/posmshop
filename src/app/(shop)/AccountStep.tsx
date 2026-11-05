@@ -1,5 +1,6 @@
 "use client";
 
+import { useDialog } from "@/components/Dialog";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -30,6 +31,7 @@ export function AccountStep() {
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchCardRef = useRef<HTMLDivElement>(null);
   const [searchActive, setSearchActive] = useState(false);
+  const dialog = useDialog();
 
   // Phones: when the search box is tapped, scroll its card to the top of the screen
   // so results appear underneath it rather than behind the keyboard.
@@ -288,8 +290,12 @@ export function AccountStep() {
         <button
           type="button"
           className="btn bg-white/15 text-white hover:bg-white/25"
-          onClick={() => {
-            if (cart.lines.length && !confirm("Changing the account empties your cart. Continue?")) return;
+          onClick={async () => {
+            if (
+              cart.lines.length &&
+              !(await dialog.confirm({ title: "Change the account?", message: "Changing the account empties your cart.", confirmLabel: "Change account" }))
+            )
+              return;
             cart.setAccount(null);
             setParent(null);
             setQuery("");

@@ -1,5 +1,6 @@
 "use client";
 
+import { useDialog } from "@/components/Dialog";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ItemImage } from "@/components/ItemImage";
@@ -15,6 +16,7 @@ export function ReorderItems({ brand, items }: { brand: string; items: Row[] }) 
   const [dragging, setDragging] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const dialog = useDialog();
 
   useEffect(() => {
     if (!open) return;
@@ -126,7 +128,7 @@ export function ReorderItems({ brand, items }: { brand: string; items: Row[] }) 
                     type="button"
                     className="text-sm underline"
                     disabled={pending}
-                    onClick={() => confirm(`Go back to the automatic order for ${brand}?`) && save([])}
+                    onClick={async () => (await dialog.confirm({ title: "Reset to automatic?", message: `Go back to the automatic order for ${brand}?`, confirmLabel: "Reset" })) && save([])}
                   >
                     Reset to automatic
                   </button>

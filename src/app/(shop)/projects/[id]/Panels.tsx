@@ -1,5 +1,6 @@
 "use client";
 
+import { useDialog } from "@/components/Dialog";
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -260,6 +261,7 @@ export function ProjectAdminPanel({
   // Completing asks for the final cost first.
   const [completing, setCompleting] = useState(false);
   const [cost, setCost] = useState("");
+  const dialog = useDialog();
   const costNum = Number(cost.replace(/[^0-9.]/g, ""));
   const costOk = cost.trim() !== "" && Number.isFinite(costNum) && costNum >= 0;
   const diff = costOk ? costNum - budget : 0;
@@ -289,8 +291,17 @@ export function ProjectAdminPanel({
             className="btn btn-danger"
             disabled={pending}
             onClick={() => {
-              const why = prompt("Cancel this project? It moves to Past projects. Reason (optional):");
-              if (why !== null) run(() => cancelProject(id, why));
+              void (async () => {
+                const why = await dialog.prompt({
+                  title: "Cancel this project?",
+                  message: "It moves to Past projects. Add a reason if you like.",
+                  placeholder: "Reason (optional)",
+                  confirmLabel: "Cancel project",
+                  cancelLabel: "Keep project",
+                  tone: "danger",
+                });
+                if (why !== null) run(() => cancelProject(id, why));
+              })();
             }}
           >
             Cancel project
@@ -386,6 +397,7 @@ export function EditRequest({ id }: { id: string }) {
 export function DeleteProject({ id }: { id: string }) {
   const router = useRouter();
   const { pending, error, run } = useAction();
+  const dialog = useDialog();
   return (
     <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
       {error && <span className="text-xs text-brand-red">{error}</span>}
@@ -394,8 +406,15 @@ export function DeleteProject({ id }: { id: string }) {
         disabled={pending}
         className="text-xs text-brand-red underline decoration-brand-red/40 hover:decoration-brand-red disabled:opacity-50"
         onClick={() =>
-          confirm("Delete this project? It will be removed from your projects. Trade Marketing keeps a record of it.") &&
-          run(() => hideForMe(id), () => router.push("/projects"))
+          void (async () => {
+            const ok = await dialog.confirm({
+              title: "Delete this project?",
+              message: "It will be removed from your projects. Trade Marketing keeps a record of it.",
+              confirmLabel: "Delete",
+              tone: "danger",
+            });
+            if (ok) run(() => hideForMe(id), () => router.push("/projects"));
+          })()
         }
       >
         {pending ? "Deleting…" : "Delete project"}
