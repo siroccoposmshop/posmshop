@@ -85,20 +85,21 @@ function DialogBox({ req, done }: { req: Request; done: () => void }) {
 
   const danger = req.tone === "danger";
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    // Phones: a sheet from the bottom, within thumb reach, with full-width buttons. Larger screens: centred.
+    <div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-4">
       <div className="absolute inset-0 bg-black/40" onClick={() => finish(false)} aria-hidden />
       <form
         role="dialog"
         aria-modal="true"
         aria-labelledby={req.title ? "dialog-title" : undefined}
-        className="relative w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className="relative flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-w-md sm:rounded-2xl"
         onSubmit={(e) => {
           e.preventDefault();
           finish(true);
         }}
       >
-        <div className={`h-1.5 ${danger ? "bg-brand-red" : "bg-brand-green"}`} aria-hidden />
-        <div className="space-y-3 p-5">
+        <div className={`h-1.5 shrink-0 ${danger ? "bg-brand-red" : "bg-brand-green"}`} aria-hidden />
+        <div className="space-y-3 overflow-y-auto p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-5">
           {req.title && (
             <h2 id="dialog-title" className="text-xl text-brand-black">
               {req.title}
@@ -120,13 +121,14 @@ function DialogBox({ req, done }: { req: Request; done: () => void }) {
               }}
             />
           )}
-          <div className="flex justify-end gap-2 pt-1">
+          {/* Phones: stacked, confirm on top. Larger screens: side by side, confirm on the right. */}
+          <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
             {req.kind !== "alert" && (
-              <button type="button" className="btn btn-secondary" onClick={() => finish(false)}>
+              <button type="button" className="btn btn-secondary w-full sm:w-auto" onClick={() => finish(false)}>
                 {req.cancelLabel ?? "Cancel"}
               </button>
             )}
-            <button ref={okRef} className={`btn ${danger ? "btn-danger" : "btn-primary"}`}>
+            <button ref={okRef} className={`btn w-full sm:w-auto ${danger ? "bg-brand-red text-white hover:bg-brand-red/90" : "btn-primary"}`}>
               {req.confirmLabel ?? "OK"}
             </button>
           </div>
