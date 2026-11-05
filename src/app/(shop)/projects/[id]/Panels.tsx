@@ -193,7 +193,7 @@ export function RunProjectPanel({
           <input id="run-name" className="field" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div>
-          <label className="label" htmlFor="run-owner">Owner (Trade Marketing)</label>
+          <label className="label" htmlFor="run-owner">Support (Trade Marketing)</label>
           <select id="run-owner" className="field" value={owner} onChange={(e) => setOwnerId(e.target.value)}>
             {owners.map((o) => (
               <option key={o.id} value={o.id}>
@@ -348,7 +348,7 @@ export function ProjectAdminPanel({
       )}
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label className="label" htmlFor="m-kam">KAM</label>
+          <label className="label" htmlFor="m-kam">Project lead</label>
           <div className="flex gap-2">
             <select id="m-kam" className="field" value={kam} onChange={(e) => setKam(e.target.value)}>
               {kams.map((o) => (
@@ -363,7 +363,7 @@ export function ProjectAdminPanel({
           </div>
         </div>
         <div>
-          <label className="label" htmlFor="m-tm">Owner (Trade Marketing)</label>
+          <label className="label" htmlFor="m-tm">Support (Trade Marketing)</label>
           <div className="flex gap-2">
             <select id="m-tm" className="field" value={tm} onChange={(e) => setTm(e.target.value)}>
               <option value="">Not assigned</option>
