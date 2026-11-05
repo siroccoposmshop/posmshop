@@ -58,7 +58,12 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   const name = (uid: string | null | undefined) => (uid ? personName(people.get(uid)) : "—");
   const all = [...people.values()];
   const owners = all.filter((x) => ["tm", "tmm", "cm"].includes(x.hub_role)).map((x) => ({ id: x.id, name: personName(x) }));
-  const kams = all.filter((x) => ["kam", "sm"].includes(x.hub_role)).map((x) => ({ id: x.id, name: `${personName(x)} (${hubRoleShort(x.hub_role)})` }));
+  // Anyone who raises projects, plus the current KAM whatever their role (so the list never shows blank).
+  const kams = all
+    .filter((x) => ["kam", "sm"].includes(x.hub_role) || x.id === p.kam_id)
+    .map((x) => ({ id: x.id, name: `${personName(x)} (${hubRoleShort(x.hub_role)})` }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  if (!kams.some((k) => k.id === p.kam_id)) kams.unshift({ id: p.kam_id, name: `${name(p.kam_id)} (current)` });
   const stages = p.project_stages ?? [];
   const isKam = p.kam_id === profile.id;
   const budget = budgetSplit(p);
@@ -156,6 +161,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           <p className="whitespace-pre-line text-sm text-brand-black">{p.brief}</p>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
             <Item label="Total budget" value={formatAed(budget.total)} />
+            {p.final_cost_aed != null && <Item label="Final cost" value={formatAed(Number(p.final_cost_aed))} />}
             <Item label="BIF" value={formatAed(budget.bif)} />
             {budget.source && <Item label={`${EXTRA_SOURCE_LABEL[budget.source]} funding`} value={formatAed(budget.extra)} />}
             <Item label="Volume budget 2027" value={p.volume_budget_hl != null ? `${p.volume_budget_hl} HL` : "—"} />
@@ -244,6 +250,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           owners={owners}
           kamId={p.kam_id}
           tmId={p.tm_id}
+          budget={budget.total}
         />
       )}
 
@@ -259,6 +266,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
                 {e.kind === "cancelled" && e.detail?.reason ? `: ${e.detail.reason}` : ""}
                 {e.kind === "reallocated" ? ` (${name(e.detail?.to as string)})` : ""}
                 {e.kind === "owner" ? ` (${name(e.detail?.to as string)})` : ""}
+                {e.kind === "completed" && e.detail?.final_cost != null ? `: final cost ${formatAed(Number(e.detail.final_cost))}` : ""}
                 {e.kind === "stages_edited" && e.detail?.to ? `: expected completion ${formatDate(e.detail.to as string)}` : ""}
               </span>
               <span className="text-xs">

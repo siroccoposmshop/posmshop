@@ -39,6 +39,8 @@ export type Project = {
   contact_mobile: string;
   contact_email: string;
   budget_aed: number;
+  /** What it actually cost, entered on completion. */
+  final_cost_aed?: number | null;
   budget_bif?: number | null;
   budget_extra?: number | null;
   budget_extra_source?: "sirocco" | "other" | null;
@@ -235,11 +237,13 @@ const WAITING = ["awaiting_sm", "awaiting_cm", "awaiting_tm"];
 /** What's been invested in an outlet and its customer before, leaving out one project (the one being looked at). */
 export async function investmentFor(accountId: string, parentNumber: string | null, excludeId?: string): Promise<Investment> {
   const db = createAdminClient();
-  let q = db.from("projects").select("id, ref, status, budget_aed, account_id, submitted_at, started_at, hidden_for_kam");
+  // "*" so this still works before newer columns (final_cost_aed) exist.
+  let q = db.from("projects").select("*");
   q = parentNumber ? q.or(`account_id.eq.${accountId},parent_number.eq."${parentNumber.replace(/"/g, "")}"`) : q.eq("account_id", accountId);
   const { data } = await q.limit(2000);
   const rows = (data ?? []).filter((r) => r.id !== excludeId && !r.hidden_for_kam);
-  const sum = (list: typeof rows) => list.reduce((n, r) => n + Number(r.budget_aed || 0), 0);
+  // The final cost once a project is complete, else its budget.
+  const sum = (list: typeof rows) => list.reduce((n, r) => n + Number(r.final_cost_aed ?? r.budget_aed ?? 0), 0);
   const atOutlet = rows.filter((r) => r.account_id === accountId);
   const invested = atOutlet.filter((r) => INVESTED.includes(r.status as string));
   const latest = [...invested].sort((a, b) => String(b.started_at ?? b.submitted_at).localeCompare(String(a.started_at ?? a.submitted_at)))[0];
