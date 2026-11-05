@@ -1,6 +1,7 @@
 import { requireProfile } from "@/lib/auth";
 import { recordVisit } from "@/lib/visits";
 import { CartProvider } from "@/components/CartProvider";
+import { DialogProvider } from "@/components/Dialog";
 import { SiteHeader } from "@/components/SiteHeader";
 import { MobileCartBar } from "@/components/CartButton";
 import { Logo } from "@/components/Logo";
@@ -10,6 +11,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
   await recordVisit(profile.id);
   return (
     <CartProvider userId={profile.id}>
+      <DialogProvider>
       {/* Column layout keeps the footer at the bottom of the screen on short pages */}
       <div className="flex min-h-dvh flex-col">
         <SiteHeader profile={profile} />
@@ -22,6 +24,7 @@ export default async function ShopLayout({ children }: { children: React.ReactNo
         </footer>
       </div>
       <MobileCartBar />
+      </DialogProvider>
     </CartProvider>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useDialog } from "@/components/Dialog";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ItemImage } from "@/components/ItemImage";
@@ -11,6 +12,7 @@ export function ImageManager({ id, path, name }: { id: string; path: string | nu
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const dialog = useDialog();
 
   function upload(formData: FormData) {
     const file = formData.get("image");
@@ -52,13 +54,13 @@ export function ImageManager({ id, path, name }: { id: string; path: string | nu
           type="button"
           className="btn btn-danger w-full"
           disabled={pending}
-          onClick={() =>
-            confirm("Remove this image?") &&
+          onClick={async () => {
+            if (!(await dialog.confirm({ title: "Remove this image?", message: "The item will show without a photo.", confirmLabel: "Remove", tone: "danger" }))) return;
             start(async () => {
               await removeItemImage(id);
               router.refresh();
-            })
-          }
+            });
+          }}
         >
           Remove image
         </button>

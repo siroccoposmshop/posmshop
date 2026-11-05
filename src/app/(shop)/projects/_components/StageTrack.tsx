@@ -1,5 +1,6 @@
 "use client";
 
+import { useDialog } from "@/components/Dialog";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/format";
@@ -15,17 +16,23 @@ export function StageTrack({ projectId, stages, canMove, today }: { projectId: s
   const router = useRouter();
   const [pending, start] = useTransition();
   const [moving, setMoving] = useState<number | null>(null);
+  const dialog = useDialog();
   const current = stages.findIndex((s) => s.status === "active");
 
-  function go(i: number) {
+  async function go(i: number) {
     if (!canMove || pending || i === current) return;
     const s = stages[i];
-    const msg = i > current ? `Move to ${s.name}? Stages before it will be marked done.` : `Move back to ${s.name}?`;
-    if (!confirm(msg)) return;
+    const forward = i > current;
+    const ok = await dialog.confirm({
+      title: forward ? `Move to ${s.name}?` : `Move back to ${s.name}?`,
+      message: forward ? "Stages before it will be marked done." : "Later stages go back to upcoming.",
+      confirmLabel: forward ? "Move" : "Move back",
+    });
+    if (!ok) return;
     setMoving(i);
     start(async () => {
       const res = await moveToStage(projectId, s.key);
-      if (res.error) alert(res.error);
+      if (res.error) await dialog.alert({ title: "Couldn't move the stage", message: res.error });
       router.refresh();
       setMoving(null);
     });
