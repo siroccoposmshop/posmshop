@@ -351,19 +351,24 @@ export async function moveToStage(id: string, stageKey: string): Promise<Result>
   return { ok: true };
 }
 
-export async function completeProject(id: string): Promise<Result> {
+export async function completeProject(id: string, finalCost: number): Promise<Result> {
   const profile = await me();
   if (!profile) return SIGNED_OUT;
   if (!isProjectAdmin(profile)) return { error: "Only Trade Marketing can complete projects." };
   const p = await loadProject(id, profile);
   if (!p || p.status !== "live") return { error: "Only live projects can be completed." };
+  const cost = Math.round(Number(finalCost) * 100) / 100;
+  if (!Number.isFinite(cost) || cost < 0 || cost > 100_000_000) return { error: "Enter the final cost in AED." };
   const now = new Date().toISOString();
   const db = createAdminClient();
+  // Save the final cost first, so a missing column stops before anything changes.
+  const saved = await db.from("projects").update({ final_cost_aed: cost }).eq("id", id);
+  if (saved.error) return { error: /final_cost/.test(saved.error.message) ? "Run supabase/migrations/20261108000000_final_cost.sql in Supabase first." : saved.error.message };
   for (const s of p.project_stages ?? []) {
     if (s.status !== "done") await db.from("project_stages").update({ status: "done", completed_at: now, started_at: s.started_at ?? now }).eq("id", s.id);
   }
   await db.from("projects").update({ status: "completed", completed_at: now, updated_at: now }).eq("id", id);
-  await logEvent(id, profile.id, "completed");
+  await logEvent(id, profile.id, "completed", { final_cost: cost, budget: p.budget_aed });
   await notify([p.kam_id, p.sm_id], id, `${projectTitle(p)} is complete.`, profile.id);
   const people = await loadPeople();
   await emailAbout("completed", id, [people.get(p.kam_id)?.email, p.sm_id ? people.get(p.sm_id)?.email : null]);

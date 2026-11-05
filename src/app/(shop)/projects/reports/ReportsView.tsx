@@ -82,9 +82,11 @@ export function ReportsView({ rows, all, f, team }: { rows: ProjectReportRow[]; 
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className="bento-green">
-          <p className="font-display text-xs uppercase tracking-wide text-white/80">Approved spend</p>
+          <p className="font-display text-xs uppercase tracking-wide text-white/80">Spend</p>
           <p className="mt-1 font-display text-2xl font-medium sm:text-3xl">{formatAed(t.approvedSpend)}</p>
-          <p className="text-xs text-white/85">{t.sirocco > 0 ? `incl. ${formatAed(t.sirocco)} Sirocco` : "Live, paused and completed"}</p>
+          <p className="text-xs text-white/85">
+            Final cost when completed, else budget{t.sirocco > 0 ? ` · incl. ${formatAed(t.sirocco)} Sirocco` : ""}
+          </p>
         </div>
         <Tile label="Waiting approval" value={formatAed(t.waitingSpend)} sub={`${t.waiting} request${t.waiting === 1 ? "" : "s"}`} />
         <Tile label="Projects" value={t.projects.toLocaleString()} sub={`${t.live} live · ${t.completed} completed`} />
@@ -112,6 +114,7 @@ export function ReportsView({ rows, all, f, team }: { rows: ProjectReportRow[]; 
               <th>Outlet</th>
               <th>Status</th>
               <th className="text-right">Budget</th>
+              <th className="text-right">Final cost</th>
               <th className="text-right">PICOS</th>
               <th className="text-right">Delivered</th>
               <th className="text-right">Submitted</th>
@@ -142,6 +145,21 @@ export function ReportsView({ rows, all, f, team }: { rows: ProjectReportRow[]; 
                   {r.sirocco > 0 && <span className="block text-xs">{formatAed(r.sirocco)} Sirocco</span>}
                 </td>
                 <td className="whitespace-nowrap text-right">
+                  {r.finalCost != null ? (
+                    <>
+                      {formatAed(r.finalCost)}
+                      {r.finalCost !== r.budget && (
+                        <span className={`block text-xs ${r.finalCost > r.budget ? "text-brand-red" : "text-brand-green-dark"}`}>
+                          {r.finalCost > r.budget ? "+" : "−"}
+                          {formatAed(Math.abs(r.finalCost - r.budget))}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td className="whitespace-nowrap text-right">
                   {r.picosNow}% → <span className="font-medium text-brand-green-dark">{r.picosAfter}%</span>
                 </td>
                 <td className="whitespace-nowrap text-right">
@@ -152,7 +170,7 @@ export function ReportsView({ rows, all, f, team }: { rows: ProjectReportRow[]; 
             ))}
             {!rows.length && (
               <tr>
-                <td colSpan={8} className="text-sm">
+                <td colSpan={9} className="text-sm">
                   No projects match these filters.
                 </td>
               </tr>
@@ -186,7 +204,7 @@ function SummaryTable({ title, first, data, max, showOutlets, more }: { title: s
             <th>{first}</th>
             <th className="text-right">Projects</th>
             {showOutlets && <th className="text-right">Outlets</th>}
-            <th className="text-right">Approved spend</th>
+            <th className="text-right">Spend</th>
             <th className="text-right">Waiting</th>
             <th className="text-right" title="PICOS changes delivered of those negotiated">PICOS</th>
           </tr>

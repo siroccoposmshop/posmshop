@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/format";
+import { formatAed } from "@/lib/hub";
 import { planStages, todayIso, workingDaysBetween } from "@/lib/working-days";
 import { Spinner } from "@/components/Spinner";
 import { approveProject, cancelProject, completeProject, hideForMe, reallocateProject, runProject, sendBack, setOwner, setPaused } from "../actions";
@@ -242,10 +243,12 @@ export function ProjectAdminPanel({
   owners,
   kamId,
   tmId,
+  budget,
 }: {
   id: string;
   status: string;
   lastStageActive: boolean;
+  budget: number;
   kams: Option[];
   owners: Option[];
   kamId: string;
@@ -254,15 +257,23 @@ export function ProjectAdminPanel({
   const { pending, error, run } = useAction();
   const [kam, setKam] = useState(kamId);
   const [tm, setTm] = useState(tmId ?? "");
+  // Completing asks for the final cost first.
+  const [completing, setCompleting] = useState(false);
+  const [cost, setCost] = useState("");
+  const costNum = Number(cost.replace(/[^0-9.]/g, ""));
+  const costOk = cost.trim() !== "" && Number.isFinite(costNum) && costNum >= 0;
+  const diff = costOk ? costNum - budget : 0;
   return (
     <section className="bento space-y-3">
       <h2 className="text-xl text-brand-black">Manage</h2>
-      <div className="flex flex-wrap gap-2">
-        {status === "live" && (
-          <button className={`btn ${lastStageActive ? "btn-primary" : "btn-secondary"}`} disabled={pending} onClick={() => confirm("Mark the whole project complete?") && run(() => completeProject(id))}>
+      <div className="flex flex-wrap items-center gap-2">
+        {status === "live" && !completing && (
+          <button className={`btn ${lastStageActive ? "btn-primary" : "btn-secondary"}`} disabled={pending} onClick={() => setCompleting(true)}>
             ✓ Complete project
           </button>
         )}
+        {/* Pause / resume and cancel sit apart, on the right. */}
+        <span className="ml-auto" />
         {status === "live" && (
           <button className="btn btn-secondary" disabled={pending} onClick={() => run(() => setPaused(id, true))}>
             Pause
@@ -286,6 +297,44 @@ export function ProjectAdminPanel({
           </button>
         )}
       </div>
+      {completing && (
+        <form
+          className="space-y-3 rounded-xl bg-brand-green-tint p-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (costOk) run(() => completeProject(id, costNum), () => setCompleting(false));
+          }}
+        >
+          <div>
+            <p className="font-display text-sm font-medium uppercase tracking-wide text-brand-black">Complete the project</p>
+            <p className="text-xs">Enter what the project actually cost. It&apos;s kept as the project&apos;s final cost for reports.</p>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="label" htmlFor="m-cost">Final cost (AED)</label>
+              <input id="m-cost" className="field !w-48" inputMode="decimal" placeholder={String(Math.round(budget))} value={cost} onChange={(e) => setCost(e.target.value)} autoFocus />
+            </div>
+            <p className="pb-2 text-sm">
+              Budget {formatAed(budget)}
+              {costOk && diff !== 0 && (
+                <span className={diff > 0 ? "text-brand-red" : "text-brand-green-dark"}>
+                  {" "}
+                  · {diff > 0 ? "+" : "−"}
+                  {formatAed(Math.abs(diff))} {diff > 0 ? "over" : "under"}
+                </span>
+              )}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button className="btn btn-primary" disabled={pending || !costOk}>
+              {pending ? <Spinner /> : "✓"} Complete project
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => setCompleting(false)} disabled={pending}>
+              Back
+            </button>
+          </div>
+        </form>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="m-kam">KAM</label>

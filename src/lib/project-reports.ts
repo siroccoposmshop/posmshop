@@ -108,6 +108,10 @@ export type ProjectReportRow = {
   type: string;
   brands: string[];
   budget: number;
+  /** Entered on completion; null until then. */
+  finalCost: number | null;
+  /** What counts as spend: the final cost once known, else the budget. */
+  spend: number;
   bif: number;
   sirocco: number;
   other: number;
@@ -151,6 +155,8 @@ export async function getProjectReportRows(f: ProjectReportFilters, scope: strin
       type: p.project_type,
       brands: p.brands ?? [],
       budget: b.total,
+      finalCost: p.final_cost_aed != null ? Number(p.final_cost_aed) : null,
+      spend: p.final_cost_aed != null ? Number(p.final_cost_aed) : b.total,
       bif: b.bif,
       sirocco: b.sirocco,
       other: b.source === "other" ? b.extra : 0,
@@ -205,7 +211,7 @@ function summarise(rows: ProjectReportRow[], keyOf: (r: ProjectReportRow) => str
     const s = map.get(key) ?? { key, ...labelOf(r), projects: 0, approvedSpend: 0, waitingSpend: 0, sirocco: 0, negotiated: 0, delivered: 0, upliftTotal: 0, upliftCount: 0, outlets: new Set<string>() };
     s.projects++;
     if (r.approved) {
-      s.approvedSpend += r.budget;
+      s.approvedSpend += r.spend;
       s.sirocco += r.sirocco;
     }
     if (r.waiting) s.waitingSpend += r.budget;
@@ -261,6 +267,8 @@ const COLUMNS: { header: string; width: number; value: (r: ProjectReportRow) => 
   { header: "Type", width: 14, value: (r) => r.type },
   { header: "Brands", width: 24, value: (r) => r.brands.join(", ") },
   { header: "Budget (AED)", width: 14, value: (r) => r.budget },
+  { header: "Final cost (AED)", width: 14, value: (r) => r.finalCost ?? "" },
+  { header: "Spend (AED)", width: 13, value: (r) => (r.approved ? r.spend : 0) },
   { header: "BIF (AED)", width: 12, value: (r) => r.bif },
   { header: "Sirocco (AED)", width: 13, value: (r) => r.sirocco },
   { header: "Other funding (AED)", width: 14, value: (r) => r.other },
@@ -291,7 +299,7 @@ export async function projectsToXlsx(rows: ProjectReportRow[]) {
       { header: first, key: "label", width: 30 },
       { header: "Projects", key: "projects", width: 10 },
       { header: "Outlets", key: "outlets", width: 10 },
-      { header: "Approved spend (AED)", key: "approvedSpend", width: 18 },
+      { header: "Spend (AED)", key: "approvedSpend", width: 16 },
       { header: "Waiting approval (AED)", key: "waitingSpend", width: 18 },
       { header: "Sirocco (AED)", key: "sirocco", width: 14 },
       { header: "PICOS negotiated", key: "negotiated", width: 14 },
