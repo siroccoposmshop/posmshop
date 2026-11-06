@@ -109,22 +109,72 @@ export function OutletSummary({ stores }: { stores: StoreView[] }) {
   const years = activationByYear(stores, historyYears(stores).filter((y) => y < TARGET_YEAR).slice(0, 3));
   type Row = { label: string; sub?: string; value: number; cls: string; extra?: number; note?: string; gap?: boolean };
   const rows: Row[] = [
-    { label: "Outlets now", value: total, cls: "bg-brand-black/70" },
-    ...years.map((a) => ({
+    { label: "Outlets now", value: total, cls: "bg-brand-black/25" },
+    ...years.map((a, i) => ({
       label: `Activated ${a.year}`,
       sub: a.year === thisYear ? "so far" : undefined,
       value: a.activated,
-      cls: "bg-brand-green",
+      cls: ["bg-brand-green-dark", "bg-brand-green", "bg-[#8cc47a]"][i] ?? "bg-brand-green",
       extra: a.year === thisYear ? a.planned : 0,
       note: a.year === thisYear && a.planned ? `+${a.planned} still planned` : undefined,
     })),
-    ...(years.length ? [{ label: "Activated to date", sub: "each outlet once", value: toDate, cls: "bg-brand-green-dark", gap: true }] : []),
+    ...(years.length ? [{ label: "Activated to date", sub: "each outlet once", value: toDate, cls: "bg-brand-black/70", gap: true }] : []),
     { label: "Influenced", sub: "visibility in place", value: influenced, cls: "bg-brand-black/40", note: years.length && influenced ? `${toDate} activated to date = ${Math.round((toDate / influenced) * 100)}% of influenced` : undefined },
     { label: `Plan ${TARGET_YEAR}`, sub: "target outlets", value: plan, cls: "bg-brand-red/70", gap: true },
   ];
   const of = (n: number) => (total ? (n / total) * 100 : 0);
+
+  // One thick bar that adds up to all outlets: activated each year (an outlet counts in the first
+  // year it was activated), influenced but never activated, and the rest.
+  const done = new Set<string>();
+  const yearShades = ["bg-brand-green-dark", "bg-brand-green", "bg-[#8cc47a]"];
+  const parts: { key: string; label: string; value: number; cls: string; text: string }[] = years.map((a, i) => {
+    const ids = outlets.filter((s) => !done.has(s.id) && s.projects.some((p) => p.status === "completed" && (p.completed_date ? Number(p.completed_date.slice(0, 4)) : null) === a.year));
+    ids.forEach((s) => done.add(s.id));
+    return {
+      key: String(a.year),
+      label: i === 0 ? `Activated ${a.year}` : `Activated ${a.year}${a.year === thisYear ? " so far" : ""} (new)`,
+      value: ids.length,
+      cls: yearShades[i] ?? "bg-brand-green",
+      text: "text-white",
+    };
+  });
+  const influencedOnly = outlets.filter((s) => s.influenced && !done.has(s.id) && !s.projects.some((p) => p.status === "completed")).length;
+  const activatedAny = outlets.filter((s) => done.has(s.id) || s.projects.some((p) => p.status === "completed")).length;
+  parts.push({ key: "inf", label: "Influenced, not activated", value: influencedOnly, cls: "bg-brand-black/45", text: "text-white" });
+  parts.push({ key: "gap", label: "Not yet reached", value: Math.max(0, total - activatedAny - influencedOnly), cls: "bg-brand-light", text: "text-brand-black" });
+
   return (
     <section className="bento" aria-label="Outlets: now, activated, influenced and plan">
+      <div className="mb-6">
+        <p className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+          <span className="font-display text-lg uppercase text-brand-black">All {total} outlets</span>
+          <span className="text-sm">
+            <strong className="text-brand-black">{activatedAny}</strong> activated ({Math.round(of(activatedAny))}%) ·{" "}
+            <strong className="text-brand-black">{activatedAny + influencedOnly}</strong> activated or influenced ({Math.round(of(activatedAny + influencedOnly))}%)
+          </span>
+        </p>
+        <div className="flex h-14 overflow-hidden rounded-lg ring-1 ring-black/10" role="img" aria-label={parts.map((p) => `${p.label}: ${p.value}`).join(", ")}>
+          {parts.map((p) =>
+            p.value ? (
+              <div key={p.key} className={`flex items-center justify-center ${p.cls} ${p.text}`} style={{ width: `${of(p.value)}%` }} title={`${p.label}: ${p.value}`}>
+                {of(p.value) >= 6 && <span className="font-display text-sm font-bold sm:text-base">{p.value}</span>}
+              </div>
+            ) : null,
+          )}
+        </div>
+        <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs">
+          {parts.map((p) => (
+            <span key={p.key} className="flex items-center gap-1.5">
+              <span className={`inline-block h-3 w-3 rounded-sm ring-1 ring-black/10 ${p.cls}`} aria-hidden />
+              <span className="font-medium text-brand-black">{p.label}</span>
+              <span>
+                {p.value} · {Math.round(of(p.value))}%
+              </span>
+            </span>
+          ))}
+        </div>
+      </div>
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="font-display text-lg uppercase text-brand-black">Outlets at a glance</h2>
         <p className="text-xs">% of the {total} outlets now · bars aren&apos;t counted</p>
