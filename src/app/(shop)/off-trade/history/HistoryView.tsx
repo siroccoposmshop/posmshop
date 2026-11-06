@@ -76,7 +76,9 @@ export function HistoryView({ all, f, year }: { all: StoreView[]; f: OffTradeFil
         <Tile label="Cost" value={formatAed(cost)} sub="actual" />
       </div>
 
-      <Card title="By category" meta={`${items} items in ${storeCount} stores`} open>
+      {activation.length > 0 && <YearByYear stores={stores} activation={activation} />}
+
+      <Card title="By category" meta={`${items} items in ${storeCount} stores`}>
         <table className="table">
           <thead>
             <tr>
@@ -271,6 +273,92 @@ function Activation({ data, selected }: { data: YearActivation[]; selected: numb
         </p>
       )}
     </section>
+  );
+}
+
+/** Per year: how many of each project type were done, in how many outlets, against the market's size. */
+function YearByYear({ stores, activation }: { stores: StoreView[]; activation: YearActivation[] }) {
+  const thisYear = new Date().getFullYear();
+  const cols = activation.map((a) => {
+    const rows = historyRows(stores, a.year).filter((r) => !r.store.bar);
+    const byType = new Map<string, { items: number; outlets: Set<string> }>();
+    for (const r of rows) {
+      const e = byType.get(r.project.type) ?? { items: 0, outlets: new Set<string>() };
+      e.items += r.qty;
+      e.outlets.add(r.store.id);
+      byType.set(r.project.type, e);
+    }
+    return { ...a, byType, items: rows.reduce((n, r) => n + r.qty, 0) };
+  });
+  const types = OFF_TRADE_PROJECT_TYPES.filter((t) => cols.some((c) => c.byType.has(t)));
+  const cell = (items: number, outlets: number, of: number) =>
+    items ? (
+      <>
+        <span className="font-display text-lg font-medium text-brand-black">{items}</span>
+        <span className="block text-xs">
+          in {outlets} outlet{outlets === 1 ? "" : "s"} · {of ? Math.round((outlets / of) * 100) : 0}%
+        </span>
+        <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-brand-light">
+          <span className="block h-full rounded-full bg-brand-green" style={{ width: `${of ? Math.min(100, (outlets / of) * 100) : 0}%` }} />
+        </span>
+      </>
+    ) : (
+      <span className="text-brand-grey">—</span>
+    );
+  return (
+    <Card title="Year by year" meta="projects done against the market" open>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Project type</th>
+            {cols.map((c) => (
+              <th key={c.year} className="min-w-[6.5rem] text-right sm:min-w-[9rem]">
+                {c.year}
+                {c.year === thisYear ? " so far" : ""}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <tr className="bg-brand-light/60">
+            <td className="font-medium text-brand-black">
+              Market size
+              <span className="block text-xs font-normal">outlets</span>
+            </td>
+            {cols.map((c) => (
+              <td key={c.year} className="text-right font-display text-lg font-medium text-brand-black">
+                {c.outlets}
+              </td>
+            ))}
+          </tr>
+          {types.map((t) => (
+            <tr key={t}>
+              <td className="font-medium text-brand-black">{t}</td>
+              {cols.map((c) => {
+                const e = c.byType.get(t);
+                return (
+                  <td key={c.year} className="text-right">
+                    {cell(e?.items ?? 0, e?.outlets.size ?? 0, c.outlets)}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+          <tr className="border-t-2 border-brand-green">
+            <td className="font-medium text-brand-black">
+              All projects
+              <span className="block text-xs font-normal">outlets activated</span>
+            </td>
+            {cols.map((c) => (
+              <td key={c.year} className="text-right">
+                {cell(c.items, c.activated, c.outlets)}
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+      <p className="mt-2 text-xs">Items installed, in how many outlets, and that as a % of the outlets in the market that year. Bars aren&apos;t counted.</p>
+    </Card>
   );
 }
 
