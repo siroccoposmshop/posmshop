@@ -94,8 +94,7 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
       <SummaryTable title="By TM" first="TM" rows={byTmam(stores)} />
       <SummaryTable title="Segment mix" first="Segment" rows={bySegment(stores)} hideSegments />
 
-      <section className="bento overflow-x-auto">
-        <h2 className="mb-3 text-xl text-brand-black">By project type</h2>
+      <Card title="By project type" meta={`${types.length} type${types.length === 1 ? "" : "s"}`}>
         {!types.length ? (
           <p className="text-sm">No projects recorded for these stores yet.</p>
         ) : (
@@ -124,10 +123,9 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
             </tbody>
           </table>
         )}
-      </section>
+      </Card>
 
-      <section className="bento overflow-x-auto">
-        <h2 className="mb-3 text-xl text-brand-black">Stores</h2>
+      <Card title="Stores" meta={`${stores.length} store${stores.length === 1 ? "" : "s"}`}>
         <table className="table">
           <thead>
             <tr>
@@ -210,7 +208,7 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
           </tbody>
         </table>
         {stores.length > 500 && <p className="mt-3 text-xs">Showing 500 of {stores.length} stores. Narrow the filters to see the rest.</p>}
-      </section>
+      </Card>
     </div>
   );
 }
@@ -220,6 +218,24 @@ const segmentLine = (s: OffTradeSummary) =>
     .concat(Object.entries(s.segments).filter(([k]) => !SEGMENTS.some((x) => x.short === k)).map(([k, n]) => `${k} ${n}`))
     .filter(Boolean)
     .join(" · ") || "—";
+
+/** A dashboard card that starts collapsed: the title (and a short summary) shows; click to open. */
+function Card({ title, meta, children }: { title: string; meta?: string; children: React.ReactNode }) {
+  return (
+    <details className="bento group">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+        <h2 className="text-xl text-brand-black">{title}</h2>
+        <span className="flex items-center gap-2 text-xs">
+          {meta}
+          <svg viewBox="0 0 20 20" className="h-5 w-5 text-brand-green transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      </summary>
+      <div className="mt-3 overflow-x-auto">{children}</div>
+    </details>
+  );
+}
 
 function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
@@ -246,8 +262,7 @@ function VisibilityTable({ rows, total }: { rows: OffTradeSummary[]; total: OffT
     </td>
   );
   return (
-    <section className="bento overflow-x-auto">
-      <h2 className="mb-1 text-xl text-brand-black">Visibility in place</h2>
+    <Card title="Visibility in place" meta={`${total.influenced} of ${total.stores} stores influenced`}>
       <p className="mb-3 text-sm">Stores with each type of visibility today (from the Visibility Master File). Open a store for the brands and units.</p>
       <table className="table">
         <thead>
@@ -283,14 +298,13 @@ function VisibilityTable({ rows, total }: { rows: OffTradeSummary[]; total: OffT
           </tr>
         </tbody>
       </table>
-    </section>
+    </Card>
   );
 }
 
 function SummaryTable({ title, first, rows, compact, hideSegments }: { title: string; first: string; rows: OffTradeSummary[]; compact?: boolean; hideSegments?: boolean }) {
   return (
-    <section className="bento overflow-x-auto">
-      <h2 className="mb-3 text-xl text-brand-black">{title}</h2>
+    <Card title={title} meta={`${rows.length} ${first.toLowerCase()}${rows.length === 1 ? "" : "s"}`}>
       <table className="table">
         <thead>
           <tr>
@@ -334,6 +348,6 @@ function SummaryTable({ title, first, rows, compact, hideSegments }: { title: st
           ))}
         </tbody>
       </table>
-    </section>
+    </Card>
   );
 }
