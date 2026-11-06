@@ -38,7 +38,7 @@ export function UserMenu({ profile }: { profile: Profile }) {
   const adminCurrent = adminEntryFor(pathname);
   const role = `${hubRoleShort(profile.hub_role)}${isAdmin ? " · Admin" : ""}`;
   // POSM Shop lists its pages plus the cart underneath it.
-  const sections = sectionsFor(canSeeProjectReports(profile)).map((s) =>
+  const sections = sectionsFor(canSeeProjectReports(profile), isAdmin).map((s) =>
     s.href === "/posm" ? { ...s, children: [...(s.children ?? []), { href: "/cart", label: count ? `Cart (${count})` : "Cart" }] } : s,
   );
 
