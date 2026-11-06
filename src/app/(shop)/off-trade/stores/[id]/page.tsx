@@ -104,7 +104,12 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
                 targetYear={TARGET_YEAR}
                 summary={
                   <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                    <span className="font-medium text-brand-black">{p.type}</span>
+                    <span className="font-medium text-brand-black">
+                      {p.type}
+                      {p.item ? ` · ${p.item}` : ""}
+                      {p.brand ? ` · ${p.brand}` : ""}
+                      {p.quantity && p.quantity > 1 ? ` × ${p.quantity}` : ""}
+                    </span>
                     <span className={`badge ${tone[p.status]}`}>{OFF_TRADE_STATUS[p.status]}</span>
                     <span className="text-sm">
                       {p.status === "completed" && p.completed_date

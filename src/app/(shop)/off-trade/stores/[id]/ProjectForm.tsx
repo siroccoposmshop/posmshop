@@ -6,7 +6,7 @@ import { Spinner } from "@/components/Spinner";
 import { useDialog } from "@/components/Dialog";
 import { addOffTradeProject, deleteOffTradeProject, updateOffTradeProject, type ProjectInput } from "../../actions";
 
-const TYPES = ["Branding", "Perfect shelf", "Cold room", "Fridge", "FSU", "Other"];
+const TYPES = ["Branding", "Perfect shelf", "Cold room", "Fridge", "FSU", "Takeover", "Other"];
 const STATUSES: { value: ProjectInput["status"]; label: string }[] = [
   { value: "planned", label: "Planned" },
   { value: "in_progress", label: "In progress" },
@@ -24,6 +24,9 @@ export type ProjectRow = {
   expected_cost_aed: number | null;
   actual_cost_aed: number | null;
   notes: string | null;
+  item?: string | null;
+  brand?: string | null;
+  quantity?: number | null;
 };
 
 /** Add a project to a store, or edit one (complete it with the date and the real cost). */
@@ -41,6 +44,9 @@ export function ProjectForm({ storeId, project, targetYear, onDone }: { storeId:
     expectedCost: project?.expected_cost_aed ?? "",
     actualCost: project?.actual_cost_aed ?? "",
     notes: project?.notes ?? "",
+    item: project?.item ?? "",
+    brand: project?.brand ?? "",
+    quantity: project?.quantity ?? "",
   });
   const set = <K extends keyof ProjectInput>(k: K, val: ProjectInput[K]) => setV((x) => ({ ...x, [k]: val }));
   const done = v.status === "completed";
@@ -70,6 +76,18 @@ export function ProjectForm({ storeId, project, targetYear, onDone }: { storeId:
               <option key={t}>{t}</option>
             ))}
           </select>
+        </div>
+        <div>
+          <label className="label" htmlFor={`it-${project?.id ?? "new"}`}>Item</label>
+          <input id={`it-${project?.id ?? "new"}`} className="field" placeholder="e.g. Wall branding, Cold units" value={v.item ?? ""} onChange={(e) => set("item", e.target.value)} />
+        </div>
+        <div>
+          <label className="label" htmlFor={`b-${project?.id ?? "new"}`}>Brand</label>
+          <input id={`b-${project?.id ?? "new"}`} className="field" placeholder="e.g. Heineken" value={v.brand ?? ""} onChange={(e) => set("brand", e.target.value)} />
+        </div>
+        <div>
+          <label className="label" htmlFor={`q-${project?.id ?? "new"}`}>Quantity</label>
+          <input id={`q-${project?.id ?? "new"}`} className="field" inputMode="numeric" placeholder="1" value={v.quantity ?? ""} onChange={(e) => set("quantity", e.target.value)} />
         </div>
         <div>
           <label className="label" htmlFor={`s-${project?.id ?? "new"}`}>Status</label>
