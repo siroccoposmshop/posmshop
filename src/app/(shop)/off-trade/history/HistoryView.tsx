@@ -33,6 +33,8 @@ export function HistoryView({ all, f, year }: { all: StoreView[]; f: OffTradeFil
   );
   const yearCols = year ? [] : [...years].reverse();
   const activation = activationByYear(stores, years);
+  const outletsNow = stores.filter((x) => !x.bar);
+  const toDate = { outlets: outletsNow.length, activated: outletsNow.filter((x) => x.projects.some((p) => p.status === "completed")).length };
   // Year-on-year change in the category table: the latest year against the one before.
   const [prevY, lastY] = yearCols.slice(-2);
   const change = yearCols.length >= 2 ? { from: prevY, to: lastY } : null;
@@ -61,7 +63,8 @@ export function HistoryView({ all, f, year }: { all: StoreView[]; f: OffTradeFil
         </div>
       </div>
 
-      {activation.length > 0 && <Activation data={activation} selected={year} />}
+      {activation.length > 0 && <Activation data={activation} selected={year} toDate={toDate} />}
+      {activation.length > 0 && <YearByYear stores={stores} activation={activation} />}
 
       <FilterBar all={all} f={f} shown={stores.length} action="/off-trade/history" keep={year ? { year: String(year) } : undefined} />
 
@@ -75,8 +78,6 @@ export function HistoryView({ all, f, year }: { all: StoreView[]; f: OffTradeFil
         <Tile label="Projects done" value={`${rows.length}`} />
         <Tile label="Cost" value={formatAed(cost)} sub="actual" />
       </div>
-
-      {activation.length > 0 && <YearByYear stores={stores} activation={activation} />}
 
       <Card title="By category" meta={`${items} items in ${storeCount} stores`}>
         <table className="table">
@@ -208,7 +209,7 @@ function ChangeCell({ from, to }: { from: number; to: number }) {
 }
 
 /** The headline: outlets against outlets activated, per year, and the change year on year. */
-function Activation({ data, selected }: { data: YearActivation[]; selected: number | null }) {
+function Activation({ data, selected, toDate }: { data: YearActivation[]; selected: number | null; toDate: { outlets: number; activated: number } }) {
   const max = Math.max(...data.map((d) => d.outlets), 1);
   const last = data.at(-1)!;
   const prev = data.length > 1 ? data.at(-2)! : null;
@@ -218,12 +219,23 @@ function Activation({ data, selected }: { data: YearActivation[]; selected: numb
   const tone = (n: number) => (n > 0 ? "text-brand-green-dark" : n < 0 ? "text-brand-red" : "text-brand-black");
   return (
     <section className="bento space-y-4" aria-label="Outlets activated by year">
-      <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="max-w-2xl">
         <h2 className="font-display text-lg uppercase text-brand-black">Outlets activated</h2>
         <p className="text-xs">
           An outlet is activated in a year when something was installed in it that year. Outlets count from the year they opened (set on the
           store page, or an Opening year column in the store list). Bars are counted on the side, not as outlets.
         </p>
+        </div>
+        <div className="rounded-xl bg-brand-green px-4 py-2 text-right text-white">
+          <p className="font-display text-xs uppercase tracking-wide text-white/85">Total to date</p>
+          <p className="font-display text-2xl font-bold">
+            {toDate.outlets ? Math.round((toDate.activated / toDate.outlets) * 100) : 0}%
+            <span className="ml-2 text-sm font-normal">
+              {toDate.activated} of {toDate.outlets} outlets
+            </span>
+          </p>
+        </div>
       </div>
       <div className={`grid gap-3 ${prev ? "md:grid-cols-[repeat(var(--n),minmax(0,1fr))_minmax(0,0.9fr)]" : ""}`} style={{ ["--n" as string]: data.length }}>
         {data.map((d) => (
@@ -288,8 +300,22 @@ function YearByYear({ stores, activation }: { stores: StoreView[]; activation: Y
       e.outlets.add(r.store.id);
       byType.set(r.project.type, e);
     }
-    return { ...a, byType, items: rows.reduce((n, r) => n + r.qty, 0) };
+    return { key: String(a.year), label: `${a.year}${a.year === thisYear ? " so far" : ""}`, outlets: a.outlets, activated: a.activated, ids: new Set(rows.map((r) => r.store.id)), byType, items: rows.reduce((n, r) => n + r.qty, 0), total: false };
   });
+  // To date: every outlet activated in any year, against today's market.
+  if (cols.length > 1) {
+    const byType = new Map<string, { items: number; outlets: Set<string> }>();
+    for (const c of cols)
+      for (const [t, e] of c.byType) {
+        const x = byType.get(t) ?? { items: 0, outlets: new Set<string>() };
+        x.items += e.items;
+        e.outlets.forEach((id) => x.outlets.add(id));
+        byType.set(t, x);
+      }
+    const ids = new Set(cols.flatMap((c) => [...c.ids]));
+    const last = cols.at(-1)!;
+    cols.push({ key: "total", label: "Total to date", outlets: last.outlets, activated: ids.size, ids, byType, items: cols.reduce((n, c) => n + c.items, 0), total: true });
+  }
   const types = OFF_TRADE_PROJECT_TYPES.filter((t) => cols.some((c) => c.byType.has(t)));
   const cell = (items: number, outlets: number, of: number) =>
     items ? (
@@ -312,9 +338,8 @@ function YearByYear({ stores, activation }: { stores: StoreView[]; activation: Y
           <tr>
             <th>Project type</th>
             {cols.map((c) => (
-              <th key={c.year} className="min-w-[6.5rem] text-right sm:min-w-[9rem]">
-                {c.year}
-                {c.year === thisYear ? " so far" : ""}
+              <th key={c.key} className={`min-w-[6.5rem] text-right sm:min-w-[9rem] ${c.total ? "bg-brand-green-tint !text-brand-green-dark" : ""}`}>
+                {c.label}
               </th>
             ))}
           </tr>
@@ -326,7 +351,7 @@ function YearByYear({ stores, activation }: { stores: StoreView[]; activation: Y
               <span className="block text-xs font-normal">outlets</span>
             </td>
             {cols.map((c) => (
-              <td key={c.year} className="text-right font-display text-lg font-medium text-brand-black">
+              <td key={c.key} className={`text-right font-display text-lg font-medium text-brand-black ${c.total ? "bg-brand-green-tint" : ""}`}>
                 {c.outlets}
               </td>
             ))}
@@ -337,7 +362,7 @@ function YearByYear({ stores, activation }: { stores: StoreView[]; activation: Y
               {cols.map((c) => {
                 const e = c.byType.get(t);
                 return (
-                  <td key={c.year} className="text-right">
+                  <td key={c.key} className={`text-right ${c.total ? "bg-brand-green-tint" : ""}`}>
                     {cell(e?.items ?? 0, e?.outlets.size ?? 0, c.outlets)}
                   </td>
                 );
@@ -350,14 +375,15 @@ function YearByYear({ stores, activation }: { stores: StoreView[]; activation: Y
               <span className="block text-xs font-normal">outlets activated</span>
             </td>
             {cols.map((c) => (
-              <td key={c.year} className="text-right">
+              <td key={c.key} className={`text-right ${c.total ? "bg-brand-green-tint" : ""}`}>
                 {cell(c.items, c.activated, c.outlets)}
               </td>
             ))}
           </tr>
         </tbody>
       </table>
-      <p className="mt-2 text-xs">Items installed, in how many outlets, and that as a % of the outlets in the market that year. Bars aren&apos;t counted.</p>
+      <p className="mt-2 text-xs">Items installed, in how many outlets, and that as a % of the outlets in the market that year. Total to date counts each
+        outlet once, against today&apos;s market. Bars aren&apos;t counted.</p>
     </Card>
   );
 }

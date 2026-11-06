@@ -73,7 +73,7 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
         />
       </div>
 
-      <OutletBars total={t.stores} influenced={t.influenced} activation={activation} />
+      <OutletBars total={t.stores} influenced={t.influenced} activation={activation} toDate={stores.filter((x) => !x.bar && x.projects.some((p) => p.status === "completed")).length} />
 
       <VisibilityTable rows={byArea(stores)} total={t} />
       <SummaryTable title="By market" first="Market" rows={byMarket(stores)} />
@@ -201,7 +201,7 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
 }
 
 /** Total outlets → influenced → activated each year, on one scale, for the filters chosen. */
-function OutletBars({ total, influenced, activation }: { total: number; influenced: number; activation: ReturnType<typeof activationByYear> }) {
+function OutletBars({ total, influenced, activation, toDate }: { total: number; influenced: number; activation: ReturnType<typeof activationByYear>; toDate: number }) {
   const thisYear = new Date().getFullYear();
   const rows = [
     { label: "Total outlets", value: total, cls: "bg-brand-black/70", planned: 0 },
@@ -213,6 +213,7 @@ function OutletBars({ total, influenced, activation }: { total: number; influenc
       planned: a.year === thisYear ? a.planned : 0,
       sub: a.year === thisYear ? "so far" : "something installed",
     })),
+    ...(activation.length ? [{ label: "Activated to date", value: toDate, cls: "bg-brand-green-dark", planned: 0, sub: "all years, each outlet once" }] : []),
   ];
   const of = (n: number) => (total ? (n / total) * 100 : 0);
   return (
