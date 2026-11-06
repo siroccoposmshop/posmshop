@@ -31,5 +31,7 @@ Never paste secrets into chat: add them straight into Vercel.
 - [ ] **Off-trade project workflow**: the current Projects workflow is the on-trade one. Define the off-trade version (stages, approvals, who does what) and it'll be built as the option for off-trade stores.
 - [ ] **Off-trade store list** (Excel, all markets incl. Oman, Bahrain, Qatar, Duty Free) and any past / planned projects → Off trade → Upload stores. Run `20261109000000_off_trade.sql` and `20261110000000_off_trade_targets.sql` first.
 
+- [ ] **Remove the MMI "Visibility" column** (Yes / No, MMI only: whether we have branding). Kept for now on the off-trade store page as "Master file Visibility"; to be removed from the site (and the master file) when you say.
+
 ## Later add-ons
 - [ ] Off trade: visit frequency and calls (journey plans, TM capacity), as in the TM team structure deck.

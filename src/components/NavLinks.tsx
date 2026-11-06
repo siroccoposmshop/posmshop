@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-export type NavItem = { href: string; label: string; adminOnly?: boolean; children?: { href: string; label: string; managers?: boolean }[] };
+export type NavItem = { href: string; label: string; offTrade?: boolean; children?: { href: string; label: string; managers?: boolean }[] };
 
 /** The Commerce Hub sections. POSM Shop and Projects have their own pages underneath. */
 export const SECTIONS: NavItem[] = [
@@ -28,9 +28,9 @@ export const SECTIONS: NavItem[] = [
       { href: "/projects/reports", label: "Reports", managers: true },
     ],
   },
-  // Trade Marketing (TM, TMM) and admins only. (The store list was loaded once; /off-trade/import
+  // Admins (incl. TM, TMM) and Off trade users. (The store list was loaded once; /off-trade/import
   // stays available, unlinked, for adding the store codes.)
-  { href: "/off-trade", label: "Off trade", adminOnly: true },
+  { href: "/off-trade", label: "Off trade", offTrade: true },
   { href: "/library", label: "Library" },
 ];
 
@@ -52,11 +52,11 @@ export function isActivePage(href: string, pathname: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function NavLinks({ admin = false }: { admin?: boolean }) {
+export function NavLinks({ offTrade = false }: { offTrade?: boolean }) {
   const pathname = usePathname();
   return (
     <nav className="flex items-center gap-1 overflow-x-auto">
-      {SECTIONS.filter((s) => admin || !s.adminOnly).map((l) => (
+      {SECTIONS.filter((s) => offTrade || !s.offTrade).map((l) => (
         <Link
           key={l.href}
           href={l.href}
@@ -73,12 +73,12 @@ export function NavLinks({ admin = false }: { admin?: boolean }) {
 
 /** Thin bar under the header with the current section's pages (e.g. New order · My orders). */
 /** The sections for this person (manager-only pages left out for KAMs). */
-export const sectionsFor = (managers: boolean, admin = false) =>
-  SECTIONS.filter((s) => admin || !s.adminOnly).map((s) => ({ ...s, children: s.children?.filter((c) => managers || !c.managers) }));
+export const sectionsFor = (managers: boolean, offTrade = false) =>
+  SECTIONS.filter((s) => offTrade || !s.offTrade).map((s) => ({ ...s, children: s.children?.filter((c) => managers || !c.managers) }));
 
-export function SectionNav({ managers = false, admin = false }: { managers?: boolean; admin?: boolean }) {
+export function SectionNav({ managers = false, offTrade = false }: { managers?: boolean; offTrade?: boolean }) {
   const pathname = usePathname();
-  const section = sectionsFor(managers, admin).find((s) => s.children && isActiveSection(s.href, pathname));
+  const section = sectionsFor(managers, offTrade).find((s) => s.children && isActiveSection(s.href, pathname));
   if (!section?.children) return null;
   return (
     <div className="no-print border-b border-black/5 bg-white/80">

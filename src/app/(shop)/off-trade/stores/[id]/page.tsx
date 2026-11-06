@@ -51,7 +51,7 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
 
       <section className="bento space-y-3">
         <h2 className="text-xl text-brand-black">Visibility in store</h2>
-        <div className="grid gap-3 sm:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {VISIBILITY_MAIN.map((m) => {
             const n = s.vis.totals[m];
             return (
@@ -71,11 +71,12 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
         </div>
         {s.vis.groups.Other.length > 0 && (
           <details className="rounded-xl ring-1 ring-black/10">
-            <summary className="cursor-pointer px-3 py-2 font-display text-xs uppercase tracking-wide text-brand-black">Other ({s.vis.totals.Other})</summary>
+            <summary className="cursor-pointer px-3 py-2 font-display text-xs uppercase tracking-wide text-brand-black">Other</summary>
             <ul className="space-y-1 px-3 pb-3 text-sm">
               {s.vis.groups.Other.map((g) => (
                 <li key={g.group}>
                   <span className="font-medium text-brand-black">{g.group}</span>: {g.items.map(([b, q]) => (q > 1 ? `${b} ×${q}` : b)).join(", ")}
+                  {g.logged && <span className="text-xs"> · logged, not counted as visibility</span>}
                 </li>
               ))}
             </ul>

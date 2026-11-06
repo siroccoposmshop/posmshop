@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ADMIN_MENU, adminEntryFor, sectionsFor, isActivePage, isActiveSection } from "./NavLinks";
-import { canSeeProjectReports, hubRoleShort, isAdminProfile } from "@/lib/hub";
+import { canSeeProjectReports, canUseOffTrade, hubRoleShort, isAdminProfile } from "@/lib/hub";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -38,7 +38,7 @@ export function UserMenu({ profile }: { profile: Profile }) {
   const adminCurrent = adminEntryFor(pathname);
   const role = `${hubRoleShort(profile.hub_role)}${isAdmin ? " · Admin" : ""}`;
   // POSM Shop lists its pages plus the cart underneath it.
-  const sections = sectionsFor(canSeeProjectReports(profile), isAdmin).map((s) =>
+  const sections = sectionsFor(canSeeProjectReports(profile), canUseOffTrade(profile)).map((s) =>
     s.href === "/posm" ? { ...s, children: [...(s.children ?? []), { href: "/cart", label: count ? `Cart (${count})` : "Cart" }] } : s,
   );
 

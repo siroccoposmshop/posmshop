@@ -136,7 +136,6 @@ function marketCode(raw: string | undefined): string | null {
     [/^(om|oman|muscat)$/, "OM"],
     [/^(bh|bah|bahrain)$/, "BH"],
     [/^(qa|qt|qatar|doha)$/, "QA"],
-    [/^(df|dutyfree)$/, "DF"],
   ];
   return known.find(([re]) => re.test(n))?.[1] ?? t.toUpperCase();
 }
@@ -262,7 +261,6 @@ const CHANNEL: Record<string, { market: string; area: string }> = {
   oman: { market: "OM", area: "Oman" },
   bahrain: { market: "BH", area: "Bahrain" },
   qatar: { market: "QA", area: "Qatar" },
-  dutyfree: { market: "DF", area: "Duty Free" },
 };
 
 export const matchKey = (channel: string, customer: string, store: string, type: string) =>

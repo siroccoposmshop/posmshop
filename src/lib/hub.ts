@@ -14,6 +14,10 @@ export const hubRoleShort = (r: string | null | undefined) => HUB_ROLES.find((x)
 /** The markets someone works in (several, or the single older market field). */
 export const profileMarkets = (p: { markets?: string[] | null; market?: string | null }) => (p.markets?.length ? p.markets : p.market ? [p.market] : []);
 
+/** Off trade is for admins (incl. TM and TMM) and anyone ticked as Off trade in Admin → Users. */
+export const canUseOffTrade = (p: { role?: string | null; hub_role?: string | null; trade?: string[] | null } | null | undefined) =>
+  isAdminProfile(p) || !!p?.trade?.includes("off");
+
 /** Admin across the whole Hub: POSM admins plus TM and TMM. */
 export const isAdminProfile = (p: { role?: string | null; hub_role?: string | null } | null | undefined) =>
   !!p && (p.role === "admin" || p.hub_role === "tm" || p.hub_role === "tmm");

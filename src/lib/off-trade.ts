@@ -1,14 +1,12 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isAdminProfile } from "@/lib/hub";
-import type { Profile } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Who, and what
 // ---------------------------------------------------------------------------
 
 /** Off trade is for Trade Marketing (TM, TMM) and admins. */
-export const canUseOffTrade = (p: Pick<Profile, "role" | "hub_role">) => isAdminProfile(p);
+export { canUseOffTrade } from "@/lib/hub";
 
 export const OFF_TRADE_PROJECT_TYPES = ["Branding", "Perfect shelf", "Cold room", "Fridge", "FSU", "Other"] as const;
 export const OFF_TRADE_STATUS: Record<OffTradeStatus, string> = { planned: "Planned", in_progress: "In progress", completed: "Completed", cancelled: "Cancelled" };
@@ -37,6 +35,8 @@ export type OffTradeStore = {
   segment: string | null;
   influenced: boolean;
   visit_frequency: string | null;
+  /** Set for stores from the Visibility Master File. */
+  match_key?: string | null;
   city?: string | null;
   /** Retail store, Bar … */
   store_type?: string | null;
@@ -54,8 +54,11 @@ export type OffTradeStore = {
 // ---------------------------------------------------------------------------
 
 export type Visibility = Record<string, Record<string, number>>;
-export const VISIBILITY_MAIN = ["Branding", "Perfect shelf", "Cold room", "Fridge", "FSU"] as const;
+/** Always shown. Takeover (Value and IR stores, bars) is an addition alongside the five. */
+export const VISIBILITY_MAIN = ["Branding", "Perfect shelf", "Cold room", "Fridge", "FSU", "Takeover"] as const;
 export type VisibilityMain = (typeof VISIBILITY_MAIN)[number] | "Other";
+/** Logged on the store but not counted as visibility (so they don't make a store influenced). */
+export const NOT_VISIBILITY = /t-?\s*shirt/i;
 
 /** Which main title an asset group from the master file belongs to. */
 export function visibilityMain(group: string): VisibilityMain {
@@ -64,22 +67,38 @@ export function visibilityMain(group: string): VisibilityMain {
   if (/cold\s*room/.test(g)) return "Cold room";
   if (/fridge|chiller unit/.test(g) && !/retailer/.test(g)) return "Fridge";
   if (/\bfsu\b|floor\s*stand/.test(g)) return "FSU";
-  if (/brand|light\s*box|pallet\s*wall|take\s*over|wall/.test(g)) return "Branding";
+  if (/take\s*over/.test(g)) return "Takeover";
+  if (/brand|light\s*box|pallet\s*wall|wall/.test(g)) return "Branding";
   return "Other";
 }
 
 /** Quantity per main title, and the groups behind each (for the details). */
 export function visibilitySummary(v: Visibility | null | undefined) {
-  const totals: Record<VisibilityMain, number> = { Branding: 0, "Perfect shelf": 0, "Cold room": 0, Fridge: 0, FSU: 0, Other: 0 };
-  const groups: Record<VisibilityMain, { group: string; items: [string, number][] }[]> = { Branding: [], "Perfect shelf": [], "Cold room": [], Fridge: [], FSU: [], Other: [] };
+  const totals: Record<VisibilityMain, number> = { Branding: 0, "Perfect shelf": 0, "Cold room": 0, Fridge: 0, FSU: 0, Takeover: 0, Other: 0 };
+  const groups: Record<VisibilityMain, { group: string; items: [string, number][]; logged?: boolean }[]> = {
+    Branding: [],
+    "Perfect shelf": [],
+    "Cold room": [],
+    Fridge: [],
+    FSU: [],
+    Takeover: [],
+    Other: [],
+  };
+  let counted = 0;
   for (const [group, items] of Object.entries(v ?? {})) {
     const list = Object.entries(items).filter(([, q]) => q > 0);
     if (!list.length) continue;
     const main = visibilityMain(group);
-    totals[main] += list.reduce((n, [, q]) => n + q, 0);
-    groups[main].push({ group, items: list });
+    const logged = NOT_VISIBILITY.test(group);
+    const qty = list.reduce((n, [, q]) => n + q, 0);
+    if (!logged) {
+      totals[main] += qty;
+      counted += qty;
+    }
+    groups[main].push({ group, items: list, logged });
   }
-  return { totals, groups, any: Object.values(totals).some((n) => n > 0) };
+  /** Any visibility that counts (T-shirts are logged only). */
+  return { totals, groups, any: counted > 0 };
 }
 
 /** Market codes used for off trade (UAE and the Gulf). */
@@ -90,7 +109,6 @@ export const OFF_TRADE_MARKETS: Record<string, string> = {
   OM: "Oman",
   BH: "Bahrain",
   QA: "Qatar",
-  DF: "Duty Free",
 };
 export const marketName = (code: string | null) => (code ? (OFF_TRADE_MARKETS[code] ?? code) : "—");
 
@@ -118,6 +136,8 @@ export type StoreView = OffTradeStore & {
   targeted: boolean;
   /** Visibility quantities per main title. */
   vis: ReturnType<typeof visibilitySummary>;
+  /** A bar inside a store: an addition, not counted as a store. */
+  bar: boolean;
 };
 
 export async function loadOffTrade(): Promise<StoreView[]> {
@@ -132,7 +152,11 @@ export async function loadOffTrade(): Promise<StoreView[]> {
   return ((stores as OffTradeStore[]) ?? []).map((s) => storeView(s, byStore.get(s.id) ?? []));
 }
 
+/** Bars are inside a (Value) store: an addition, not a store in the universe. */
+export const isBar = (s: Pick<OffTradeStore, "store_type">) => /\bbar\b/i.test(s.store_type ?? "");
+
 export function storeView(s: OffTradeStore, projects: OffTradeProject[]): StoreView {
+  const vis = visibilitySummary(s.visibility);
   const sorted = [...projects].sort((a, b) => String(b.completed_date ?? b.planned_date ?? b.created_at).localeCompare(String(a.completed_date ?? a.planned_date ?? a.created_at)));
   const done = sorted.filter((p) => p.status === "completed");
   return {
@@ -140,7 +164,10 @@ export function storeView(s: OffTradeStore, projects: OffTradeProject[]): StoreV
     projects: sorted,
     last: done.sort((a, b) => String(b.completed_date).localeCompare(String(a.completed_date)))[0] ?? null,
     targets: sorted.filter((p) => p.status !== "cancelled" && yearOf(p) === TARGET_YEAR),
-    vis: visibilitySummary(s.visibility),
+    vis,
+    // Master-file stores: influenced = visibility that counts (not T-shirts). Others keep the upload's flag.
+    influenced: s.match_key ? vis.any : s.influenced,
+    bar: isBar(s),
     targeted: s.target_year === TARGET_YEAR || sorted.some((p) => p.status !== "cancelled" && yearOf(p) === TARGET_YEAR),
   };
 }
@@ -211,18 +238,28 @@ export type OffTradeSummary = {
   expectedDone: number;
   /** Stores with each main visibility title in place. */
   assets: Record<string, number>;
+  /** Bars (inside stores, not counted as stores). */
+  bars: number;
+  /** Bars with visibility. */
+  barsInfluenced: number;
 };
 
 function summarise(stores: StoreView[], keyOf: (s: StoreView) => string) {
   const map = new Map<string, OffTradeSummary>();
   for (const s of stores) {
     const key = keyOf(s) || "—";
-    const e = map.get(key) ?? { key, label: key, stores: 0, influenced: 0, segments: {}, withProjects: 0, lastDate: null, targeted: 0, expected: 0, actual: 0, expectedDone: 0, assets: {} };
-    for (const m of VISIBILITY_MAIN) if (s.vis.totals[m] > 0) e.assets[m] = (e.assets[m] ?? 0) + 1;
-    e.stores++;
-    if (s.influenced) e.influenced++;
-    const seg = segmentShort(s.segment);
-    e.segments[seg] = (e.segments[seg] ?? 0) + 1;
+    const e = map.get(key) ?? { key, label: key, stores: 0, influenced: 0, segments: {}, withProjects: 0, lastDate: null, targeted: 0, expected: 0, actual: 0, expectedDone: 0, assets: {}, bars: 0, barsInfluenced: 0 };
+    if (s.bar) {
+      // An addition inside a store: counted on its own, not in the universe, mix or influence.
+      e.bars++;
+      if (s.influenced) e.barsInfluenced++;
+    } else {
+      for (const m of VISIBILITY_MAIN) if (s.vis.totals[m] > 0) e.assets[m] = (e.assets[m] ?? 0) + 1;
+      e.stores++;
+      if (s.influenced) e.influenced++;
+      const seg = segmentShort(s.segment);
+      e.segments[seg] = (e.segments[seg] ?? 0) + 1;
+    }
     if (s.last) {
       e.withProjects++;
       if (s.last.completed_date && (!e.lastDate || s.last.completed_date > e.lastDate)) e.lastDate = s.last.completed_date;
@@ -241,7 +278,7 @@ function summarise(stores: StoreView[], keyOf: (s: StoreView) => string) {
   return [...map.values()].sort((a, b) => b.stores - a.stores);
 }
 
-const EMPTY: OffTradeSummary = { key: "All", label: "All", stores: 0, influenced: 0, segments: {}, withProjects: 0, lastDate: null, targeted: 0, expected: 0, actual: 0, expectedDone: 0, assets: {} };
+const EMPTY: OffTradeSummary = { key: "All", label: "All", stores: 0, influenced: 0, segments: {}, withProjects: 0, lastDate: null, targeted: 0, expected: 0, actual: 0, expectedDone: 0, assets: {}, bars: 0, barsInfluenced: 0 };
 export const offTradeTotals = (stores: StoreView[]) => summarise(stores, () => "All")[0] ?? EMPTY;
 export const byArea = (stores: StoreView[]) => summarise(stores, (s) => s.area ?? "");
 export const byTmam = (stores: StoreView[]) => summarise(stores, (s) => s.tmam ?? "");

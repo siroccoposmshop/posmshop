@@ -44,7 +44,10 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <div className="bento-green">
           <p className="font-display text-xs uppercase tracking-wide text-white/80">Universe</p>
-          <p className="mt-1 font-display text-3xl font-medium">{t.stores}</p>
+          <p className="mt-1 font-display text-3xl font-medium">
+            {t.stores}
+            {t.bars > 0 && <span className="ml-2 align-middle text-sm font-normal text-white/85">+{t.bars} bars</span>}
+          </p>
           <p className="text-xs text-white/85">{segmentLine(t)}</p>
         </div>
         <Tile label="Influenced" value={`${t.influenced}`} sub={`${pct(t.influenced, t.stores)} of stores · ${t.stores - t.influenced} not influenced`} />
@@ -211,7 +214,7 @@ function VisibilityTable({ rows, total }: { rows: OffTradeSummary[]; total: OffT
   );
   return (
     <Card title="Visibility in place" meta={`${total.influenced} of ${total.stores} stores influenced`}>
-      <p className="mb-3 text-sm">Stores with each type of visibility today (from the Visibility Master File). Open a store for the brands and units.</p>
+      <p className="mb-3 text-sm">Stores with each type of visibility today (from the Visibility Master File). Bars sit inside their store and are shown as an addition, not counted as stores. T-shirts are logged but not counted. Open a store for the brands and units.</p>
       <table className="table">
         <thead>
           <tr>
@@ -229,7 +232,10 @@ function VisibilityTable({ rows, total }: { rows: OffTradeSummary[]; total: OffT
           {rows.map((r) => (
             <tr key={r.key}>
               <td className="font-medium text-brand-black">{r.label}</td>
-              <td className="text-right">{r.stores}</td>
+              <td className="whitespace-nowrap text-right">
+                {r.stores}
+                {r.bars > 0 && <span className="block text-xs">+{r.bars} bar{r.bars === 1 ? "" : "s"}</span>}
+              </td>
               {cell(r.influenced, r.stores)}
               {VISIBILITY_MAIN.map((m) => (
                 <Fragment key={m}>{cell(r.assets[m], r.stores)}</Fragment>
@@ -238,7 +244,10 @@ function VisibilityTable({ rows, total }: { rows: OffTradeSummary[]; total: OffT
           ))}
           <tr className="font-medium">
             <td className="text-brand-black">Total</td>
-            <td className="text-right text-brand-black">{total.stores}</td>
+            <td className="whitespace-nowrap text-right text-brand-black">
+              {total.stores}
+              {total.bars > 0 && <span className="block text-xs font-normal">+{total.bars} bars</span>}
+            </td>
             {cell(total.influenced, total.stores)}
             {VISIBILITY_MAIN.map((m) => (
               <Fragment key={m}>{cell(total.assets[m], total.stores)}</Fragment>
@@ -270,7 +279,10 @@ function SummaryTable({ title, first, rows, compact, hideSegments }: { title: st
           {rows.map((r) => (
             <tr key={r.key}>
               <td className="min-w-[8rem] font-medium text-brand-black">{r.label}</td>
-              <td className="text-right">{r.stores}</td>
+              <td className="whitespace-nowrap text-right">
+                {r.stores}
+                {r.bars > 0 && <span className="block text-xs">+{r.bars} bar{r.bars === 1 ? "" : "s"}</span>}
+              </td>
               {!hideSegments && <td className="whitespace-nowrap text-xs">{segmentLine(r)}</td>}
               <td className="whitespace-nowrap text-right">
                 {r.influenced}
