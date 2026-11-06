@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { MARKETS } from "@/lib/markets";
 import { createClient } from "@/lib/supabase/client";
 import { shrinkImage } from "@/lib/shrink-image";
-import { importWorkbook, uploadImageForSku, type ImportSummary } from "../actions";
+import { importStockReport, importWorkbook, uploadImageForSku, type ImportSummary } from "../actions";
+import type { StockRunSummary } from "@/lib/stock-report";
 
 export function ImportForm() {
   const [state, setState] = useState<{ summary?: ImportSummary; error?: string } | null>(null);
@@ -260,5 +261,78 @@ function Spinner() {
       <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
       <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
     </svg>
+  );
+}
+
+/** IT's stock report (the file that also arrives by email): updates stock and months of stock only. */
+export function StockReportForm() {
+  const router = useRouter();
+  const [state, setState] = useState<{ summary?: StockRunSummary; error?: string } | null>(null);
+  const [pending, setPending] = useState(false);
+  const s = state?.summary;
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const file = new FormData(form).get("file");
+    if (!(file instanceof File) || file.size === 0) return setState({ error: "Choose the stock report (.xlsx)." });
+    setPending(true);
+    setState(null);
+    try {
+      const path = `stock-${new Date().toISOString().replace(/[:.]/g, "-")}-${file.name.replace(/[^\w.-]+/g, "_")}`;
+      const { error } = await createClient().storage.from("imports").upload(path, file, {
+        contentType: file.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      if (error) throw new Error(`Upload failed: ${error.message}`);
+      const result = await importStockReport({ path, filename: file.name });
+      setState(result);
+      if (!result.error) {
+        form.reset();
+        router.refresh();
+      }
+    } catch (err) {
+      setState({ error: err instanceof Error && err.message ? err.message : "Something went wrong. Please try again." });
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="bento space-y-3">
+      <div>
+        <h2 className="text-xl text-brand-black">Stock report</h2>
+        <p className="text-sm">
+          IT&apos;s stock report (Stock and rolling forecast). Updates <strong>stock</strong> (column Stock) and <strong>months of stock</strong>{" "}
+          (Stock ÷ Avg 12Mnth Sale) for items whose SKU is a ProductCode. Nothing else changes.
+        </p>
+      </div>
+      <form onSubmit={onSubmit} className="space-y-3">
+        <input
+          type="file"
+          name="file"
+          disabled={pending}
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          required
+          className="block w-full text-sm file:mr-3 file:rounded-full file:border-0 file:bg-brand-green file:px-4 file:py-2 file:font-display file:uppercase file:text-white"
+        />
+        <button className="btn btn-primary" disabled={pending}>
+          {pending ? "Updating stock…" : "Update stock"}
+        </button>
+      </form>
+      {state?.error && <p className="text-sm text-brand-red">{state.error}</p>}
+      {s && (
+        <div className={`rounded-lg p-3 text-sm ${s.ok ? "bg-brand-green-tint text-brand-green-dark" : "bg-brand-red/10 text-brand-red"}`}>
+          {s.ok ? (
+            <>
+              <p className="font-medium">✓ {s.updated} items updated.</p>
+              {s.notInReport > 0 && <p>{s.notInReport} items weren&apos;t in the report and kept their stock.</p>}
+              {s.unmatched > 0 && <p>{s.unmatched} other product codes in the report aren&apos;t POSM items (ignored).</p>}
+            </>
+          ) : (
+            <p>Nothing was changed. {s.reason}</p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
