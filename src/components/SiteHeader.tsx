@@ -23,7 +23,7 @@ export function SiteHeader({ profile }: { profile: Profile }) {
             </span>
           </Link>
           <div className="hidden lg:block">
-            <NavLinks />
+            <NavLinks admin={isAdmin} />
           </div>
           <div className="ml-auto flex items-center gap-2">
             <CartButton />
@@ -36,7 +36,7 @@ export function SiteHeader({ profile }: { profile: Profile }) {
         </div>
       </div>
     </header>
-    <SectionNav managers={canSeeProjectReports(profile)} />
+    <SectionNav managers={canSeeProjectReports(profile)} admin={isAdmin} />
     </>
   );
 }

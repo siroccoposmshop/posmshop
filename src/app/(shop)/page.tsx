@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireProfile } from "@/lib/auth";
 import { hubRoleShort } from "@/lib/hub";
+import { TARGET_YEAR, canUseOffTrade, loadOffTrade, offTradeTotals } from "@/lib/off-trade";
 import { HubTool as Tool } from "./HubTool";
 import { canApprove, hubRole, isProjectAdmin, loadVisibleProjects, projectHealth, type Project } from "@/lib/projects";
 
@@ -25,6 +26,16 @@ export default async function HubHome() {
   const behind = live.filter((p) => projectHealth(p).state === "behind").length;
   const approvals = projects.filter((p) => canApprove(profile, p)).length;
   const toVet = isProjectAdmin(profile) ? projects.filter((p) => p.status === "awaiting_tm").length : 0;
+  // Off trade: Trade Marketing and admins only.
+  const offTrade = canUseOffTrade(profile);
+  let ot: ReturnType<typeof offTradeTotals> | null = null;
+  if (offTrade) {
+    try {
+      ot = offTradeTotals(await loadOffTrade());
+    } catch {
+      // Not set up yet: the tile still links there.
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -36,7 +47,7 @@ export default async function HubHome() {
         <p className="mt-2 max-w-2xl text-sm">Everything for sales development in one place: order POSM, request and track projects, and find past work.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className={`grid gap-4 md:grid-cols-2 ${offTrade ? "xl:grid-cols-4" : "lg:grid-cols-3"}`}>
         <Tool
           href="/projects"
           title="Projects"
@@ -66,6 +77,23 @@ export default async function HubHome() {
             </Link>
           }
         />
+        {offTrade && (
+          <Tool
+            href="/off-trade"
+            title="Off trade"
+            text="Store universe, influence, past projects and the targets by area and TMAM."
+            cta="Off-trade dashboard"
+            stats={
+              ot && ot.stores
+                ? [
+                    { label: "Stores", value: ot.stores },
+                    { label: "Influenced", value: ot.influenced },
+                    { label: `${TARGET_YEAR} targets`, value: ot.targeted },
+                  ]
+                : undefined
+            }
+          />
+        )}
         <Tool href="/library" title="Marketing Library" text="Past projects to inspire the next one: bars, activations, furniture and more." cta="Coming soon" muted />
       </div>
     </div>
