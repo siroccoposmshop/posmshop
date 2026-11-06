@@ -2,16 +2,33 @@ import Link from "next/link";
 import { formatDate } from "@/lib/format";
 import { formatAed } from "@/lib/hub";
 import { MARKETS } from "@/lib/markets";
-import { STATUS_GROUPS, byCustomer, byKam, byOutlet, filtersToQuery, totals, type ProjectReportFilters, type ProjectReportRow, type Summary } from "@/lib/project-reports";
+import {
+  STATUS_GROUPS,
+  byCustomer,
+  byKam,
+  byOutlet,
+  byPicosItem,
+  filtersToQuery,
+  picosReportLines,
+  totals,
+  type PicosShow,
+  type ProjectReportFilters,
+  type ProjectReportRow,
+  type Summary,
+} from "@/lib/project-reports";
 import { MultiSelect } from "@/components/MultiSelect";
 
 /** The Project reports dashboard for a set of rows (all = everything in scope, for the filter lists). */
-export function ReportsView({ rows, all, f, team }: { rows: ProjectReportRow[]; all: ProjectReportRow[]; f: ProjectReportFilters; team: boolean }) {
+export function ReportsView({ rows, all, f, team, show = "pending" }: { rows: ProjectReportRow[]; all: ProjectReportRow[]; f: ProjectReportFilters; team: boolean; show?: PicosShow }) {
   const t = totals(rows);
   const kams = byKam(rows);
   const customers = byCustomer(rows);
   const outlets = byOutlet(rows);
   const qs = filtersToQuery(f);
+  const picosAll = picosReportLines(rows);
+  const picosShown = picosAll.filter((l) => show === "all" || (show === "delivered" ? !!l.deliveredAt : !l.deliveredAt));
+  const picosPending = picosAll.filter((l) => !l.deliveredAt).length;
+  const picosOverdue = picosAll.filter((l) => l.overdue).length;
   const filtered = qs.length > 0;
 
   const uniq = <T,>(list: T[], key: (x: T) => string) => [...new Map(list.map((x) => [key(x), x])).values()];
@@ -90,11 +107,18 @@ export function ReportsView({ rows, all, f, team }: { rows: ProjectReportRow[]; 
         </div>
         <Tile label="Waiting approval" value={formatAed(t.waitingSpend)} sub={`${t.waiting} request${t.waiting === 1 ? "" : "s"}`} />
         <Tile label="Projects" value={t.projects.toLocaleString()} sub={`${t.live} live · ${t.completed} completed`} />
-        <Tile
-          label="PICOS delivered"
-          value={t.negotiated ? `${Math.round((t.delivered / t.negotiated) * 100)}%` : "—"}
-          sub={`${t.delivered} of ${t.negotiated} negotiated · avg +${t.avgUplift} pts`}
-        />
+        <a href="#picos" className="bento block ring-brand-green transition hover:ring-2" title="See every PICOS item">
+          <p className="flex items-center justify-between font-display text-xs uppercase tracking-wide">
+            PICOS delivered <span aria-hidden className="text-brand-green">↓</span>
+          </p>
+          <p className="mt-1 font-display text-2xl font-medium text-brand-black sm:text-3xl">
+            {t.negotiated ? `${Math.round((t.delivered / t.negotiated) * 100)}%` : "—"}
+          </p>
+          <p className="text-xs">
+            {t.delivered} of {t.negotiated} negotiated · avg +{t.avgUplift} pts
+          </p>
+          {picosOverdue > 0 && <p className="mt-1 text-xs font-medium text-brand-red">{picosOverdue} pending on completed projects</p>}
+        </a>
       </div>
 
       <div className="grid gap-6">
@@ -103,6 +127,8 @@ export function ReportsView({ rows, all, f, team }: { rows: ProjectReportRow[]; 
       </div>
 
       <SummaryTable title="By outlet" first="Outlet" data={outlets.slice(0, 100)} more={outlets.length > 100 ? outlets.length : undefined} />
+
+      <PicosSection lines={picosShown} all={picosAll} pending={picosPending} overdue={picosOverdue} show={show} qs={qs} />
 
       <section className="bento overflow-x-auto">
         <h2 className="mb-3 text-xl text-brand-black">Projects</h2>
@@ -180,6 +206,156 @@ export function ReportsView({ rows, all, f, team }: { rows: ProjectReportRow[]; 
         {rows.length > 300 && <p className="mt-3 text-xs">Showing 300 of {rows.length.toLocaleString()} projects. Download Excel for everything.</p>}
       </section>
     </div>
+  );
+}
+
+/** PICOS first: every negotiated change, pending or delivered, with the project's progress. */
+function PicosSection({
+  lines,
+  all,
+  pending,
+  overdue,
+  show,
+  qs,
+}: {
+  lines: ReturnType<typeof picosReportLines>;
+  all: ReturnType<typeof picosReportLines>;
+  pending: number;
+  overdue: number;
+  show: PicosShow;
+  qs: string;
+}) {
+  const items = byPicosItem(all);
+  const tab = (v: PicosShow, label: string, n: number) => (
+    <a
+      href={`/projects/reports?${qs ? `${qs}&` : ""}picos=${v}#picos`}
+      aria-current={show === v ? "true" : undefined}
+      className={`rounded-full px-3 py-1.5 font-display text-sm font-medium uppercase ${show === v ? "bg-brand-green text-white" : "text-brand-grey hover:text-brand-black"}`}
+    >
+      {label} <span className={show === v ? "text-white/80" : ""}>{n}</span>
+    </a>
+  );
+  return (
+    <section id="picos" className="bento scroll-mt-24 space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-xl text-brand-black">PICOS</h2>
+          <p className="text-sm">
+            Every PICOS change negotiated, at each outlet, and whether it&apos;s in place.
+            {overdue > 0 && <strong className="text-brand-red"> {overdue} still pending on completed projects.</strong>}
+          </p>
+        </div>
+        <div className="flex rounded-full bg-white p-1 ring-1 ring-black/10" role="group" aria-label="Show">
+          {tab("pending", "Pending", pending)}
+          {tab("delivered", "Delivered", all.length - pending)}
+          {tab("all", "All", all.length)}
+        </div>
+      </div>
+
+      {items.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>By PICOS item</th>
+                <th className="text-right">Negotiated</th>
+                <th className="text-right">Delivered</th>
+                <th className="text-right">Pending</th>
+                <th className="text-right">Pending · project complete</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((i) => (
+                <tr key={i.key}>
+                  <td className="min-w-[12rem]">
+                    <span className="font-medium text-brand-black">{i.label}</span>
+                    <span className="block text-xs">{i.group}</span>
+                  </td>
+                  <td className="text-right">{i.negotiated}</td>
+                  <td className="text-right">{i.delivered}</td>
+                  <td className="text-right">{i.pending || "—"}</td>
+                  <td className={`text-right ${i.overdue ? "font-medium text-brand-red" : ""}`}>{i.overdue || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="overflow-x-auto">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>PICOS item</th>
+              <th>Outlet</th>
+              <th>Project</th>
+              <th>Project lead</th>
+              <th>Project status</th>
+              <th className="text-right">PICOS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {lines.slice(0, 400).map((l, i) => (
+              <tr key={`${l.projectId}-${l.outletId ?? "main"}-${l.key}-${i}`} className={l.overdue ? "bg-brand-red/5" : ""}>
+                <td className="min-w-[12rem]">
+                  <span className="font-medium text-brand-black">{l.label}</span>
+                  <span className="block text-xs">
+                    {l.group} · {l.points} pts
+                  </span>
+                </td>
+                <td className="min-w-[10rem]">
+                  {l.outlet}
+                  <span className="block text-xs">
+                    {l.customer}
+                    {l.outletId ? " · other outlet in the deal" : ""}
+                  </span>
+                </td>
+                <td className="min-w-[10rem]">
+                  <Link href={`/projects/${l.projectId}`} className="text-brand-black hover:underline">
+                    {l.title}
+                  </Link>
+                  <span className="block text-xs">{l.ref}</span>
+                </td>
+                <td className="whitespace-nowrap">{l.kam}</td>
+                <td className="whitespace-nowrap text-sm">
+                  {l.status === "completed" ? (
+                    <>
+                      Completed
+                      <span className="block text-xs">{l.completed ? formatDate(l.completed) : ""}</span>
+                    </>
+                  ) : (
+                    <>
+                      {l.statusLabel}
+                      <span className="block text-xs">{l.target ? `Due ${formatDate(l.target)}` : ""}</span>
+                    </>
+                  )}
+                </td>
+                <td className="whitespace-nowrap text-right">
+                  {l.deliveredAt ? (
+                    <span className="text-brand-green-dark">
+                      ✓ Delivered
+                      <span className="block text-xs">{formatDate(l.deliveredAt)}</span>
+                    </span>
+                  ) : l.overdue ? (
+                    <span className="badge bg-brand-red text-white">Action · project complete</span>
+                  ) : (
+                    <span className="badge bg-amber-500 text-white">Pending</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {!lines.length && (
+              <tr>
+                <td colSpan={6} className="text-sm">
+                  {show === "pending" ? "Nothing pending. Every negotiated PICOS change is in place." : "No PICOS changes match."}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {lines.length > 400 && <p className="mt-3 text-xs">Showing 400 of {lines.length.toLocaleString()}. Download Excel for everything.</p>}
+      </div>
+    </section>
   );
 }
 

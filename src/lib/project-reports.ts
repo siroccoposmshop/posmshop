@@ -3,7 +3,7 @@ import ExcelJS from "exceljs";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { companyName, outletName } from "@/lib/format";
 import { SEES_ALL, STATUS_LABEL, budgetSplit, isAdminProfile, type ProjectStatus } from "@/lib/hub";
-import { otherOutletsWithTicks, picosScores, promisedItems, type Picos } from "@/lib/picos";
+import { otherOutletsWithTicks, picosLines, picosScores, promisedItems, type Picos, type PicosLine } from "@/lib/picos";
 import { hubRole, personName, type Person, type Project } from "@/lib/projects";
 import type { Profile } from "@/lib/types";
 
@@ -97,6 +97,8 @@ export type ProjectReportRow = {
   statusLabel: string;
   submitted: string;
   completed: string | null;
+  /** Planned completion (end of the last stage), once the project is running. */
+  target: string | null;
   kamId: string;
   kam: string;
   customerKey: string;
@@ -122,6 +124,8 @@ export type ProjectReportRow = {
   negotiated: number;
   delivered: number;
   otherOutlets: number;
+  /** Each negotiated PICOS change, with its outlet and whether it's delivered. */
+  lines: PicosLine[];
 };
 
 export async function getProjectReportRows(f: ProjectReportFilters, scope: string[] | null): Promise<{ rows: ProjectReportRow[]; all: ProjectReportRow[] }> {
@@ -144,6 +148,7 @@ export async function getProjectReportRows(f: ProjectReportFilters, scope: strin
       statusLabel: STATUS_LABEL[p.status],
       submitted: p.submitted_at,
       completed: p.completed_at,
+      target: p.target_date,
       kamId: p.kam_id,
       kam: personName(byId.get(p.kam_id)),
       customerKey: p.parent_number || p.account_number,
@@ -167,6 +172,7 @@ export async function getProjectReportRows(f: ProjectReportFilters, scope: strin
       negotiated: pc.negotiated,
       delivered: pc.delivered,
       otherOutlets: pc.otherOutlets,
+      lines: picosLines(p).map((l) => ({ ...l, outlet: outletName(l.outlet) })),
     };
   });
 
@@ -308,11 +314,85 @@ export async function projectsToXlsx(rows: ProjectReportRow[]) {
     for (const s of data) ws.addRow({ ...s, outlets: s.outlets.size });
     return ws;
   };
-  const sheets = [list, sheet("By project lead", "Project lead", byKam(rows)), sheet("By customer", "Customer", byCustomer(rows)), sheet("By outlet", "Outlet", byOutlet(rows))];
+  const picos = wb.addWorksheet("PICOS");
+  picos.columns = [
+    { header: "PICOS item", key: "label", width: 34 },
+    { header: "Group", key: "group", width: 14 },
+    { header: "Points", key: "points", width: 8 },
+    { header: "Outlet", key: "outlet", width: 26 },
+    { header: "Customer", key: "customer", width: 26 },
+    { header: "Ref", key: "ref", width: 11 },
+    { header: "Project", key: "title", width: 30 },
+    { header: "Project lead", key: "kam", width: 20 },
+    { header: "Project status", key: "statusLabel", width: 22 },
+    { header: "Completed", key: "completed", width: 12 },
+    { header: "Due", key: "target", width: 12 },
+    { header: "PICOS status", key: "picosStatus", width: 26 },
+    { header: "Delivered", key: "deliveredAt", width: 12 },
+  ];
+  for (const l of picosReportLines(rows)) {
+    picos.addRow({
+      ...l,
+      completed: l.completed?.slice(0, 10) ?? "",
+      target: l.target ?? "",
+      deliveredAt: l.deliveredAt?.slice(0, 10) ?? "",
+      picosStatus: l.deliveredAt ? "Delivered" : l.overdue ? "Pending - project complete" : "Pending",
+    });
+  }
+  const sheets = [list, sheet("By project lead", "Project lead", byKam(rows)), sheet("By customer", "Customer", byCustomer(rows)), sheet("By outlet", "Outlet", byOutlet(rows)), picos];
   for (const ws of sheets) {
     ws.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
     ws.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF58A244" } };
     ws.views = [{ state: "frozen", ySplit: 1 }];
   }
   return wb.xlsx.writeBuffer();
+}
+
+// ---------------------------------------------------------------------------
+// PICOS, item by item
+// ---------------------------------------------------------------------------
+
+export type PicosShow = "pending" | "delivered" | "all";
+export const readPicosShow = (v: string | string[] | undefined): PicosShow => (v === "delivered" || v === "all" ? v : "pending");
+
+export type PicosReportLine = PicosLine & {
+  projectId: string;
+  ref: string;
+  title: string;
+  kam: string;
+  customer: string;
+  status: ProjectStatus;
+  statusLabel: string;
+  completed: string | null;
+  target: string | null;
+  /** The project is complete but this change isn't delivered: an action for the project lead and their SM. */
+  overdue: boolean;
+};
+
+/** PICOS lines of projects that count (not cancelled or sent back): overdue first, then pending by date, then delivered. */
+export function picosReportLines(rows: ProjectReportRow[]): PicosReportLine[] {
+  const out: PicosReportLine[] = [];
+  for (const r of rows) {
+    if (r.status === "cancelled" || r.status === "rejected") continue;
+    for (const l of r.lines) {
+      out.push({ ...l, projectId: r.id, ref: r.ref, title: r.title, kam: r.kam, customer: r.customer, status: r.status, statusLabel: r.statusLabel, completed: r.completed, target: r.target, overdue: r.status === "completed" && !l.deliveredAt });
+    }
+  }
+  const rank = (l: PicosReportLine) => (l.overdue ? 0 : !l.deliveredAt ? 1 : 2);
+  const when = (l: PicosReportLine) => (l.deliveredAt ?? l.completed ?? l.target ?? "9999");
+  return out.sort((a, b) => rank(a) - rank(b) || when(a).localeCompare(when(b)) || a.ref.localeCompare(b.ref));
+}
+
+/** By PICOS criterion: how often it's negotiated, delivered, pending, and pending on completed projects. */
+export function byPicosItem(lines: PicosReportLine[]) {
+  const map = new Map<string, { key: string; label: string; group: string; negotiated: number; delivered: number; pending: number; overdue: number }>();
+  for (const l of lines) {
+    const e = map.get(l.key) ?? { key: l.key, label: l.label, group: l.group, negotiated: 0, delivered: 0, pending: 0, overdue: 0 };
+    e.negotiated++;
+    if (l.deliveredAt) e.delivered++;
+    else e.pending++;
+    if (l.overdue) e.overdue++;
+    map.set(l.key, e);
+  }
+  return [...map.values()].sort((a, b) => b.overdue - a.overdue || b.pending - a.pending || b.negotiated - a.negotiated);
 }

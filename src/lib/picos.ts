@@ -96,3 +96,35 @@ export function otherOutletsWithTicks(picos: Picos) {
     ([, o]) => OUTLET_TYPES.includes(o.outlet_type as OutletType) && picosItemsFor(o.outlet_type).some((i) => o.items[i.key]?.current || o.items[i.key]?.promised),
   );
 }
+
+/** One negotiated PICOS change at one outlet, delivered or still to do. */
+export type PicosLine = {
+  outletId: string | null;
+  outlet: string;
+  outletType: string;
+  key: string;
+  label: string;
+  group: PicosGroup;
+  points: number;
+  deliveredAt: string | null;
+};
+
+/** Every negotiated change in a deal: at the main outlet (outletId null) and the other outlets. */
+export function picosLines(p: { account_name: string; outlet_type: string; picos: Picos }): PicosLine[] {
+  const lines: PicosLine[] = promisedItems(p.outlet_type, p.picos).map((i) => ({
+    outletId: null,
+    outlet: p.account_name,
+    outletType: p.outlet_type,
+    key: i.key,
+    label: i.label,
+    group: i.group,
+    points: pointsFor(i.key, p.outlet_type),
+    deliveredAt: p.picos.items[i.key]?.delivered_at ?? null,
+  }));
+  for (const [id, o] of otherOutletsWithTicks(p.picos)) {
+    for (const i of otherPromised(o)) {
+      lines.push({ outletId: id, outlet: o.name, outletType: o.outlet_type, key: i.key, label: i.label, group: i.group, points: pointsFor(i.key, o.outlet_type), deliveredAt: o.items[i.key]?.delivered_at ?? null });
+    }
+  }
+  return lines;
+}

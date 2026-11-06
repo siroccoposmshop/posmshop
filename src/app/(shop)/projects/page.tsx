@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate, outletName } from "@/lib/format";
+import { picosLines } from "@/lib/picos";
 import { canSeeProjectReports, formatAed, hubRoleShort } from "@/lib/hub";
 import { todayIso } from "@/lib/working-days";
 import {
@@ -66,6 +67,12 @@ export default async function ProjectsPage() {
   const actions = admin ? actionItems(mine, today) : [];
   const sentBack = open.filter((p) => p.status === "rejected" && p.kam_id === profile.id);
   const live = open.filter((p) => p.status === "live");
+  // Completed projects with PICOS still to deliver: an action for the project lead and their SM (and Trade Marketing).
+  const picosToDeliver = open
+    .filter((p) => p.status === "completed")
+    .map((p) => ({ p, pending: picosLines(p).filter((l) => !l.deliveredAt) }))
+    .filter((x) => x.pending.length > 0)
+    .sort((a, b) => String(a.p.completed_at).localeCompare(String(b.p.completed_at)));
 
   return (
     <div className="space-y-6">
@@ -98,7 +105,7 @@ export default async function ProjectsPage() {
         <Tile label="Completed" value={open.filter((p) => p.status === "completed").length} />
       </div>
 
-      {(approvals.length > 0 || toVet.length > 0 || actions.length > 0 || sentBack.length > 0) && (
+      {(approvals.length > 0 || toVet.length > 0 || actions.length > 0 || sentBack.length > 0 || picosToDeliver.length > 0) && (
         <div className="grid items-start gap-3 md:grid-cols-2">
           {approvals.length > 0 && (
             <ListCard title="Approvals" count={approvals.length} tone="amber">
@@ -123,6 +130,19 @@ export default async function ProjectsPage() {
                   title={projectTitle(p)}
                   sub={`${stage.name} · ${outletName(p.account_name)}`}
                   right={<span className={overdue ? "font-medium text-brand-red" : ""}>{overdue ? "Overdue" : "Due"} {formatDate(stage.due_date!)}</span>}
+                />
+              ))}
+            </ListCard>
+          )}
+          {picosToDeliver.length > 0 && (
+            <ListCard title="PICOS to deliver" count={picosToDeliver.length} tone="red">
+              {picosToDeliver.map(({ p, pending }) => (
+                <Row
+                  key={p.id}
+                  href={`/projects/${p.id}`}
+                  title={projectTitle(p)}
+                  sub={`${pending.length} PICOS pending · ${outletName(p.account_name)}${role === "kam" ? "" : ` · ${p.kamName}`}`}
+                  right={<span className="font-medium text-brand-red">Completed {p.completed_at ? formatDate(p.completed_at) : ""}</span>}
                 />
               ))}
             </ListCard>

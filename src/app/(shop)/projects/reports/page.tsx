@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
-import { getProjectReportRows, projectReportScope, readProjectFilters } from "@/lib/project-reports";
+import { getProjectReportRows, projectReportScope, readPicosShow, readProjectFilters } from "@/lib/project-reports";
 import { ReportsView } from "./ReportsView";
 
 export const metadata = { title: "Project reports" };
@@ -11,7 +11,8 @@ export default async function ProjectReportsPage({ searchParams }: { searchParam
   const scope = await projectReportScope(profile);
   if (scope === false) redirect("/projects");
 
-  const f = readProjectFilters(await searchParams);
+  const sp = await searchParams;
+  const f = readProjectFilters(sp);
   let data;
   try {
     data = await getProjectReportRows(f, scope);
@@ -23,5 +24,5 @@ export default async function ProjectReportsPage({ searchParams }: { searchParam
       </div>
     );
   }
-  return <ReportsView rows={data.rows} all={data.all} f={f} team={!!scope} />;
+  return <ReportsView rows={data.rows} all={data.all} f={f} team={!!scope} show={readPicosShow(sp.picos)} />;
 }
