@@ -344,6 +344,12 @@ export async function setOrderStatus(id: string, status: OrderStatus) {
 
 // ---------------------------------------------------------------------------
 // Users
+
+/** On trade / off trade from the form (at least one; on trade if none). */
+function readTrade(formData: FormData) {
+  const t = formData.getAll("trade").map(String).filter((x) => x === "on" || x === "off");
+  return t.length ? [...new Set(t)] : ["on"];
+}
 // ---------------------------------------------------------------------------
 export async function saveUser(_: unknown, formData: FormData): Promise<{ error?: string; ok?: boolean }> {
   const me = await requireAdmin();
@@ -359,7 +365,9 @@ export async function saveUser(_: unknown, formData: FormData): Promise<{ error?
   if (id === me.id && (role !== "admin" || !active)) return { error: "You can't remove your own admin access." };
   const manager_id = String(formData.get("manager_id") ?? "") || null;
   if (manager_id === id) return { error: "Someone can't report to themselves." };
-  const { error } = await createAdminClient().from("profiles").update({ role, market, full_name, active, hub_role, manager_id }).eq("id", id);
+  const trade = readTrade(formData);
+  const { error } = await createAdminClient().from("profiles").update({ role, market, full_name, active, hub_role, manager_id, trade }).eq("id", id);
+  if (error && /trade/.test(error.message)) return { error: "Run supabase/migrations/20261112000000_user_trade.sql in Supabase first." };
   if (error) return { error: error.message };
   revalidatePath("/admin/users");
   return { ok: true };
@@ -388,8 +396,8 @@ export async function inviteUser(_: unknown, formData: FormData): Promise<{ erro
     if (/already|registered|exists/i.test(error.message)) return { error: "That user already exists. They can sign in with their email." };
     return { error: sendInvite ? `Couldn't send the invite: ${error.message}` : error.message };
   }
-  const { error: upd } = await db.from("profiles").update({ role, market, full_name }).eq("id", data.user.id);
-  if (upd) return { error: upd.message };
+  const { error: upd } = await db.from("profiles").update({ role, market, full_name, trade: readTrade(formData) }).eq("id", data.user.id);
+  if (upd) return { error: /trade/.test(upd.message) ? "Run supabase/migrations/20261112000000_user_trade.sql in Supabase first." : upd.message };
   revalidatePath("/admin/users");
   return { ok: true, invited: sendInvite };
 }
