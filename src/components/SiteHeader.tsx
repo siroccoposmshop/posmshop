@@ -5,7 +5,7 @@ import { CartButton } from "./CartButton";
 import { UserMenu } from "./UserMenu";
 import { AdminBadge } from "./AdminBadge";
 import type { Profile } from "@/lib/types";
-import { canSeeProjectReports, isAdminProfile } from "@/lib/hub";
+import { canSeeProjectReports, canUseOffTrade, isAdminProfile } from "@/lib/hub";
 
 export function SiteHeader({ profile }: { profile: Profile }) {
   const isAdmin = isAdminProfile(profile);
@@ -23,7 +23,7 @@ export function SiteHeader({ profile }: { profile: Profile }) {
             </span>
           </Link>
           <div className="hidden lg:block">
-            <NavLinks admin={isAdmin} />
+            <NavLinks offTrade={canUseOffTrade(profile)} />
           </div>
           <div className="ml-auto flex items-center gap-2">
             <CartButton />
@@ -36,7 +36,7 @@ export function SiteHeader({ profile }: { profile: Profile }) {
         </div>
       </div>
     </header>
-    <SectionNav managers={canSeeProjectReports(profile)} admin={isAdmin} />
+    <SectionNav managers={canSeeProjectReports(profile)} offTrade={canUseOffTrade(profile)} />
     </>
   );
 }
