@@ -252,36 +252,6 @@ function PicosSection({
         </div>
       </div>
 
-      {items.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>By PICOS item</th>
-                <th className="text-right">Negotiated</th>
-                <th className="text-right">Delivered</th>
-                <th className="text-right">Pending</th>
-                <th className="text-right">Pending · project complete</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((i) => (
-                <tr key={i.key}>
-                  <td className="min-w-[12rem]">
-                    <span className="font-medium text-brand-black">{i.label}</span>
-                    <span className="block text-xs">{i.group}</span>
-                  </td>
-                  <td className="text-right">{i.negotiated}</td>
-                  <td className="text-right">{i.delivered}</td>
-                  <td className="text-right">{i.pending || "—"}</td>
-                  <td className={`text-right ${i.overdue ? "font-medium text-brand-red" : ""}`}>{i.overdue || "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
       <div className="overflow-x-auto">
         <table className="table">
           <thead>
@@ -355,6 +325,47 @@ function PicosSection({
         </table>
         {lines.length > 400 && <p className="mt-3 text-xs">Showing 400 of {lines.length.toLocaleString()}. Download Excel for everything.</p>}
       </div>
+      {items.length > 0 && (
+        <details className="group rounded-xl ring-1 ring-black/10">
+          <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 font-display text-sm font-medium uppercase tracking-wide text-brand-black">
+            By PICOS item
+            <span className="flex items-center gap-2 text-xs normal-case tracking-normal text-brand-grey">
+              {items.length} criteria
+              <svg viewBox="0 0 20 20" className="h-4 w-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+          </summary>
+          <div className="overflow-x-auto px-4 pb-3">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>PICOS item</th>
+                <th className="text-right">Negotiated</th>
+                <th className="text-right">Delivered</th>
+                <th className="text-right">Pending</th>
+                <th className="text-right">Pending · project complete</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((i) => (
+                <tr key={i.key}>
+                  <td className="min-w-[12rem]">
+                    <span className="font-medium text-brand-black">{i.label}</span>
+                    <span className="block text-xs">{i.group}</span>
+                  </td>
+                  <td className="text-right">{i.negotiated}</td>
+                  <td className="text-right">{i.delivered}</td>
+                  <td className="text-right">{i.pending || "—"}</td>
+                  <td className={`text-right ${i.overdue ? "font-medium text-brand-red" : ""}`}>{i.overdue || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        </details>
+      )}
+
     </section>
   );
 }
