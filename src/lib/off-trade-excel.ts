@@ -1,12 +1,13 @@
 import "server-only";
 import ExcelJS from "exceljs";
-import { OFF_TRADE_PROJECT_TYPES, SEGMENTS } from "@/lib/off-trade";
+import { OFF_TRADE_PROJECT_TYPES, SEGMENTS, TARGET_YEAR } from "@/lib/off-trade";
 
 /**
  * Off-trade upload. Headings are matched loosely (case, spaces and punctuation ignored), so the
  * columns can be in any order.
  *  - Stores sheet (any sheet with a store code heading): Store code, Store name, Chain, Market,
- *    Area, TMAM, Segment, Influence (Y/N), Visit frequency.
+ *    Area, TM (Trade Marketing person), Segment, Influence (Y/N), Target year (e.g. 2027, or Y for the
+ *    current target year), Visit frequency.
  *  - Projects sheet (a sheet named "Projects", optional): Store code, Type, Status, Year,
  *    Planned date, Completed date, Expected cost, Actual cost, Notes.
  */
@@ -18,7 +19,8 @@ const STORE_FIELDS: Record<string, string[]> = {
   chain: ["chain", "retailer", "customer", "banner", "parent", "account"],
   market: ["market", "country", "emirate"],
   area: ["area", "territory", "region", "zone", "cluster"],
-  tmam: ["tmam", "activationmanager", "tmactivationmanager", "owner", "tm"],
+  tmam: ["tm", "tmam", "trademarketing", "activationmanager", "tmactivationmanager", "owner"],
+  target_year: ["targetyear", "target", "target2027", "targetstore", "targeted"],
   segment: ["segment", "storesegment", "tier"],
   influenced: ["influence", "influenced", "influencestatus"],
   visit_frequency: ["visitfrequency", "frequency", "visits", "journeyplan"],
@@ -109,7 +111,42 @@ function readSheet(ws: ExcelJS.Worksheet, fields: Record<string, string[]>) {
   return null;
 }
 
-export type ParsedStore = { code: string; name: string; chain: string | null; market: string | null; area: string | null; tmam: string | null; segment: string | null; influenced: boolean; visit_frequency: string | null };
+export type ParsedStore = {
+  code: string;
+  name: string;
+  chain: string | null;
+  market: string | null;
+  area: string | null;
+  tmam: string | null;
+  segment: string | null;
+  influenced: boolean;
+  visit_frequency: string | null;
+  target_year: number | null;
+};
+
+/** "Dubai" → DXB, "Oman" → OM, "Duty Free" → DF …; codes are kept as they are. */
+function marketCode(raw: string | undefined): string | null {
+  const t = (raw ?? "").trim();
+  if (!t) return null;
+  const n = norm(t);
+  const known: [RegExp, string][] = [
+    [/^(dxb|dubai)$/, "DXB"],
+    [/^(auh|abudhabi|alain)$/, "AUH"],
+    [/^(ne|ner|northernemirates|rak|rasalkhaimah|sharjah|ajman|uaq|fujairah)$/, "NE"],
+    [/^(om|oman|muscat)$/, "OM"],
+    [/^(bh|bah|bahrain)$/, "BH"],
+    [/^(qa|qt|qatar|doha)$/, "QA"],
+    [/^(df|dutyfree)$/, "DF"],
+  ];
+  return known.find(([re]) => re.test(n))?.[1] ?? t.toUpperCase();
+}
+
+/** "2027" → 2027; "Y" / "Yes" → the current target year; blank / "N" → none. */
+function targetYear(raw: string): number | null {
+  const y = Number(raw.trim());
+  if (y > 2000 && y < 2100) return Math.round(y);
+  return yes(raw) ? TARGET_YEAR : null;
+}
 export type ParsedProject = {
   code: string;
   type: string;
@@ -130,8 +167,10 @@ export async function parseOffTradeWorkbook(buffer: ArrayBuffer) {
   const warnings: string[] = [];
 
   const stores: ParsedStore[] = [];
-  if (storeSheet) {
-    for (const r of readSheet(storeSheet, STORE_FIELDS)!.rows) {
+  const sheet = storeSheet ? readSheet(storeSheet, STORE_FIELDS) : null;
+  const storeColumns = sheet?.found ?? [];
+  if (sheet) {
+    for (const r of sheet.rows) {
       if (!r.name) {
         warnings.push(`Store ${r.code} has no name, skipped.`);
         continue;
@@ -140,12 +179,13 @@ export async function parseOffTradeWorkbook(buffer: ArrayBuffer) {
         code: r.code,
         name: r.name,
         chain: r.chain || null,
-        market: r.market ? r.market.toUpperCase().replace(/^DUBAI$/, "DXB").replace(/^ABU DHABI$/, "AUH") : null,
+        market: marketCode(r.market),
         area: r.area || null,
         tmam: r.tmam || null,
         segment: r.segment ? segment(r.segment) : null,
         influenced: r.influenced ? yes(r.influenced) : false,
         visit_frequency: r.visit_frequency || null,
+        target_year: targetYear(r.target_year ?? ""),
       });
     }
   }
@@ -173,14 +213,14 @@ export async function parseOffTradeWorkbook(buffer: ArrayBuffer) {
     });
   }
   if (!storeSheet && !ps) warnings.push("No sheet with a store code heading was found.");
-  return { stores, projects, warnings, storeSheet: storeSheet?.name ?? null, projectSheet: projectSheet?.name ?? null };
+  return { stores, storeColumns, projects, warnings, storeSheet: storeSheet?.name ?? null, projectSheet: projectSheet?.name ?? null };
 }
 
 export async function buildOffTradeTemplate() {
   const wb = new ExcelJS.Workbook();
   const s = wb.addWorksheet("Stores");
-  s.columns = ["Store code", "Store name", "Chain", "Market", "Area", "TMAM", "Segment", "Influence", "Visit frequency"].map((h) => ({ header: h, width: 18 }));
-  s.addRow(["AE-0001", "African + Eastern Jumeirah", "African + Eastern", "DXB", "DXB Retail", "Jithin", "Premium", "Y", "Weekly"]);
+  s.columns = ["Store code", "Store name", "Chain", "Market", "Area", "TM", "Segment", "Influence", "Target year", "Visit frequency"].map((h) => ({ header: h, width: 18 }));
+  s.addRow(["AE-0001", "African + Eastern Jumeirah", "African + Eastern", "DXB", "DXB Retail", "Jithin", "Premium", "Y", 2027, "Weekly"]);
   const p = wb.addWorksheet("Projects");
   p.columns = ["Store code", "Type", "Status", "Year", "Planned date", "Completed date", "Expected cost", "Actual cost", "Notes"].map((h) => ({ header: h, width: 16 }));
   p.addRow(["AE-0001", "Perfect shelf", "Completed", 2026, "", "2026-03-15", 12000, 11500, "Cold + ambient planogram"]);

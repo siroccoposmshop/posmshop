@@ -7,10 +7,12 @@ import {
   TARGET_YEAR,
   applyOffTradeFilters,
   byArea,
+  byMarket,
   byProjectType,
   bySegment,
   byTmam,
   filterOptions,
+  marketName,
   offTradeTotals,
   yearOf,
   type OffTradeSummary,
@@ -41,9 +43,9 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
       </div>
 
       <form className="bento grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <MultiSelect name="market" label="Market" allLabel="All markets" options={opts.market.map((v) => ({ value: v, label: v }))} selected={f.market} />
+        <MultiSelect name="market" label="Market" allLabel="All markets" options={opts.market.map((v) => ({ value: v, label: marketName(v) }))} selected={f.market} />
         <MultiSelect name="area" label="Area" allLabel="All areas" options={opts.area.map((v) => ({ value: v, label: v }))} selected={f.area} />
-        <MultiSelect name="tmam" label="TMAM" allLabel="All TMAMs" options={opts.tmam.map((v) => ({ value: v, label: v }))} selected={f.tmam} />
+        <MultiSelect name="tmam" label="TM" allLabel="All TMs" options={opts.tmam.map((v) => ({ value: v, label: v }))} selected={f.tmam} />
         <MultiSelect name="segment" label="Segment" allLabel="All segments" options={opts.segment.map((v) => ({ value: v, label: v }))} selected={f.segment} />
         <MultiSelect name="chain" label="Chain" allLabel="All chains" options={opts.chain.map((v) => ({ value: v, label: v }))} selected={f.chain} />
         <div>
@@ -83,8 +85,9 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
         />
       </div>
 
+      <SummaryTable title="By market" first="Market" rows={byMarket(stores)} />
       <SummaryTable title="By area" first="Area" rows={byArea(stores)} />
-      <SummaryTable title="By TMAM" first="TMAM" rows={byTmam(stores)} />
+      <SummaryTable title="By TM" first="TM" rows={byTmam(stores)} />
       <SummaryTable title="Segment mix" first="Segment" rows={bySegment(stores)} hideSegments />
 
       <section className="bento overflow-x-auto">
@@ -126,7 +129,7 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
             <tr>
               <th>Store</th>
               <th>Area</th>
-              <th>TMAM</th>
+              <th>TM</th>
               <th>Segment</th>
               <th>Influence</th>
               <th>Last project</th>
@@ -151,7 +154,7 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
                   </td>
                   <td className="whitespace-nowrap">
                     {s.area ?? "—"}
-                    {s.market && <span className="block text-xs">{s.market}</span>}
+                    {s.market && <span className="block text-xs">{marketName(s.market)}</span>}
                   </td>
                   <td className="whitespace-nowrap">{s.tmam ?? "—"}</td>
                   <td className="whitespace-nowrap">{s.segment ?? "—"}</td>
@@ -176,6 +179,8 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
                             .join(", ")}
                         </span>
                       </>
+                    ) : s.targeted ? (
+                      <span className="badge bg-brand-green-tint text-brand-green-dark">Target · project tbc</span>
                     ) : (
                       "—"
                     )}

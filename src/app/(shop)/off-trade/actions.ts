@@ -8,7 +8,12 @@ import { parseOffTradeWorkbook } from "@/lib/off-trade-excel";
 
 type Result = { ok?: boolean; error?: string };
 const MIGRATION = "Run supabase/migrations/20261109000000_off_trade.sql in Supabase first.";
-const dbError = (m: string) => (/off_trade|does not exist|schema cache/i.test(m) ? MIGRATION : m);
+const dbError = (m: string) =>
+  /target_year/.test(m)
+    ? "Run supabase/migrations/20261110000000_off_trade_targets.sql in Supabase first."
+    : /off_trade|does not exist|schema cache/i.test(m)
+      ? MIGRATION
+      : m;
 
 async function me() {
   const p = await getProfile();
@@ -92,6 +97,16 @@ export async function deleteOffTradeProject(id: string): Promise<Result> {
   return { ok: true };
 }
 
+/** Mark a store as a target for the year (or not), before a project is chosen. */
+export async function setStoreTarget(storeId: string, year: number | null): Promise<Result> {
+  const profile = await me();
+  if (!profile) return DENIED;
+  const { error } = await createAdminClient().from("off_trade_stores").update({ target_year: year, updated_at: new Date().toISOString() }).eq("id", storeId);
+  if (error) return { error: dbError(error.message) };
+  refresh(storeId);
+  return { ok: true };
+}
+
 export type OffTradeImportSummary = { stores: number; created: number; projects: number; unknownStores: string[]; warnings: string[] };
 
 /** Stores are upserted by store code; projects from the Projects sheet are upserted by a key from their columns. */
@@ -114,7 +129,13 @@ export async function importOffTrade(input: { path: string; filename: string }):
   if (exErr) return { error: dbError(exErr.message) };
   const before = new Set((existing ?? []).map((s) => (s.code as string).toUpperCase()));
   const now = new Date().toISOString();
-  const storeRows = parsed.stores.map((s) => ({ ...s, active: true, updated_at: now }));
+  // Columns missing from the sheet aren't sent, so they keep what was set on the site (e.g. a target).
+  const keep = new Set(["code", "name", ...parsed.storeColumns]);
+  const storeRows = parsed.stores.map((s) => ({
+    ...Object.fromEntries(Object.entries(s).filter(([k]) => keep.has(k) || (k === "influenced" && keep.has("influenced")))),
+    active: true,
+    updated_at: now,
+  }));
   for (let i = 0; i < storeRows.length; i += 500) {
     const { error } = await db.from("off_trade_stores").upsert(storeRows.slice(i, i + 500), { onConflict: "code" });
     if (error) return { error: dbError(error.message) };
