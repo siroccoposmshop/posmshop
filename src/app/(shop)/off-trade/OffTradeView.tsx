@@ -7,7 +7,6 @@ import {
   SEGMENTS,
   TARGET_YEAR,
   VISIBILITY_MAIN,
-  activationByYear,
   applyOffTradeFilters,
   byArea,
   byMarket,
@@ -17,20 +16,18 @@ import {
   offTradeQuery,
   marketName,
   offTradeTotals,
-  historyYears,
   yearOf,
   type OffTradeSummary,
   type OffTradeFilters,
   type StoreView,
 } from "@/lib/off-trade";
-import { Card, FilterBar, Tile } from "./ui";
+import { Card, FilterBar, OutletSummary, Tile } from "./ui";
 
 /** The off-trade dashboard for a set of stores (all = the full universe, for the filter lists). */
 export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters }) {
   const stores = applyOffTradeFilters(all, f);
   const t = offTradeTotals(stores);
   const types = byProjectType(stores);
-  const activation = activationByYear(stores, historyYears(stores).slice(0, 2));
   const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "—");
 
   return (
@@ -73,7 +70,7 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
         />
       </div>
 
-      <OutletBars total={t.stores} influenced={t.influenced} activation={activation} toDate={stores.filter((x) => !x.bar && x.projects.some((p) => p.status === "completed")).length} />
+      <OutletSummary stores={stores} />
 
       <VisibilityTable rows={byArea(stores)} total={t} />
       <SummaryTable title="By market" first="Market" rows={byMarket(stores)} />
@@ -197,51 +194,6 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
         {stores.length > 500 && <p className="mt-3 text-xs">Showing 500 of {stores.length} stores. Narrow the filters to see the rest.</p>}
       </Card>
     </div>
-  );
-}
-
-/** Total outlets → influenced → activated each year, on one scale, for the filters chosen. */
-function OutletBars({ total, influenced, activation, toDate }: { total: number; influenced: number; activation: ReturnType<typeof activationByYear>; toDate: number }) {
-  const thisYear = new Date().getFullYear();
-  const rows = [
-    { label: "Total outlets", value: total, cls: "bg-brand-black/70", planned: 0 },
-    { label: "Influenced outlets", value: influenced, cls: "bg-brand-green-dark", planned: 0, sub: "visibility in place" },
-    ...activation.map((a) => ({
-      label: `Activated ${a.year}`,
-      value: a.activated,
-      cls: "bg-brand-green",
-      planned: a.year === thisYear ? a.planned : 0,
-      sub: a.year === thisYear ? "so far" : "something installed",
-    })),
-    ...(activation.length ? [{ label: "Activated to date", value: toDate, cls: "bg-brand-green-dark", planned: 0, sub: "all years, each outlet once" }] : []),
-  ];
-  const of = (n: number) => (total ? (n / total) * 100 : 0);
-  return (
-    <section className="bento" aria-label="Outlets: total, influenced and activated">
-      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-lg uppercase text-brand-black">Outlets</h2>
-        <p className="text-xs">Bars aren&apos;t counted as outlets.</p>
-      </div>
-      <div className="space-y-3">
-        {rows.map((r) => (
-          <div key={r.label} className="grid grid-cols-[7.5rem_1fr] items-center gap-3 sm:grid-cols-[11rem_1fr_7rem]">
-            <p className="text-sm font-medium leading-tight text-brand-black">
-              {r.label}
-              {r.sub && <span className="block text-xs font-normal text-brand-grey">{r.sub}</span>}
-            </p>
-            <div className="flex h-7 overflow-hidden rounded-md bg-brand-light" role="img" aria-label={`${r.label}: ${r.value} of ${total}${r.planned ? `, ${r.planned} more planned` : ""}`}>
-              <div className={`h-full ${r.cls}`} style={{ width: `${of(r.value)}%` }} />
-              {r.planned > 0 && <div className="h-full bg-brand-green/35" style={{ width: `${of(r.planned)}%` }} title={`${r.planned} more planned`} />}
-            </div>
-            <p className="col-start-2 -mt-2 text-sm sm:col-start-3 sm:mt-0 sm:text-right">
-              <strong className="font-display text-lg text-brand-black">{r.value}</strong>
-              {r.label !== "Total outlets" && <span className="ml-1.5">{Math.round(of(r.value))}%</span>}
-              {r.planned > 0 && <span className="block text-xs">+{r.planned} planned</span>}
-            </p>
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }
 
