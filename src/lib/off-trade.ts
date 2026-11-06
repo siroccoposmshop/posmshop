@@ -8,7 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 /** Off trade is for Trade Marketing (TM, TMM) and admins. */
 export { canUseOffTrade } from "@/lib/hub";
 
-export const OFF_TRADE_PROJECT_TYPES = ["Branding", "Perfect shelf", "Cold room", "Fridge", "FSU", "Other"] as const;
+export const OFF_TRADE_PROJECT_TYPES = ["Branding", "Perfect shelf", "Cold room", "Fridge", "FSU", "Takeover", "Other"] as const;
 export const OFF_TRADE_STATUS: Record<OffTradeStatus, string> = { planned: "Planned", in_progress: "In progress", completed: "Completed", cancelled: "Cancelled" };
 /** Segment order and short labels, as in the TM team structure deck. */
 export const SEGMENTS = [
@@ -116,6 +116,11 @@ export type OffTradeProject = {
   id: string;
   store_id: string;
   type: string;
+  /** What exactly, e.g. Wall Branding, Light box, Cold units. */
+  item?: string | null;
+  brand?: string | null;
+  /** How many were installed (1 if not given). */
+  quantity?: number | null;
   status: OffTradeStatus;
   plan_year: number | null;
   planned_date: string | null;
@@ -410,3 +415,68 @@ export function targetsByQuarter(rows: TargetRow[]) {
   let running = 0;
   return q.map((x) => ({ ...x, cumulative: (running += x.achievedIn) }));
 }
+
+// ---------------------------------------------------------------------------
+// History: projects done
+// ---------------------------------------------------------------------------
+
+export type HistoryRow = { store: StoreView; project: OffTradeProject; year: number | null; qty: number };
+
+/** Completed projects (optionally one year), newest first. */
+export function historyRows(stores: StoreView[], year?: number | null): HistoryRow[] {
+  const rows: HistoryRow[] = [];
+  for (const s of stores) {
+    for (const p of s.projects) {
+      if (p.status !== "completed") continue;
+      const y = p.completed_date ? Number(p.completed_date.slice(0, 4)) : yearOf(p);
+      if (year && y !== year) continue;
+      rows.push({ store: s, project: p, year: y, qty: Math.max(1, Number(p.quantity) || 1) });
+    }
+  }
+  return rows.sort((a, b) => String(b.project.completed_date ?? "").localeCompare(String(a.project.completed_date ?? "")));
+}
+
+/** The years that have completed projects, newest first. */
+export const historyYears = (stores: StoreView[]) =>
+  [...new Set(historyRows(stores).map((r) => r.year).filter((y): y is number => !!y))].sort((a, b) => b - a);
+
+export type HistorySummary = { key: string; label: string; projects: number; stores: number; items: number; cost: number; byYear: Record<number, { items: number; stores: number }> };
+
+export function historyBy(rows: HistoryRow[], keyOf: (r: HistoryRow) => string | null, labelOf: (k: string) => string = (k) => k) {
+  const map = new Map<string, HistorySummary & { storeIds: Set<string>; yearStores: Map<number, Set<string>> }>();
+  for (const r of rows) {
+    const key = keyOf(r) || "—";
+    const e = map.get(key) ?? {
+      key,
+      label: key === "—" ? "—" : labelOf(key),
+      projects: 0,
+      stores: 0,
+      items: 0,
+      cost: 0,
+      byYear: {} as Record<number, { items: number; stores: number }>,
+      storeIds: new Set<string>(),
+      yearStores: new Map<number, Set<string>>(),
+    };
+    e.projects++;
+    e.items += r.qty;
+    e.cost += Number(r.project.actual_cost_aed ?? 0);
+    e.storeIds.add(r.store.id);
+    if (r.year) {
+      const y = (e.byYear[r.year] ??= { items: 0, stores: 0 });
+      y.items += r.qty;
+      const set = e.yearStores.get(r.year) ?? new Set<string>();
+      set.add(r.store.id);
+      e.yearStores.set(r.year, set);
+      y.stores = set.size;
+    }
+    map.set(key, e);
+  }
+  return [...map.values()]
+    .map(({ storeIds, yearStores: _y, ...e }) => ({ ...e, stores: storeIds.size }))
+    .sort((a, b) => b.items - a.items);
+}
+
+export const readHistoryYear = (v: string | string[] | undefined) => {
+  const y = Number(Array.isArray(v) ? v[0] : v);
+  return y > 2000 && y < 2100 ? y : null;
+};

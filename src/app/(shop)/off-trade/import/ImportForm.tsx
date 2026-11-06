@@ -59,7 +59,7 @@ export function OffTradeImportForm() {
           <p className="font-medium">
             ✓ {s.stores} stores ({s.created} new) and {s.projects} projects saved.
           </p>
-          {s.unknownStores.length > 0 && <p className="text-brand-red">Projects for unknown store codes were skipped: {s.unknownStores.join(", ")}.</p>}
+          {s.unknownStores.length > 0 && <p className="text-brand-red">Rows whose store couldn’t be matched (by code or name) were skipped: {s.unknownStores.join(", ")}.</p>}
           {s.warnings.map((w) => (
             <p key={w} className="text-brand-black">
               {w}

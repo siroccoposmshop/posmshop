@@ -27,7 +27,12 @@ const STORE_FIELDS: Record<string, string[]> = {
 };
 const PROJECT_FIELDS: Record<string, string[]> = {
   code: STORE_FIELDS.code,
-  type: ["type", "projecttype", "project", "activity"],
+  name: ["storename", "store", "outletname", "outlet"],
+  chain: ["chain", "customer", "retailer", "banner"],
+  type: ["type", "projecttype", "project", "activity", "category", "maincategory"],
+  item: ["item", "asset", "unit", "element", "subcategory", "detail"],
+  brand: ["brand"],
+  quantity: ["quantity", "qty", "units", "number", "count", "noofunits"],
   status: ["status"],
   plan_year: ["year", "planyear", "targetyear"],
   planned_date: ["planneddate", "plandate", "executiondate", "plannedexecution", "plannedmonth"],
@@ -70,7 +75,9 @@ const segment = (s: string) => {
 /** Free text → a project type ("Perfect Shelves" → Perfect shelf, "FSUs" → FSU, "Coolers" → Fridge). */
 const projectType = (s: string) =>
   OFF_TRADE_PROJECT_TYPES.find((t) => norm(t) === norm(s)) ??
-  (/shel(f|v)|planogram/i.test(s)
+  (/take\s*over/i.test(s)
+    ? "Takeover"
+    : /shel(f|v)|planogram/i.test(s)
     ? "Perfect shelf"
     : /cold\s*room/i.test(s)
       ? "Cold room"
@@ -78,7 +85,7 @@ const projectType = (s: string) =>
         ? "Fridge"
         : /fsu|floor\s*stand/i.test(s)
           ? "FSU"
-          : /brand|visib/i.test(s)
+          : /brand|visib|light\s*box|pallet|wall/i.test(s)
             ? "Branding"
             : s.trim()
               ? "Other"
@@ -98,13 +105,14 @@ function readSheet(ws: ExcelJS.Worksheet, fields: Record<string, string[]>) {
       const h = norm(text(cell.value));
       for (const [key, aliases] of Object.entries(fields)) if (!cols.has(key) && aliases.includes(h)) cols.set(key, c);
     });
-    if (!cols.has("code")) continue;
+    // A sheet needs a store code column, or (for projects) a store name to match on.
+    if (!cols.has("code") && !(fields === PROJECT_FIELDS && cols.has("name"))) continue;
     const rows: Record<string, string>[] = [];
     for (let i = r + 1; i <= ws.rowCount; i++) {
       const row = ws.getRow(i);
       const o: Record<string, string> = {};
       for (const [k, c] of cols) o[k] = text(row.getCell(c).value);
-      if (o.code) rows.push(o);
+      if (o.code || o.name) rows.push({ ...o, code: o.code ?? "" });
     }
     return { rows, found: [...cols.keys()] };
   }
@@ -148,7 +156,13 @@ function targetYear(raw: string): number | null {
 }
 export type ParsedProject = {
   code: string;
+  /** Store name (and chain) to match on when there's no store code yet. */
+  name: string | null;
+  chain: string | null;
   type: string;
+  item: string | null;
+  brand: string | null;
+  quantity: number | null;
   status: string;
   plan_year: number | null;
   planned_date: string | null;
@@ -161,7 +175,7 @@ export type ParsedProject = {
 export async function parseOffTradeWorkbook(buffer: ArrayBuffer) {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer);
-  const projectSheet = wb.worksheets.find((w) => /project/i.test(w.name));
+  const projectSheet = wb.worksheets.find((w) => /project|history|install/i.test(w.name));
   const storeSheet = wb.worksheets.find((w) => w !== projectSheet && readSheet(w, STORE_FIELDS)?.found.includes("name"));
   const warnings: string[] = [];
 
@@ -199,9 +213,15 @@ export async function parseOffTradeWorkbook(buffer: ArrayBuffer) {
     }
     const completed = date(r.completed_date ?? "");
     const planned = date(r.planned_date ?? "");
+    const qty = num(r.quantity ?? "");
     projects.push({
       code: r.code,
+      name: r.name || null,
+      chain: r.chain || null,
       type,
+      item: r.item || null,
+      brand: r.brand || null,
+      quantity: qty && qty > 0 ? Math.round(qty) : null,
       status: status(r.status ?? "", completed),
       plan_year: num(r.plan_year ?? "") ?? (planned ? Number(planned.slice(0, 4)) : null),
       planned_date: planned,
@@ -361,4 +381,17 @@ export async function findVisibilityMaster(buffer: ArrayBuffer) {
     if (parsed?.stores.length) return { sheet: ws.name.trim(), ...parsed };
   }
   return null;
+}
+
+/** History template: one row per thing installed. Store code, or store name (+ chain) until codes exist. */
+export async function buildHistoryTemplate() {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Installed");
+  ws.columns = ["Store code", "Store name", "Chain", "Type", "Item", "Brand", "Quantity", "Completed date", "Actual cost", "Notes"].map((h) => ({ header: h, width: 18 }));
+  ws.addRow(["", "MMI Al Wasl", "MMI", "Branding", "Wall branding", "Heineken", 1, "2025-09-15", 8000, ""]);
+  ws.addRow(["", "MMI Al Wasl", "MMI", "Perfect shelf", "Cold units", "Birra Moretti", 1, "2026-02-10", 4500, ""]);
+  ws.addRow(["", "Spinneys - The Galleria", "Spinneys", "Fridge", "Fridge", "Heineken", 2, "2026-05-01", 12000, "Two door"]);
+  ws.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
+  ws.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF58A244" } };
+  return wb.xlsx.writeBuffer();
 }

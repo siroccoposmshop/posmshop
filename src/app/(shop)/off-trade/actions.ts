@@ -9,7 +9,9 @@ import { findVisibilityMaster, parseOffTradeWorkbook } from "@/lib/off-trade-exc
 type Result = { ok?: boolean; error?: string };
 const MIGRATION = "Run supabase/migrations/20261109000000_off_trade.sql in Supabase first.";
 const dbError = (m: string) =>
-  /visibility|match_key|store_type|city/.test(m)
+  /\b(item|brand|quantity)\b/.test(m)
+    ? "Run supabase/migrations/20261114000000_off_trade_history.sql in Supabase first."
+    : /visibility|match_key|store_type|city/.test(m)
     ? "Run supabase/migrations/20261111000000_off_trade_visibility.sql in Supabase first."
     : /target_year/.test(m)
     ? "Run supabase/migrations/20261110000000_off_trade_targets.sql in Supabase first."
@@ -44,6 +46,9 @@ export type ProjectInput = {
   expectedCost: number | string | null;
   actualCost: number | string | null;
   notes: string | null;
+  item?: string | null;
+  brand?: string | null;
+  quantity?: number | string | null;
 };
 
 function row(input: ProjectInput) {
@@ -63,6 +68,9 @@ function row(input: ProjectInput) {
       expected_cost_aed: money(input.expectedCost),
       actual_cost_aed: money(input.actualCost),
       notes: input.notes?.trim() || null,
+      item: input.item?.trim() || null,
+      brand: input.brand?.trim() || null,
+      quantity: Math.round(Number(input.quantity)) > 0 ? Math.round(Number(input.quantity)) : null,
       updated_at: new Date().toISOString(),
     },
   };
@@ -154,17 +162,29 @@ export async function importOffTrade(input: { path: string; filename: string }):
     if (error) return { error: dbError(error.message) };
   }
 
-  const { data: all } = await db.from("off_trade_stores").select("id, code");
+  const { data: all } = await db.from("off_trade_stores").select("id, code, name, chain");
   const idByCode = new Map((all ?? []).map((s) => [(s.code as string).toUpperCase(), s.id as string]));
+  // No store code yet: match on store name (and chain, if given) when that's unambiguous.
+  const n = (x: string | null | undefined) => (x ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const byName = new Map<string, string[]>();
+  for (const st of all ?? []) {
+    for (const k of [n(st.name as string), `${n(st.chain as string)}|${n(st.name as string)}`]) byName.set(k, [...(byName.get(k) ?? []), st.id as string]);
+  }
+  const findStore = (p: { code: string; name: string | null; chain: string | null }) => {
+    if (p.code && idByCode.has(p.code.toUpperCase())) return idByCode.get(p.code.toUpperCase());
+    if (!p.name) return undefined;
+    const hits = (p.chain && byName.get(`${n(p.chain)}|${n(p.name)}`)) || byName.get(n(p.name)) || [];
+    return hits.length === 1 ? hits[0] : undefined;
+  };
   const unknown = new Set<string>();
   const projectRows = parsed.projects.flatMap((p) => {
-    const storeId = idByCode.get(p.code.toUpperCase());
+    const storeId = findStore(p);
     if (!storeId) {
-      unknown.add(p.code);
+      unknown.add(p.code || p.name || "?");
       return [];
     }
-    const { code, ...rest } = p;
-    const key = [code.toUpperCase(), p.type, p.plan_year ?? "", p.planned_date ?? "", p.completed_date ?? ""].join("|");
+    const { code: _c, name: _n, chain: _ch, ...rest } = p;
+    const key = [storeId, p.type, p.item ?? "", p.brand ?? "", p.plan_year ?? "", p.planned_date ?? "", p.completed_date ?? ""].join("|").toLowerCase();
     return [{ ...rest, store_id: storeId, import_key: key, created_by: profile.id, updated_at: now }];
   });
   // The same key twice in one file: keep the last.

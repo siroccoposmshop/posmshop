@@ -3,11 +3,14 @@ import { MultiSelect } from "@/components/MultiSelect";
 import { filterOptions, marketName, offTradeQuery, type OffTradeFilters, type StoreView } from "@/lib/off-trade";
 
 /** The off-trade filters, pinned under the header while scrolling. Submits to `action` (GET). */
-export function FilterBar({ all, f, shown, action }: { all: StoreView[]; f: OffTradeFilters; shown: number; action: string }) {
+export function FilterBar({ all, f, shown, action, keep }: { all: StoreView[]; f: OffTradeFilters; shown: number; action: string; keep?: Record<string, string> }) {
   const opts = filterOptions(all);
   const filtered = offTradeQuery(f).length > 0;
   return (
     <form action={action} className="bento sticky top-16 z-20 grid gap-3 !py-4 shadow-md sm:grid-cols-3 lg:grid-cols-7">
+      {Object.entries(keep ?? {}).map(([k, v]) => (
+        <input key={k} type="hidden" name={k} value={v} />
+      ))}
       <MultiSelect name="market" label="Market" allLabel="All markets" options={opts.market.map((v) => ({ value: v, label: marketName(v) }))} selected={f.market} />
       <MultiSelect name="area" label="Area" allLabel="All areas" options={opts.area.map((v) => ({ value: v, label: v }))} selected={f.area} />
       <MultiSelect name="tmam" label="TM" allLabel="All TMs" options={opts.tmam.map((v) => ({ value: v, label: v }))} selected={f.tmam} />

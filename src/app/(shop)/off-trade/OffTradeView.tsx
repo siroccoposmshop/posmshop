@@ -51,7 +51,12 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
           <p className="text-xs text-white/85">{segmentLine(t)}</p>
         </div>
         <Tile label="Influenced" value={`${t.influenced}`} sub={`${pct(t.influenced, t.stores)} of stores · ${t.stores - t.influenced} not influenced`} />
-        <Tile label="Projects done" value={`${t.withProjects}`} sub={`stores${t.lastDate ? ` · last ${formatDate(t.lastDate)}` : ""}`} />
+        <Tile
+          label="Projects done"
+          value={`${t.withProjects}`}
+          sub={`stores${t.lastDate ? ` · last ${formatDate(t.lastDate)}` : ""} · see history`}
+          href={`/off-trade/history${offTradeQuery(f) ? `?${offTradeQuery(f)}` : ""}`}
+        />
         <Tile
           label={`${TARGET_YEAR} targets`}
           value={`${t.targeted}`}
