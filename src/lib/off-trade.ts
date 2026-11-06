@@ -446,6 +446,33 @@ export function historyRows(stores: StoreView[], year?: number | null): HistoryR
 export const historyYears = (stores: StoreView[]) =>
   [...new Set(historyRows(stores).map((r) => r.year).filter((y): y is number => !!y))].sort((a, b) => b - a);
 
+export type YearActivation = {
+  year: number;
+  outlets: number;
+  activated: number;
+  pct: number;
+  bars: number;
+  /** Outlets not activated yet with work planned or locked in for the year. */
+  planned: number;
+};
+
+/**
+ * Per year: the outlets in the store list (bars aren't outlets) and how many were activated, i.e.
+ * had something installed (a completed project) that year. Bars with work are counted on the side.
+ */
+export function activationByYear(stores: StoreView[], years: number[]): YearActivation[] {
+  const outlets = stores.filter((s) => !s.bar);
+  return [...years]
+    .sort((a, b) => a - b)
+    .map((year) => {
+      const rows = historyRows(stores, year);
+      const ids = new Set(rows.filter((r) => !r.store.bar).map((r) => r.store.id));
+      const bars = new Set(rows.filter((r) => r.store.bar).map((r) => r.store.id)).size;
+      const planned = outlets.filter((s) => !ids.has(s.id) && s.projects.some((p) => (p.status === "planned" || p.status === "in_progress") && yearOf(p) === year)).length;
+      return { year, outlets: outlets.length, activated: ids.size, pct: outlets.length ? (ids.size / outlets.length) * 100 : 0, bars, planned };
+    });
+}
+
 export type HistorySummary = { key: string; label: string; projects: number; stores: number; items: number; cost: number; byYear: Record<number, { items: number; stores: number }> };
 
 export function historyBy(rows: HistoryRow[], keyOf: (r: HistoryRow) => string | null, labelOf: (k: string) => string = (k) => k) {
