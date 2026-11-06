@@ -162,7 +162,11 @@ export function HistoryView({ all, f, year }: { all: StoreView[]; f: OffTradeFil
       <Card title="Upload history" meta="Excel">
         <div className="space-y-3">
           <p className="text-sm">
-            One row per thing installed: <strong>Store code</strong> (or <strong>Store name</strong> and <strong>Chain</strong> until the codes
+            A <strong>Retail KPI tracker</strong> (e.g. 2025 Retail KPIs, its ABU DHABI, NER and DXBR tabs) is read as it is: rows with a Y
+            in Q1–Q4 are saved as done at the end of that quarter, for the year in the file name.
+          </p>
+          <p className="text-sm">
+            Or one row per thing installed: <strong>Store code</strong> (or <strong>Store name</strong> and <strong>Chain</strong> until the codes
             are in), <strong>Type</strong> (Branding, Perfect shelf, Cold room, Fridge, FSU, Takeover), <strong>Item</strong>,{" "}
             <strong>Brand</strong>, <strong>Quantity</strong>, <strong>Completed date</strong>, <strong>Actual cost</strong>, Notes. Uploading
             the same rows again updates them rather than adding duplicates.{" "}

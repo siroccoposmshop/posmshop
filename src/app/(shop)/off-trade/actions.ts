@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { getProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { OFF_TRADE_PROJECT_TYPES, canUseOffTrade } from "@/lib/off-trade";
-import { findVisibilityMaster, parseOffTradeWorkbook } from "@/lib/off-trade-excel";
+import { findVisibilityMaster, kpiYear, loadWorkbook, parseKpiTracker, parseOffTradeWorkbook, type KpiRow } from "@/lib/off-trade-excel";
+import { makeStoreMatcher } from "@/lib/off-trade-match";
 
 type Result = { ok?: boolean; error?: string };
 const MIGRATION = "Run supabase/migrations/20261109000000_off_trade.sql in Supabase first.";
@@ -138,6 +139,14 @@ export async function importOffTrade(input: { path: string; filename: string }):
   }
   if (master) return importVisibilityMaster(master);
 
+  // A retail KPI tracker (ABU DHABI / NER / DXBR tabs with Q1–Q4): what was done that year.
+  try {
+    const kpi = parseKpiTracker(await loadWorkbook(buffer), kpiYear(input.filename));
+    if (kpi) return importKpi(kpi, profile.id, kpiYear(input.filename));
+  } catch {
+    return { error: "That file couldn't be read. Is it a valid .xlsx workbook?" };
+  }
+
   let parsed;
   try {
     parsed = await parseOffTradeWorkbook(buffer);
@@ -162,20 +171,9 @@ export async function importOffTrade(input: { path: string; filename: string }):
     if (error) return { error: dbError(error.message) };
   }
 
-  const { data: all } = await db.from("off_trade_stores").select("id, code, name, chain");
-  const idByCode = new Map((all ?? []).map((s) => [(s.code as string).toUpperCase(), s.id as string]));
-  // No store code yet: match on store name (and chain, if given) when that's unambiguous.
-  const n = (x: string | null | undefined) => (x ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  const byName = new Map<string, string[]>();
-  for (const st of all ?? []) {
-    for (const k of [n(st.name as string), `${n(st.chain as string)}|${n(st.name as string)}`]) byName.set(k, [...(byName.get(k) ?? []), st.id as string]);
-  }
-  const findStore = (p: { code: string; name: string | null; chain: string | null }) => {
-    if (p.code && idByCode.has(p.code.toUpperCase())) return idByCode.get(p.code.toUpperCase());
-    if (!p.name) return undefined;
-    const hits = (p.chain && byName.get(`${n(p.chain)}|${n(p.name)}`)) || byName.get(n(p.name)) || [];
-    return hits.length === 1 ? hits[0] : undefined;
-  };
+  const { data: all } = await db.from("off_trade_stores").select("id, code, name, chain, market, store_type");
+  const match = storeMatcher(all ?? []);
+  const findStore = (p: { code: string; name: string | null; chain: string | null }) => match(p);
   const unknown = new Set<string>();
   const projectRows = parsed.projects.flatMap((p) => {
     const storeId = findStore(p);
@@ -232,6 +230,65 @@ async function importVisibilityMaster(master: NonNullable<Awaited<ReturnType<typ
       warnings: [
         `Read the "${master.sheet}" tab: ${master.groups.length} asset groups (${master.groups.join(", ")}).`,
         ...(waiting ? [`${waiting} stores are waiting for their store code (shown as TBC-…). Add a "Store code" column and upload again to set them.`] : []),
+      ],
+    },
+  };
+}
+
+function storeMatcher(all: Record<string, unknown>[]) {
+  return makeStoreMatcher(
+    all.map((s) => ({
+      id: s.id as string,
+      code: (s.code as string) ?? "",
+      name: (s.name as string) ?? "",
+      chain: (s.chain as string | null) ?? null,
+      market: (s.market as string | null) ?? null,
+      bar: /\bbar\b/i.test((s.store_type as string | null) ?? ""),
+    })),
+  );
+}
+
+/**
+ * Rows done in a KPI tracker become completed projects on the matching stores. Each row keeps its
+ * own key (store, type, item, brand, quarter and how many times that repeats), so uploading the file
+ * again updates rather than duplicates.
+ */
+async function importKpi(kpi: { rows: KpiRow[]; tabs: string[]; skipped: number }, userId: string, year: number): Promise<{ summary?: OffTradeImportSummary; error?: string }> {
+  const db = createAdminClient();
+  const { data: all, error } = await db.from("off_trade_stores").select("id, code, name, chain, market, store_type");
+  if (error) return { error: dbError(error.message) };
+  const match = storeMatcher(all ?? []);
+  const now = new Date().toISOString();
+  const seen = new Map<string, number>();
+  const unmatched = new Map<string, number>();
+  const rows = kpi.rows.flatMap((r) => {
+    const storeId = match(r);
+    if (!storeId) {
+      const label = `${r.name}${r.chain ? ` (${r.chain})` : ""} · ${r.sheet}`;
+      unmatched.set(label, (unmatched.get(label) ?? 0) + 1);
+      return [];
+    }
+    const base = ["kpi", storeId, r.type, r.item ?? "", r.brand ?? "", r.completed_date].join("|").toLowerCase();
+    const nth = (seen.get(base) ?? 0) + 1;
+    seen.set(base, nth);
+    const { code: _c, name: _n, chain: _ch, market: _m, sheet: _s, ...project } = r;
+    return [{ ...project, store_id: storeId, import_key: `${base}|${nth}`, created_by: userId, updated_at: now }];
+  });
+  for (let i = 0; i < rows.length; i += 500) {
+    const { error: e } = await db.from("off_trade_projects").upsert(rows.slice(i, i + 500), { onConflict: "import_key" });
+    if (e) return { error: dbError(e.message) };
+  }
+  refresh();
+  const items = rows.reduce((n, r) => n + (r.quantity ?? 1), 0);
+  return {
+    summary: {
+      stores: 0,
+      created: 0,
+      projects: rows.length,
+      unknownStores: [...unmatched].map(([k, n]) => (n > 1 ? `${k} ×${n}` : k)).slice(0, 40),
+      warnings: [
+        `${year}: ${rows.length} done (${items} items) from the ${kpi.tabs.join(", ")} tabs, dated at the end of their quarter.`,
+        `${kpi.skipped} rows weren't done that year (no Y in Q1–Q4, cancelled, or moved to the next year) and were left out.`,
       ],
     },
   };
