@@ -18,6 +18,8 @@ export type Profile = {
   market: string | null;
   active: boolean;
   hub_role?: import("./hub").HubRole;
+  /** On trade, off trade, or both. */
+  trade?: ("on" | "off")[];
   manager_id?: string | null;
   last_seen_at?: string | null;
 };

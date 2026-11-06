@@ -38,6 +38,7 @@ export default async function UsersPage() {
               <th title="Admin access">Access</th>
               <th>Hub role</th>
               <th>Reports to</th>
+              <th>Trade</th>
               <th>Market</th>
               <th>Last seen</th>
               <th>Active</th>
