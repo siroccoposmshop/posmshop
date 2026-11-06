@@ -10,6 +10,7 @@ import { isAllowedEmail, slugify } from "@/lib/format";
 import { MARKET_CODES } from "@/lib/markets";
 import { salesforceConfig } from "@/lib/salesforce";
 import { runSalesforceSync } from "@/lib/salesforce-sync";
+import { applyStockReport, parseStockReport, type StockRunSummary } from "@/lib/stock-report";
 import type { OrderStatus } from "@/lib/types";
 
 const MARKETS = MARKET_CODES;
@@ -463,4 +464,27 @@ export async function setItemOrder(brand: string, ids: string[]): Promise<{ ok?:
   revalidatePath("/admin/items");
   revalidatePath("/shop");
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// IT stock report (the same file that will arrive by email)
+// ---------------------------------------------------------------------------
+export async function importStockReport(input: { path: string; filename: string }): Promise<{ summary?: StockRunSummary; error?: string }> {
+  const admin = await getAdmin();
+  if (!admin) return { error: "You've been signed out or aren't an admin. Sign in again and retry." };
+  if (!input.path || !input.filename.toLowerCase().endsWith(".xlsx")) return { error: "Please upload an .xlsx file." };
+  const { data: blob, error } = await createAdminClient().storage.from("imports").download(input.path);
+  if (error || !blob) return { error: "The uploaded file couldn't be found. Please try again." };
+  let report;
+  try {
+    report = await parseStockReport(await blob.arrayBuffer());
+  } catch {
+    return { error: "That file couldn't be read. Is it a valid .xlsx workbook?" };
+  }
+  if (!report) return { error: "This doesn't look like the stock report: no ProductCode and Stock headings found." };
+  const summary = await applyStockReport(report, { source: "stock_upload", file: input.filename, triggeredBy: admin.id });
+  revalidatePath("/admin");
+  revalidatePath("/admin/import");
+  revalidatePath("/admin/items");
+  return { summary };
 }
