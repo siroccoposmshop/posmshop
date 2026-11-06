@@ -224,7 +224,8 @@ async function importVisibilityMaster(master: NonNullable<Awaited<ReturnType<typ
   if (exErr) return { error: dbError(exErr.message) };
   const before = new Set((existing ?? []).map((s) => s.match_key as string | null).filter(Boolean));
   const now = new Date().toISOString();
-  const rows = master.stores.map(({ target_year: _t, visit_frequency: _v, ...s }) => ({ ...s, active: true, updated_at: now }));
+  // One row per store: if the same store appears twice, the last one wins.
+  const rows = [...new Map(master.stores.map(({ target_year: _t, visit_frequency: _v, ...s }) => [s.match_key, { ...s, active: true, updated_at: now }])).values()];
   for (let i = 0; i < rows.length; i += 200) {
     const { error } = await db.from("off_trade_stores").upsert(rows.slice(i, i + 200), { onConflict: "match_key" });
     if (error) return { error: dbError(error.message) };

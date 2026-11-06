@@ -308,6 +308,8 @@ export function parseVisibilityMaster(ws: ExcelJS.Worksheet): { stores: ParsedVi
     const store = col("store", "storename");
     const tm = col("responsibility", "tm", "tmam");
     if (!channel || !store || !tm) continue;
+    // A KPI tracker (Q1–Q4 columns) has the same store columns, but one row per item, not per store.
+    if (heads.has("q1") || heads.has("q2")) return null;
     const city = col("city");
     const customer = col("customer", "chain", "retailer");
     const type = col("storetype", "type");
