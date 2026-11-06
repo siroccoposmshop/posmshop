@@ -38,7 +38,7 @@ export function HistoryView({ all, f, year }: { all: StoreView[]; f: OffTradeFil
           <Link href={`/off-trade${qs ? `?${qs}` : ""}`} className="text-sm underline">
             ← Off trade
           </Link>
-          <h1 className="accent-square mt-1 text-3xl text-brand-black">Projects done</h1>
+          <h1 className="accent-square mt-1 text-3xl text-brand-black">History</h1>
           <p className="mt-1 text-sm">Everything installed, by category, store, area and TM: how many items across how many stores.</p>
         </div>
         <div className="flex rounded-full bg-white p-1 ring-1 ring-black/10" role="group" aria-label="Year">

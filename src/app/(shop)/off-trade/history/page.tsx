@@ -3,7 +3,7 @@ import { requireProfile } from "@/lib/auth";
 import { canUseOffTrade, loadOffTrade, readHistoryYear, readOffTradeFilters } from "@/lib/off-trade";
 import { HistoryView } from "./HistoryView";
 
-export const metadata = { title: "Projects done" };
+export const metadata = { title: "Off-trade history" };
 export const dynamic = "force-dynamic";
 
 export default async function HistoryPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
