@@ -39,9 +39,6 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
           <h1 className="accent-square text-3xl text-brand-black">Off trade</h1>
           <p className="mt-1 text-sm">Store universe, influence, what&apos;s been done and the {TARGET_YEAR} plan.</p>
         </div>
-        <Link href="/off-trade/import" className="btn btn-secondary">
-          Upload stores
-        </Link>
       </div>
 
       <form className="bento grid gap-3 sm:grid-cols-3 lg:grid-cols-7">

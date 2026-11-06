@@ -28,16 +28,9 @@ export const SECTIONS: NavItem[] = [
       { href: "/projects/reports", label: "Reports", managers: true },
     ],
   },
-  // Trade Marketing (TM, TMM) and admins only.
-  {
-    href: "/off-trade",
-    label: "Off trade",
-    adminOnly: true,
-    children: [
-      { href: "/off-trade", label: "Dashboard" },
-      { href: "/off-trade/import", label: "Upload stores" },
-    ],
-  },
+  // Trade Marketing (TM, TMM) and admins only. (The store list was loaded once; /off-trade/import
+  // stays available, unlinked, for adding the store codes.)
+  { href: "/off-trade", label: "Off trade", adminOnly: true },
   { href: "/library", label: "Library" },
 ];
 
