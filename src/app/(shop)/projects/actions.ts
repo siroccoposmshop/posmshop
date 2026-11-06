@@ -5,7 +5,7 @@ import { getProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normaliseEmail, normaliseMobile } from "@/lib/contact";
 import { formatDate } from "@/lib/format";
-import { MIN_BRIEF_CHARS, PROJECT_TYPES, approvalStatus, isAdminProfile, type ProjectStatus } from "@/lib/hub";
+import { MIN_BRIEF_CHARS, PROJECT_TYPES, approvalStatus, isAdminProfile, profileMarkets, type ProjectStatus } from "@/lib/hub";
 import { loadHubSettings } from "@/lib/hub-settings";
 import { OUTLET_TYPES, anyNegotiated, otherOutletsWithTicks, picosScores, type Picos } from "@/lib/picos";
 import { addWorkingDays, dubaiDate, planStages, todayIso } from "@/lib/working-days";
@@ -104,7 +104,7 @@ export async function submitBrief(input: BriefInput): Promise<Result & { fieldEr
   const errors: Record<string, string> = {};
   const { data: account } = await db.from("accounts").select("*").eq("id", input.accountId).maybeSingle();
   if (!account) errors.account = "Choose the customer and outlet.";
-  else if (!isProjectAdmin(profile) && !isAdminProfile(profile) && profile.market && account.market !== profile.market) errors.account = "That outlet isn't in your market.";
+  else if (!isProjectAdmin(profile) && !isAdminProfile(profile) && profileMarkets(profile).length && !profileMarkets(profile).includes(account.market)) errors.account = "That outlet isn't in your market.";
   if (!PROJECT_TYPES.includes(input.projectType as (typeof PROJECT_TYPES)[number])) errors.projectType = "Choose the project type.";
   if (!input.brands?.length) errors.brands = "Choose at least one brand.";
   if (!OUTLET_TYPES.includes(input.outletType as (typeof OUTLET_TYPES)[number])) errors.outletType = "Choose the outlet type.";

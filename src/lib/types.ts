@@ -18,6 +18,8 @@ export type Profile = {
   market: string | null;
   active: boolean;
   hub_role?: import("./hub").HubRole;
+  /** Markets they work in (POSM Shop shows outlets in any of them). */
+  markets?: string[];
   /** On trade, off trade, or both. */
   trade?: ("on" | "off")[];
   manager_id?: string | null;

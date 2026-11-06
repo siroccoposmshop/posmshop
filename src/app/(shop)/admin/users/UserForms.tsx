@@ -2,121 +2,136 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { Market, Profile } from "@/lib/types";
-import { HUB_ROLES } from "@/lib/hub";
+import type { Profile } from "@/lib/types";
+import { HUB_ROLES, hubRoleShort } from "@/lib/hub";
 import { formatDate } from "@/lib/format";
 import { inviteUser, saveUser } from "../actions";
 
-export function UserRow({ user, markets, managers }: { user: Profile; markets: Market[]; managers: { id: string; name: string }[] }) {
+export type MarketOption = { code: string; name: string };
+
+/** One user: name, email, access, hub role and last seen; open it to edit everything else. */
+export function UserRow({ user, markets, managers }: { user: Profile; markets: MarketOption[]; managers: { id: string; name: string }[] }) {
   const [state, action, pending] = useActionState(saveUser, null);
-  const formId = `user-${user.id}`;
+  const [open, setOpen] = useState(false);
+  const isAdmin = user.role === "admin" || user.hub_role === "tm" || user.hub_role === "tmm";
+  const userMarkets = user.markets?.length ? user.markets : user.market ? [user.market] : [];
   return (
-    <tr>
-      <td className="text-brand-black">
-        {user.email}
-        <form id={formId} action={action}>
+    <li className={user.active ? "" : "opacity-60"}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="grid w-full grid-cols-[minmax(0,1.3fr)_minmax(0,1.6fr)_6rem_5rem_9rem_1.5rem] items-center gap-3 px-4 py-3 text-left hover:bg-brand-light/60"
+      >
+        <span className="truncate font-medium text-brand-black">{user.full_name || user.email.split("@")[0]}</span>
+        <span className="truncate text-sm">{user.email}</span>
+        <span>
+          <span className={`badge ${isAdmin ? "bg-brand-black text-white" : "bg-brand-light text-brand-grey"}`}>{isAdmin ? "Admin" : "User"}</span>
+        </span>
+        <span className="font-display text-sm uppercase text-brand-black">{hubRoleShort(user.hub_role)}</span>
+        <span className="whitespace-nowrap text-xs">
+          {user.active ? (user.last_seen_at ? formatDate(user.last_seen_at, true) : "Never") : "Inactive"}
+        </span>
+        <svg viewBox="0 0 20 20" className={`h-5 w-5 text-brand-green transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+          <path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <form action={action} className="space-y-4 border-t border-black/5 bg-brand-light/40 px-4 py-4">
           <input type="hidden" name="id" value={user.id} />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <label className="label" htmlFor={`n-${user.id}`}>Name</label>
+              <input id={`n-${user.id}`} name="full_name" defaultValue={user.full_name ?? ""} className="field" />
+            </div>
+            <div>
+              <label className="label" htmlFor={`a-${user.id}`}>Access</label>
+              <select id={`a-${user.id}`} name="role" defaultValue={user.role} className="field" title={user.hub_role === "tm" || user.hub_role === "tmm" ? "TM and TMM are always admins" : undefined}>
+                <option value="kam">User</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor={`h-${user.id}`}>Hub role</label>
+              <select id={`h-${user.id}`} name="hub_role" defaultValue={user.hub_role ?? "kam"} className="field">
+                {HUB_ROLES.map((r) => (
+                  <option key={r.code} value={r.code}>
+                    {r.short} · {r.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor={`r-${user.id}`}>Reports to</label>
+              <select id={`r-${user.id}`} name="manager_id" defaultValue={user.manager_id ?? ""} className="field">
+                <option value="">—</option>
+                {managers
+                  .filter((m) => m.id !== user.id)
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div>
+              <span className="label">Trade</span>
+              <TradePicker value={user.trade ?? ["on"]} />
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <span className="label">Markets</span>
+              <MarketPicker options={markets} value={userMarkets} />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2 text-sm text-brand-black">
+              <input type="checkbox" name="active" defaultChecked={user.active} className="h-5 w-5 accent-[var(--color-brand-green)]" />
+              Active (can sign in)
+            </label>
+            <button className="btn btn-primary !px-5 !py-1.5 text-sm" disabled={pending}>
+              {pending ? "Saving…" : state?.ok ? "Saved ✓" : "Save"}
+            </button>
+            <button type="button" className="text-sm underline" onClick={() => setOpen(false)}>
+              Close
+            </button>
+            {state?.error && <span className="text-sm text-brand-red">{state.error}</span>}
+          </div>
         </form>
-        {state?.error && <span className="block text-xs text-brand-red">{state.error}</span>}
-      </td>
-      <td>
-        <input form={formId} name="full_name" defaultValue={user.full_name ?? ""} className="field min-w-[9rem] !py-1.5 text-sm" aria-label="Name" />
-      </td>
-      <td>
-        <select
-          form={formId}
-          name="role"
-          defaultValue={user.role}
-          className="field min-w-[6.5rem] !py-1.5 text-sm"
-          aria-label="Access"
-          title={user.hub_role === "tm" || user.hub_role === "tmm" ? "TM and TMM are always admins" : undefined}
-        >
-          <option value="kam">User</option>
-          <option value="admin">Admin</option>
-        </select>
-      </td>
-      <td>
-        <select form={formId} name="hub_role" defaultValue={user.hub_role ?? "kam"} className="field min-w-[5.5rem] !py-1.5 text-sm" aria-label="Hub role">
-          {HUB_ROLES.map((r) => (
-            <option key={r.code} value={r.code}>
-              {r.short}
-            </option>
-          ))}
-        </select>
-      </td>
-      <td>
-        <select form={formId} name="manager_id" defaultValue={user.manager_id ?? ""} className="field min-w-[8rem] !py-1.5 text-sm" aria-label="Reports to">
-          <option value="">—</option>
-          {managers
-            .filter((m) => m.id !== user.id)
-            .map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-        </select>
-      </td>
-      <td>
-        <TradePicker formId={formId} value={user.trade ?? ["on"]} />
-      </td>
-      <td>
-        <select form={formId} name="market" defaultValue={user.market ?? ""} className="field min-w-[8rem] !py-1.5 text-sm" aria-label="Market">
-          <option value="">None</option>
-          {markets.map((m) => (
-            <option key={m.code} value={m.code}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-      </td>
-      <td className="whitespace-nowrap text-xs">{user.last_seen_at ? formatDate(user.last_seen_at, true) : "Never"}</td>
-      <td>
-        <input form={formId} type="checkbox" name="active" defaultChecked={user.active} className="h-5 w-5 accent-[var(--color-brand-green)]" aria-label="Active" />
-      </td>
-      <td>
-        <button form={formId} className="btn btn-secondary !px-3 !py-1.5 text-xs" disabled={pending}>
-          {pending ? "…" : state?.ok ? "Saved ✓" : "Save"}
-        </button>
-      </td>
-    </tr>
+      )}
+    </li>
   );
 }
 
-export function InviteForm({ markets }: { markets: Market[] }) {
+export function InviteForm({ markets }: { markets: MarketOption[] }) {
   const [state, action, pending] = useActionState(inviteUser, null);
   return (
-    <form action={action} className="bento grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-      <div className="lg:col-span-2">
-        <label className="label" htmlFor="inv-email">Email</label>
-        <input id="inv-email" name="email" type="email" required placeholder="name@sirocco.ae" className="field" />
+    <form action={action} className="bento space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="lg:col-span-2">
+          <label className="label" htmlFor="inv-email">Email</label>
+          <input id="inv-email" name="email" type="email" required placeholder="name@sirocco.ae" className="field" />
+        </div>
+        <div>
+          <label className="label" htmlFor="inv-name">Name</label>
+          <input id="inv-name" name="full_name" className="field" />
+        </div>
+        <div>
+          <label className="label" htmlFor="inv-role">Access</label>
+          <select id="inv-role" name="role" className="field">
+            <option value="kam">User</option>
+            <option value="admin">Admin (Trade Marketing)</option>
+          </select>
+        </div>
+        <div>
+          <span className="label">Trade</span>
+          <TradePicker value={["on"]} />
+        </div>
+        <div className="sm:col-span-2 lg:col-span-3">
+          <span className="label">Markets</span>
+          <MarketPicker options={markets} value={[]} />
+        </div>
       </div>
-      <div>
-        <label className="label" htmlFor="inv-name">Name</label>
-        <input id="inv-name" name="full_name" className="field" />
-      </div>
-      <div>
-        <label className="label" htmlFor="inv-role">Role</label>
-        <select id="inv-role" name="role" className="field">
-          <option value="kam">KAM</option>
-          <option value="admin">Admin (Trade Marketing)</option>
-        </select>
-      </div>
-      <div>
-        <span className="label">Trade</span>
-        <TradePicker value={["on"]} />
-      </div>
-      <div>
-        <label className="label" htmlFor="inv-market">Market</label>
-        <select id="inv-market" name="market" className="field">
-          <option value="">None</option>
-          {markets.map((m) => (
-            <option key={m.code} value={m.code}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-3 sm:col-span-2 lg:col-span-6">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" name="send_invite" defaultChecked className="h-5 w-5 accent-[var(--color-brand-green)]" />
           Email an invite
@@ -135,6 +150,37 @@ export function InviteForm({ markets }: { markets: Market[] }) {
   );
 }
 
+/** Tick any number of markets; each is sent as "markets". */
+function MarketPicker({ options, value }: { options: MarketOption[]; value: string[] }) {
+  const [picked, setPicked] = useState<string[]>(value);
+  const toggle = (c: string) => setPicked((p) => (p.includes(c) ? p.filter((x) => x !== c) : [...p, c]));
+  return (
+    <div className="flex flex-wrap gap-2">
+      {picked.map((c) => (
+        <input key={c} type="hidden" name="markets" value={c} />
+      ))}
+      {options.map((m) => {
+        const on = picked.includes(m.code);
+        return (
+          <button
+            key={m.code}
+            type="button"
+            aria-pressed={on}
+            onClick={() => toggle(m.code)}
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm ring-1 transition ${
+              on ? "bg-brand-green text-white ring-brand-green" : "bg-white text-brand-black ring-black/15 hover:ring-brand-green"
+            }`}
+          >
+            <span aria-hidden>{on ? "✓" : "+"}</span>
+            {m.name}
+          </button>
+        );
+      })}
+      {!picked.length && <span className="self-center text-xs">None yet: they&apos;ll see no POSM outlets until one is ticked.</span>}
+    </div>
+  );
+}
+
 const TRADES = [
   { value: "on", label: "On trade" },
   { value: "off", label: "Off trade" },
@@ -142,9 +188,9 @@ const TRADES = [
 
 /**
  * On trade / Off trade: a dropdown with a tick box for each, so someone can be on one or both.
- * Sends each ticked one as "trade" (with form= for the rows, whose inputs sit outside their form).
+ * Sends each ticked one as "trade".
  */
-function TradePicker({ value, formId }: { value: string[]; formId?: string }) {
+function TradePicker({ value }: { value: string[] }) {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<string[]>(value.length ? value : ["on"]);
   const ref = useRef<HTMLDivElement>(null);
@@ -174,14 +220,14 @@ function TradePicker({ value, formId }: { value: string[]; formId?: string }) {
   return (
     <div ref={ref} className="relative min-w-[9rem]">
       {picked.map((v) => (
-        <input key={v} type="hidden" name="trade" value={v} form={formId} />
+        <input key={v} type="hidden" name="trade" value={v} />
       ))}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-label="Trade"
-        className={`field flex items-center justify-between gap-2 text-left ${formId ? "!py-1.5 text-sm" : ""}`}
+        className="field flex items-center justify-between gap-2 text-left"
       >
         <span className="truncate text-brand-black">{label}</span>
         <svg viewBox="0 0 20 20" className={`h-4 w-4 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>

@@ -10,6 +10,7 @@ import { isAllowedEmail, slugify } from "@/lib/format";
 import { MARKET_CODES } from "@/lib/markets";
 import { salesforceConfig } from "@/lib/salesforce";
 import { runSalesforceSync } from "@/lib/salesforce-sync";
+import { OFF_TRADE_MARKETS } from "@/lib/off-trade";
 import { applyStockReport, parseStockReport, type StockRunSummary } from "@/lib/stock-report";
 import type { OrderStatus } from "@/lib/types";
 
@@ -345,6 +346,17 @@ export async function setOrderStatus(id: string, status: OrderStatus) {
 // ---------------------------------------------------------------------------
 // Users
 
+/**
+ * Ticked markets (POSM markets and the other Gulf markets). profiles.market keeps the first POSM
+ * one, for code that still reads a single market.
+ */
+function readMarkets(formData: FormData) {
+  const known = new Set<string>([...MARKETS, ...Object.keys(OFF_TRADE_MARKETS)]);
+  const markets = [...new Set(formData.getAll("markets").map(String).filter((m) => known.has(m)))];
+  const market = markets.find((m) => (MARKETS as readonly string[]).includes(m)) ?? markets[0] ?? null;
+  return { markets, market };
+}
+
 /** On trade / off trade from the form (at least one; on trade if none). */
 function readTrade(formData: FormData) {
   const t = formData.getAll("trade").map(String).filter((x) => x === "on" || x === "off");
@@ -354,8 +366,7 @@ function readTrade(formData: FormData) {
 export async function saveUser(_: unknown, formData: FormData): Promise<{ error?: string; ok?: boolean }> {
   const me = await requireAdmin();
   const id = String(formData.get("id") ?? "");
-  const marketRaw = String(formData.get("market") ?? "");
-  const market = (MARKETS as readonly string[]).includes(marketRaw) ? marketRaw : null;
+  const { markets, market } = readMarkets(formData);
   const full_name = String(formData.get("full_name") ?? "").trim() || null;
   const active = formData.get("active") === "on";
   const hubRaw = String(formData.get("hub_role") ?? "kam");
@@ -366,7 +377,8 @@ export async function saveUser(_: unknown, formData: FormData): Promise<{ error?
   const manager_id = String(formData.get("manager_id") ?? "") || null;
   if (manager_id === id) return { error: "Someone can't report to themselves." };
   const trade = readTrade(formData);
-  const { error } = await createAdminClient().from("profiles").update({ role, market, full_name, active, hub_role, manager_id, trade }).eq("id", id);
+  const { error } = await createAdminClient().from("profiles").update({ role, market, markets, full_name, active, hub_role, manager_id, trade }).eq("id", id);
+  if (error && /markets/.test(error.message)) return { error: "Run supabase/migrations/20261113000000_user_markets.sql in Supabase first." };
   if (error && /trade/.test(error.message)) return { error: "Run supabase/migrations/20261112000000_user_trade.sql in Supabase first." };
   if (error) return { error: error.message };
   revalidatePath("/admin/users");
@@ -382,8 +394,7 @@ export async function inviteUser(_: unknown, formData: FormData): Promise<{ erro
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!isAllowedEmail(email)) return { error: "Only @sirocco.ae email addresses are allowed." };
   const role = formData.get("role") === "admin" ? "admin" : "kam";
-  const marketRaw = String(formData.get("market") ?? "");
-  const market = (MARKETS as readonly string[]).includes(marketRaw) ? marketRaw : null;
+  const { markets, market } = readMarkets(formData);
   const full_name = String(formData.get("full_name") ?? "").trim() || null;
 
   const sendInvite = formData.get("send_invite") === "on";
@@ -396,8 +407,11 @@ export async function inviteUser(_: unknown, formData: FormData): Promise<{ erro
     if (/already|registered|exists/i.test(error.message)) return { error: "That user already exists. They can sign in with their email." };
     return { error: sendInvite ? `Couldn't send the invite: ${error.message}` : error.message };
   }
-  const { error: upd } = await db.from("profiles").update({ role, market, full_name, trade: readTrade(formData) }).eq("id", data.user.id);
-  if (upd) return { error: /trade/.test(upd.message) ? "Run supabase/migrations/20261112000000_user_trade.sql in Supabase first." : upd.message };
+  const { error: upd } = await db.from("profiles").update({ role, market, markets, full_name, trade: readTrade(formData) }).eq("id", data.user.id);
+  if (upd) {
+    const file = /markets/.test(upd.message) ? "20261113000000_user_markets.sql" : /trade/.test(upd.message) ? "20261112000000_user_trade.sql" : null;
+    return { error: file ? `Run supabase/migrations/${file} in Supabase first.` : upd.message };
+  }
   revalidatePath("/admin/users");
   return { ok: true, invited: sendInvite };
 }

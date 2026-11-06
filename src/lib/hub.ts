@@ -11,6 +11,9 @@ export const HUB_ROLES: { code: HubRole; label: string; short: string }[] = [
 ];
 export const hubRoleShort = (r: string | null | undefined) => HUB_ROLES.find((x) => x.code === r)?.short ?? "KAM";
 
+/** The markets someone works in (several, or the single older market field). */
+export const profileMarkets = (p: { markets?: string[] | null; market?: string | null }) => (p.markets?.length ? p.markets : p.market ? [p.market] : []);
+
 /** Admin across the whole Hub: POSM admins plus TM and TMM. */
 export const isAdminProfile = (p: { role?: string | null; hub_role?: string | null } | null | undefined) =>
   !!p && (p.role === "admin" || p.hub_role === "tm" || p.hub_role === "tmm");
