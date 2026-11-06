@@ -167,6 +167,14 @@ export function readOffTradeFilters(sp: Record<string, string | string[] | undef
   return { market: list("market"), area: list("area"), tmam: list("tmam"), segment: list("segment"), chain: list("chain"), type: list("type"), influence: inf === "yes" || inf === "no" ? inf : undefined };
 }
 
+/** The filters as a query string (for links between the dashboards). */
+export function offTradeQuery(f: OffTradeFilters) {
+  const q = new URLSearchParams();
+  for (const k of ["market", "area", "tmam", "segment", "chain", "type"] as const) for (const v of f[k]) q.append(k, v);
+  if (f.influence) q.set("influence", f.influence);
+  return q.toString();
+}
+
 export function applyOffTradeFilters(stores: StoreView[], f: OffTradeFilters) {
   const has = (list: string[], v: string | null) => !list.length || list.includes(v ?? "");
   return stores.filter(
@@ -276,4 +284,92 @@ export function filterOptions(stores: StoreView[]) {
     segment: vals((s) => s.segment),
     type: vals((s) => s.store_type ?? null),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Target-year KPIs
+// ---------------------------------------------------------------------------
+
+export const QUARTERS = ["Q1", "Q2", "Q3", "Q4"] as const;
+export type Quarter = (typeof QUARTERS)[number];
+const quarterOf = (d: string | null | undefined): Quarter | null => {
+  if (!d || Number(d.slice(0, 4)) !== TARGET_YEAR) return null;
+  return QUARTERS[Math.floor((Number(d.slice(5, 7)) - 1) / 3)] ?? null;
+};
+
+export type TargetRow = {
+  store: StoreView;
+  /** A target-year project is completed. */
+  achieved: boolean;
+  /** When it's planned (earliest planned date of its target-year projects). */
+  due: string | null;
+  dueQ: Quarter | null;
+  /** When it was achieved (latest completion). */
+  doneDate: string | null;
+  doneQ: Quarter | null;
+  /** No project chosen yet, only flagged as a target. */
+  tbc: boolean;
+  types: string[];
+  expected: number;
+  actual: number;
+};
+
+/**
+ * Every target store with its progress. A target is achieved once one of its target-year projects is
+ * completed. It falls due in the quarter of its earliest planned date.
+ */
+export function targetRows(stores: StoreView[]): TargetRow[] {
+  return stores
+    .filter((s) => s.targeted)
+    .map((s) => {
+      const projects = s.targets;
+      const done = projects.filter((p) => p.status === "completed");
+      const doneDate = done.map((p) => p.completed_date).filter((d): d is string => !!d).sort().at(-1) ?? null;
+      const due = projects.map((p) => p.planned_date).filter((d): d is string => !!d).sort()[0] ?? null;
+      return {
+        store: s,
+        achieved: done.length > 0,
+        due,
+        dueQ: quarterOf(due),
+        doneDate,
+        doneQ: quarterOf(doneDate),
+        tbc: projects.length === 0,
+        types: [...new Set(projects.map((p) => p.type))],
+        expected: projects.reduce((n, p) => n + Number(p.expected_cost_aed ?? 0), 0),
+        actual: done.reduce((n, p) => n + Number(p.actual_cost_aed ?? 0), 0),
+      };
+    })
+    .sort((a, b) => Number(a.achieved) - Number(b.achieved) || String(a.due ?? "9999").localeCompare(String(b.due ?? "9999")) || a.store.name.localeCompare(b.store.name));
+}
+
+export type TargetSummary = { key: string; label: string; targets: number; achieved: number; tbc: number; expected: number; actual: number };
+
+export function targetsBy(rows: TargetRow[], keyOf: (r: TargetRow) => string | null, labelOf: (k: string) => string = (k) => k) {
+  const map = new Map<string, TargetSummary>();
+  for (const r of rows) {
+    const key = keyOf(r) || "—";
+    const e = map.get(key) ?? { key, label: key === "—" ? "—" : labelOf(key), targets: 0, achieved: 0, tbc: 0, expected: 0, actual: 0 };
+    e.targets++;
+    if (r.achieved) e.achieved++;
+    if (r.tbc) e.tbc++;
+    e.expected += r.expected;
+    e.actual += r.actual;
+    map.set(key, e);
+  }
+  return [...map.values()].sort((a, b) => b.targets - a.targets);
+}
+
+/** By quarter: targets due in it, achieved in it, and how many of those due are achieved. */
+export function targetsByQuarter(rows: TargetRow[]) {
+  const q = [...QUARTERS, null].map((quarter) => {
+    const due = rows.filter((r) => r.dueQ === quarter);
+    return {
+      quarter: quarter ?? "No date yet",
+      due: due.length,
+      dueAchieved: due.filter((r) => r.achieved).length,
+      achievedIn: quarter ? rows.filter((r) => r.doneQ === quarter).length : rows.filter((r) => r.achieved && !r.doneQ).length,
+    };
+  });
+  let running = 0;
+  return q.map((x) => ({ ...x, cumulative: (running += x.achievedIn) }));
 }

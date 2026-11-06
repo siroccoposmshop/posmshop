@@ -13,7 +13,7 @@ import {
   byProjectType,
   bySegment,
   byTmam,
-  filterOptions,
+  offTradeQuery,
   marketName,
   offTradeTotals,
   yearOf,
@@ -21,15 +21,13 @@ import {
   type OffTradeFilters,
   type StoreView,
 } from "@/lib/off-trade";
-import { MultiSelect } from "@/components/MultiSelect";
+import { Card, FilterBar, Tile } from "./ui";
 
 /** The off-trade dashboard for a set of stores (all = the full universe, for the filter lists). */
 export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters }) {
   const stores = applyOffTradeFilters(all, f);
   const t = offTradeTotals(stores);
-  const opts = filterOptions(all);
   const types = byProjectType(stores);
-  const filtered = !!(f.market.length || f.area.length || f.tmam.length || f.segment.length || f.chain.length || f.type.length || f.influence);
   const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "—");
 
   return (
@@ -41,33 +39,7 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
         </div>
       </div>
 
-      <form className="bento grid gap-3 sm:grid-cols-3 lg:grid-cols-7">
-        <MultiSelect name="market" label="Market" allLabel="All markets" options={opts.market.map((v) => ({ value: v, label: marketName(v) }))} selected={f.market} />
-        <MultiSelect name="area" label="Area" allLabel="All areas" options={opts.area.map((v) => ({ value: v, label: v }))} selected={f.area} />
-        <MultiSelect name="tmam" label="TM" allLabel="All TMs" options={opts.tmam.map((v) => ({ value: v, label: v }))} selected={f.tmam} />
-        <MultiSelect name="segment" label="Segment" allLabel="All segments" options={opts.segment.map((v) => ({ value: v, label: v }))} selected={f.segment} />
-        <MultiSelect name="chain" label="Chain" allLabel="All chains" options={opts.chain.map((v) => ({ value: v, label: v }))} selected={f.chain} />
-        <MultiSelect name="type" label="Store type" allLabel="All types" options={opts.type.map((v) => ({ value: v, label: v }))} selected={f.type} />
-        <div>
-          <label className="label" htmlFor="ot-inf">Influence</label>
-          <select id="ot-inf" name="influence" defaultValue={f.influence ?? ""} className="field">
-            <option value="">All stores</option>
-            <option value="yes">Influenced</option>
-            <option value="no">Not influenced</option>
-          </select>
-        </div>
-        <div className="flex items-end gap-2 sm:col-span-3 lg:col-span-7">
-          <button className="btn btn-primary">Apply filters</button>
-          {filtered && (
-            <Link href="/off-trade" className="btn btn-secondary">
-              Reset
-            </Link>
-          )}
-          <span className="ml-auto text-xs">
-            {stores.length} of {all.length} stores
-          </span>
-        </div>
-      </form>
+      <FilterBar all={all} f={f} shown={stores.length} action="/off-trade" />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <div className="bento-green">
@@ -77,7 +49,12 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
         </div>
         <Tile label="Influenced" value={`${t.influenced}`} sub={`${pct(t.influenced, t.stores)} of stores · ${t.stores - t.influenced} not influenced`} />
         <Tile label="Projects done" value={`${t.withProjects}`} sub={`stores${t.lastDate ? ` · last ${formatDate(t.lastDate)}` : ""}`} />
-        <Tile label={`${TARGET_YEAR} targets`} value={`${t.targeted}`} sub={`stores · ${pct(t.targeted, t.stores)} of the universe`} />
+        <Tile
+          label={`${TARGET_YEAR} targets`}
+          value={`${t.targeted}`}
+          sub={`stores · ${pct(t.targeted, t.stores)} of the universe · see progress`}
+          href={`/off-trade/targets${offTradeQuery(f) ? `?${offTradeQuery(f)}` : ""}`}
+        />
         <Tile
           label={`${TARGET_YEAR} cost`}
           value={formatAed(t.expected)}
@@ -216,33 +193,7 @@ const segmentLine = (s: OffTradeSummary) =>
     .filter(Boolean)
     .join(" · ") || "—";
 
-/** A dashboard card that starts collapsed: the title (and a short summary) shows; click to open. */
-function Card({ title, meta, children }: { title: string; meta?: string; children: React.ReactNode }) {
-  return (
-    <details className="bento group">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
-        <h2 className="text-xl text-brand-black">{title}</h2>
-        <span className="flex items-center gap-2 text-xs">
-          {meta}
-          <svg viewBox="0 0 20 20" className="h-5 w-5 text-brand-green transition-transform group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </span>
-      </summary>
-      <div className="mt-3 overflow-x-auto">{children}</div>
-    </details>
-  );
-}
 
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="bento">
-      <p className="font-display text-xs uppercase tracking-wide">{label}</p>
-      <p className="mt-1 font-display text-2xl font-medium text-brand-black sm:text-3xl">{value}</p>
-      {sub && <p className="text-xs">{sub}</p>}
-    </div>
-  );
-}
 
 /** Stores with each main visibility title in place, by area. */
 function VisibilityTable({ rows, total }: { rows: OffTradeSummary[]; total: OffTradeSummary }) {
