@@ -13,7 +13,12 @@ export default async function OffTradeImportPage() {
       <div>
         <h1 className="accent-square text-3xl text-brand-black">Upload stores</h1>
         <p className="mt-2 text-sm">
-          An Excel with a <strong>Stores</strong> sheet (Store code, Store name, Chain, Market, Area, TM, Segment, Influence Y/N, Target year, Visit
+          The <strong>Off Trade Gulf Store List</strong> is read from its <strong>Visibility Master File</strong> tab: every store, its TM,
+          segment and the visibility in it. Upload it again whenever it changes; add a <strong>Store code</strong> column when the codes
+          are ready.
+        </p>
+        <p className="mt-2 text-sm">
+          Or an Excel with a <strong>Stores</strong> sheet (Store code, Store name, Chain, Market, Area, TM, Segment, Influence Y/N, Target year, Visit
           frequency) and, optionally, a <strong>Projects</strong> sheet (Store code, Type, Status, Year, Planned date, Completed date, Expected
           cost, Actual cost, Notes). Stores are matched on store code, so uploading again updates them; projects already uploaded are
           updated, not duplicated. Later the stores will come from Salesforce.{" "}

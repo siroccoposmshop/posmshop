@@ -231,3 +231,136 @@ export async function buildOffTradeTemplate() {
   }
   return wb.xlsx.writeBuffer();
 }
+
+// ---------------------------------------------------------------------------
+// Visibility Master File (Off Trade Gulf Store List)
+// ---------------------------------------------------------------------------
+
+/**
+ * The "Visibility Master File" tab: row with Channel · City · Customer · Store · Store Type ·
+ * Segmentation · Responsibility · Visibility, then asset columns. The row above names each asset
+ * group (Cold Room, Perfect Shelf - Warm Units, Fridge, Wall Branding, FSU …); the heading row
+ * names the brand ("Heineken2" → Heineken). Cells hold 1 / a quantity / "Yes".
+ * Rows without a channel, store and TM (the totals at the bottom) are skipped.
+ */
+export type ParsedVisibilityStore = ParsedStore & {
+  city: string | null;
+  store_type: string | null;
+  visibility: Record<string, Record<string, number>>;
+  visibility_flag: string | null;
+  match_key: string;
+};
+
+const CHANNEL: Record<string, { market: string; area: string }> = {
+  dxbr: { market: "DXB", area: "DXB Retail" },
+  dxbretail: { market: "DXB", area: "DXB Retail" },
+  dxbir: { market: "DXB", area: "DXB IR" },
+  adr: { market: "AUH", area: "AUH" },
+  auh: { market: "AUH", area: "AUH" },
+  ner: { market: "NE", area: "NER" },
+  ne: { market: "NE", area: "NER" },
+  oman: { market: "OM", area: "Oman" },
+  bahrain: { market: "BH", area: "Bahrain" },
+  qatar: { market: "QA", area: "Qatar" },
+  dutyfree: { market: "DF", area: "Duty Free" },
+};
+
+export const matchKey = (channel: string, customer: string, store: string, type: string) =>
+  [channel, customer, store, type].map((x) => x.trim().toLowerCase().replace(/\s+/g, " ")).join("|");
+
+export function parseVisibilityMaster(ws: ExcelJS.Worksheet): { stores: ParsedVisibilityStore[]; groups: string[] } | null {
+  for (let r = 1; r <= Math.min(15, ws.rowCount); r++) {
+    const heads = new Map<string, number>();
+    ws.getRow(r).eachCell((cell, c) => {
+      const h = norm(text(cell.value));
+      if (h && !heads.has(h)) heads.set(h, c);
+    });
+    const col = (...names: string[]) => names.map((n) => heads.get(n)).find((x) => x !== undefined);
+    const channel = col("channel");
+    const store = col("store", "storename");
+    const tm = col("responsibility", "tm", "tmam");
+    if (!channel || !store || !tm) continue;
+    const city = col("city");
+    const customer = col("customer", "chain", "retailer");
+    const type = col("storetype", "type");
+    const seg = col("segmentation", "segment");
+    const flag = col("visibility");
+    const code = col("storecode", "code", "uniquecode", "storeid", "accountnumber");
+    const fixed = new Set([channel, store, tm, city, customer, type, seg, flag, code].filter((x): x is number => !!x));
+
+    // Asset columns: after the fixed columns, with an asset group above (merged group headings
+    // repeat across their columns). A column with no group above, e.g. the sheet's total, is skipped.
+    const groupRow = ws.getRow(r - 1);
+    const assetCols: { col: number; group: string; brand: string }[] = [];
+    ws.getRow(r).eachCell((cell, c) => {
+      if (fixed.has(c) || c < Math.max(...fixed)) return;
+      const above = text(groupRow.getCell(c).value).trim();
+      const head = text(cell.value).trim();
+      if (!above || /^(total|sum|count)/i.test(head)) return;
+      const group = above.replace(/\s+/g, " ").trim();
+      const brand = head.replace(/\d+$/, "").trim();
+      assetCols.push({ col: c, group, brand: norm(brand) === norm(group) || !brand ? "" : brand });
+    });
+
+    const stores: ParsedVisibilityStore[] = [];
+    for (let i = r + 1; i <= ws.rowCount; i++) {
+      const row = ws.getRow(i);
+      const get = (c?: number) => (c ? text(row.getCell(c).value).trim() : "");
+      const ch = get(channel);
+      const name = get(store);
+      const person = get(tm);
+      if (!ch || !name || !person) continue;
+      const m = CHANNEL[norm(ch)] ?? { market: marketCode(ch) ?? ch.toUpperCase(), area: ch };
+      const cityName = get(city).replace(/\s+/g, " ") || null;
+      const area = m.market === "AUH" && /ain/i.test(cityName ?? "") ? "Al Ain" : m.area;
+      const visibility: Record<string, Record<string, number>> = {};
+      for (const a of assetCols) {
+        const raw = get(a.col);
+        const q = /^yes$/i.test(raw) ? 1 : Number(raw);
+        if (!raw || !Number.isFinite(q) || q <= 0) continue;
+        (visibility[a.group] ??= {})[a.brand || "In place"] = ((visibility[a.group] ?? {})[a.brand || "In place"] ?? 0) + q;
+      }
+      const storeType = get(type) || null;
+      const key = matchKey(ch, get(customer), name, storeType ?? "");
+      stores.push({
+        code: get(code) || `TBC-${hash(key)}`,
+        name,
+        chain: get(customer) || null,
+        market: m.market,
+        area,
+        tmam: person,
+        segment: get(seg) ? segment(/^ir$/i.test(get(seg)) ? "Industrial Retail" : get(seg)) : null,
+        // Influenced = something of ours is in the store (matches the TM structure deck).
+        influenced: Object.keys(visibility).length > 0,
+        visit_frequency: null,
+        target_year: null,
+        city: cityName,
+        store_type: storeType,
+        visibility,
+        visibility_flag: get(flag) || null,
+        match_key: key,
+      });
+    }
+    return { stores, groups: [...new Set(assetCols.map((a) => a.group))] };
+  }
+  return null;
+}
+
+/** Short, stable id from text (FNV-1a), for stores waiting for their real code. */
+function hash(s: string) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+  return (h >>> 0).toString(36).toUpperCase().padStart(7, "0");
+}
+
+/** The Visibility Master File tab, if the workbook has one. */
+export async function findVisibilityMaster(buffer: ArrayBuffer) {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buffer);
+  const sheets = [...wb.worksheets].sort((a, b) => Number(/visibility\s*master/i.test(b.name)) - Number(/visibility\s*master/i.test(a.name)));
+  for (const ws of sheets) {
+    const parsed = parseVisibilityMaster(ws);
+    if (parsed?.stores.length) return { sheet: ws.name.trim(), ...parsed };
+  }
+  return null;
+}

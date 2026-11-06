@@ -4,7 +4,7 @@ import { requireProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate } from "@/lib/format";
 import { formatAed } from "@/lib/hub";
-import { OFF_TRADE_STATUS, TARGET_YEAR, canUseOffTrade, marketName, storeView, type OffTradeProject, type OffTradeStore } from "@/lib/off-trade";
+import { OFF_TRADE_STATUS, TARGET_YEAR, VISIBILITY_MAIN, canUseOffTrade, marketName, storeView, type OffTradeProject, type OffTradeStore } from "@/lib/off-trade";
 import { ProjectForm, ProjectItem } from "./ProjectForm";
 import { TargetToggle } from "./TargetToggle";
 
@@ -36,17 +36,53 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="font-display text-xs uppercase tracking-wide">
-            #{s.code}
+            {s.code.startsWith("TBC-") ? "Store code tbc" : `#${s.code}`}
             {s.chain ? ` · ${s.chain}` : ""}
+            {s.store_type ? ` · ${s.store_type}` : ""}
           </p>
           <h1 className="accent-square text-2xl leading-tight text-brand-black sm:text-3xl">{s.name}</h1>
-          <p className="mt-1 text-sm">{[s.area, s.market && marketName(s.market), s.segment, s.tmam && `TM ${s.tmam}`, s.visit_frequency].filter(Boolean).join(" · ")}</p>
+          <p className="mt-1 text-sm">{[s.area, s.city && s.city !== s.area ? s.city : null, s.market && marketName(s.market), s.segment, s.tmam && `TM ${s.tmam}`, s.visit_frequency].filter(Boolean).join(" · ")}</p>
         </div>
         <div className="flex flex-wrap items-start gap-3">
           {s.influenced ? <span className="badge bg-brand-green text-white">Influenced</span> : <span className="badge bg-brand-light text-brand-grey">Not influenced</span>}
           <TargetToggle storeId={s.id} year={TARGET_YEAR} on={s.target_year === TARGET_YEAR} viaProject={s.targets.length > 0} />
         </div>
       </div>
+
+      <section className="bento space-y-3">
+        <h2 className="text-xl text-brand-black">Visibility in store</h2>
+        <div className="grid gap-3 sm:grid-cols-5">
+          {VISIBILITY_MAIN.map((m) => {
+            const n = s.vis.totals[m];
+            return (
+              <div key={m} className={`rounded-xl p-3 ${n ? "bg-brand-green-tint" : "bg-brand-light"}`}>
+                <p className="flex items-baseline justify-between font-display text-xs uppercase tracking-wide">
+                  {m} <span className={`text-lg font-bold ${n ? "text-brand-green-dark" : "text-brand-grey/50"}`}>{n || "–"}</span>
+                </p>
+                {s.vis.groups[m].map((g) => (
+                  <div key={g.group} className="mt-1.5 text-xs">
+                    {s.vis.groups[m].length > 1 || g.group.toLowerCase() !== m.toLowerCase() ? <p className="font-medium text-brand-black">{g.group}</p> : null}
+                    <p>{g.items.map(([b, q]) => (q > 1 ? `${b} ×${q}` : b)).join(", ")}</p>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+        {s.vis.groups.Other.length > 0 && (
+          <details className="rounded-xl ring-1 ring-black/10">
+            <summary className="cursor-pointer px-3 py-2 font-display text-xs uppercase tracking-wide text-brand-black">Other ({s.vis.totals.Other})</summary>
+            <ul className="space-y-1 px-3 pb-3 text-sm">
+              {s.vis.groups.Other.map((g) => (
+                <li key={g.group}>
+                  <span className="font-medium text-brand-black">{g.group}</span>: {g.items.map(([b, q]) => (q > 1 ? `${b} ×${q}` : b)).join(", ")}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+        {s.visibility_flag && <p className="text-xs">Master file &ldquo;Visibility&rdquo;: {s.visibility_flag}</p>}
+      </section>
 
       <section className="bento space-y-3">
         <h2 className="text-xl text-brand-black">Add a project</h2>

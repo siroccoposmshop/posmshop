@@ -4,12 +4,14 @@ import { revalidatePath } from "next/cache";
 import { getProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { OFF_TRADE_PROJECT_TYPES, canUseOffTrade } from "@/lib/off-trade";
-import { parseOffTradeWorkbook } from "@/lib/off-trade-excel";
+import { findVisibilityMaster, parseOffTradeWorkbook } from "@/lib/off-trade-excel";
 
 type Result = { ok?: boolean; error?: string };
 const MIGRATION = "Run supabase/migrations/20261109000000_off_trade.sql in Supabase first.";
 const dbError = (m: string) =>
-  /target_year/.test(m)
+  /visibility|match_key|store_type|city/.test(m)
+    ? "Run supabase/migrations/20261111000000_off_trade_visibility.sql in Supabase first."
+    : /target_year/.test(m)
     ? "Run supabase/migrations/20261110000000_off_trade_targets.sql in Supabase first."
     : /off_trade|does not exist|schema cache/i.test(m)
       ? MIGRATION
@@ -117,9 +119,20 @@ export async function importOffTrade(input: { path: string; filename: string }):
   const db = createAdminClient();
   const { data: blob, error: dl } = await db.storage.from("imports").download(input.path);
   if (dl || !blob) return { error: "The uploaded file couldn't be found. Please try again." };
+  const buffer = await blob.arrayBuffer();
+
+  // The Visibility Master File (Off Trade Gulf Store List): stores and what's in them.
+  let master;
+  try {
+    master = await findVisibilityMaster(buffer);
+  } catch {
+    return { error: "That file couldn't be read. Is it a valid .xlsx workbook?" };
+  }
+  if (master) return importVisibilityMaster(master);
+
   let parsed;
   try {
-    parsed = await parseOffTradeWorkbook(await blob.arrayBuffer());
+    parsed = await parseOffTradeWorkbook(buffer);
   } catch {
     return { error: "That file couldn't be read. Is it a valid .xlsx workbook?" };
   }
@@ -168,6 +181,38 @@ export async function importOffTrade(input: { path: string; filename: string }):
       projects: unique.length,
       unknownStores: [...unknown].slice(0, 20),
       warnings: parsed.warnings.slice(0, 20),
+    },
+  };
+}
+
+/**
+ * Stores from the Visibility Master File, matched on channel | customer | store | type, so the list can
+ * be uploaded again (and real store codes added in a column later) without duplicates. Targets and
+ * projects set on the site are kept.
+ */
+async function importVisibilityMaster(master: NonNullable<Awaited<ReturnType<typeof findVisibilityMaster>>>): Promise<{ summary?: OffTradeImportSummary; error?: string }> {
+  const db = createAdminClient();
+  const { data: existing, error: exErr } = await db.from("off_trade_stores").select("id, match_key");
+  if (exErr) return { error: dbError(exErr.message) };
+  const before = new Set((existing ?? []).map((s) => s.match_key as string | null).filter(Boolean));
+  const now = new Date().toISOString();
+  const rows = master.stores.map(({ target_year: _t, visit_frequency: _v, ...s }) => ({ ...s, active: true, updated_at: now }));
+  for (let i = 0; i < rows.length; i += 200) {
+    const { error } = await db.from("off_trade_stores").upsert(rows.slice(i, i + 200), { onConflict: "match_key" });
+    if (error) return { error: dbError(error.message) };
+  }
+  refresh();
+  const waiting = master.stores.filter((s) => s.code.startsWith("TBC-")).length;
+  return {
+    summary: {
+      stores: master.stores.length,
+      created: master.stores.filter((s) => !before.has(s.match_key)).length,
+      projects: 0,
+      unknownStores: [],
+      warnings: [
+        `Read the "${master.sheet}" tab: ${master.groups.length} asset groups (${master.groups.join(", ")}).`,
+        ...(waiting ? [`${waiting} stores are waiting for their store code (shown as TBC-…). Add a "Store code" column and upload again to set them.`] : []),
+      ],
     },
   };
 }
