@@ -81,7 +81,7 @@ export default async function HubHome() {
           <Tool
             href="/off-trade"
             title="Off trade"
-            text="Store universe, influence, past projects and the targets by area and TMAM."
+            text="Store universe, influence, past projects and the targets by area and TM."
             cta="Off-trade dashboard"
             stats={
               ot && ot.stores

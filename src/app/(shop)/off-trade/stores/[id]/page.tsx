@@ -4,8 +4,9 @@ import { requireProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate } from "@/lib/format";
 import { formatAed } from "@/lib/hub";
-import { OFF_TRADE_STATUS, TARGET_YEAR, canUseOffTrade, storeView, type OffTradeProject, type OffTradeStore } from "@/lib/off-trade";
+import { OFF_TRADE_STATUS, TARGET_YEAR, canUseOffTrade, marketName, storeView, type OffTradeProject, type OffTradeStore } from "@/lib/off-trade";
 import { ProjectForm, ProjectItem } from "./ProjectForm";
+import { TargetToggle } from "./TargetToggle";
 
 export const dynamic = "force-dynamic";
 
@@ -39,9 +40,12 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
             {s.chain ? ` · ${s.chain}` : ""}
           </p>
           <h1 className="accent-square text-2xl leading-tight text-brand-black sm:text-3xl">{s.name}</h1>
-          <p className="mt-1 text-sm">{[s.area, s.market, s.segment, s.tmam && `TMAM ${s.tmam}`, s.visit_frequency].filter(Boolean).join(" · ")}</p>
+          <p className="mt-1 text-sm">{[s.area, s.market && marketName(s.market), s.segment, s.tmam && `TM ${s.tmam}`, s.visit_frequency].filter(Boolean).join(" · ")}</p>
         </div>
-        {s.influenced ? <span className="badge bg-brand-green text-white">Influenced</span> : <span className="badge bg-brand-light text-brand-grey">Not influenced</span>}
+        <div className="flex flex-wrap items-start gap-3">
+          {s.influenced ? <span className="badge bg-brand-green text-white">Influenced</span> : <span className="badge bg-brand-light text-brand-grey">Not influenced</span>}
+          <TargetToggle storeId={s.id} year={TARGET_YEAR} on={s.target_year === TARGET_YEAR} viaProject={s.targets.length > 0} />
+        </div>
       </div>
 
       <section className="bento space-y-3">

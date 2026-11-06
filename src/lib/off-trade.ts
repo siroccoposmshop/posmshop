@@ -37,8 +37,22 @@ export type OffTradeStore = {
   segment: string | null;
   influenced: boolean;
   visit_frequency: string | null;
+  /** Targeted for this year, even before a project is chosen. */
+  target_year?: number | null;
   active: boolean;
 };
+
+/** Market codes used for off trade (UAE and the Gulf). */
+export const OFF_TRADE_MARKETS: Record<string, string> = {
+  DXB: "Dubai",
+  AUH: "Abu Dhabi",
+  NE: "Northern Emirates",
+  OM: "Oman",
+  BH: "Bahrain",
+  QA: "Qatar",
+  DF: "Duty Free",
+};
+export const marketName = (code: string | null) => (code ? (OFF_TRADE_MARKETS[code] ?? code) : "—");
 
 export type OffTradeProject = {
   id: string;
@@ -60,6 +74,8 @@ export type StoreView = OffTradeStore & {
   last: OffTradeProject | null;
   /** The target year's projects (planned, in progress or already done), not cancelled. */
   targets: OffTradeProject[];
+  /** A target store this year: marked as one, or with a project for the year. */
+  targeted: boolean;
 };
 
 export async function loadOffTrade(): Promise<StoreView[]> {
@@ -82,6 +98,7 @@ export function storeView(s: OffTradeStore, projects: OffTradeProject[]): StoreV
     projects: sorted,
     last: done.sort((a, b) => String(b.completed_date).localeCompare(String(a.completed_date)))[0] ?? null,
     targets: sorted.filter((p) => p.status !== "cancelled" && yearOf(p) === TARGET_YEAR),
+    targeted: s.target_year === TARGET_YEAR || sorted.some((p) => p.status !== "cancelled" && yearOf(p) === TARGET_YEAR),
   };
 }
 
@@ -155,7 +172,7 @@ function summarise(stores: StoreView[], keyOf: (s: StoreView) => string) {
       e.withProjects++;
       if (s.last.completed_date && (!e.lastDate || s.last.completed_date > e.lastDate)) e.lastDate = s.last.completed_date;
     }
-    if (s.targets.length) e.targeted++;
+    if (s.targeted) e.targeted++;
     for (const p of s.projects) {
       if (yearOf(p) !== TARGET_YEAR || p.status === "cancelled") continue;
       e.expected += Number(p.expected_cost_aed ?? 0);
@@ -174,7 +191,7 @@ export const offTradeTotals = (stores: StoreView[]) => summarise(stores, () => "
 export const byArea = (stores: StoreView[]) => summarise(stores, (s) => s.area ?? "");
 export const byTmam = (stores: StoreView[]) => summarise(stores, (s) => s.tmam ?? "");
 export const bySegment = (stores: StoreView[]) => summarise(stores, (s) => s.segment ?? "");
-export const byMarket = (stores: StoreView[]) => summarise(stores, (s) => s.market ?? "");
+export const byMarket = (stores: StoreView[]) => summarise(stores, (s) => s.market ?? "").map((r) => ({ ...r, label: marketName(r.key === "—" ? null : r.key) }));
 
 /** By project type: stores done (ever), last done, target-year planned, expected and actual. */
 export function byProjectType(stores: StoreView[]) {

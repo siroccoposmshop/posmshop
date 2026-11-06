@@ -25,3 +25,11 @@ Things built in the site that switch on once IT and the email setup are done. Ti
 - [ ] Later: PICOS scores pulled from Salesforce instead of entered by hand.
 
 Never paste secrets into chat: add them straight into Vercel.
+
+## Your follow-ups (to send / decide)
+- [ ] **Company-code table**: each Salesforce company code → market and **on trade / off trade**. It decides which project workflow an outlet or store gets once it's chosen. Send it as a table; it'll be saved in `docs/company-codes.md` and used by the site.
+- [ ] **Off-trade project workflow**: the current Projects workflow is the on-trade one. Define the off-trade version (stages, approvals, who does what) and it'll be built as the option for off-trade stores.
+- [ ] **Off-trade store list** (Excel, all markets incl. Oman, Bahrain, Qatar, Duty Free) and any past / planned projects → Off trade → Upload stores. Run `20261109000000_off_trade.sql` and `20261110000000_off_trade_targets.sql` first.
+
+## Later add-ons
+- [ ] Off trade: visit frequency and calls (journey plans, TM capacity), as in the TM team structure deck.
