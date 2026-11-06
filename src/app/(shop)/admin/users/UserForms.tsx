@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Market, Profile } from "@/lib/types";
 import { HUB_ROLES } from "@/lib/hub";
 import { formatDate } from "@/lib/format";
@@ -19,14 +20,14 @@ export function UserRow({ user, markets, managers }: { user: Profile; markets: M
         {state?.error && <span className="block text-xs text-brand-red">{state.error}</span>}
       </td>
       <td>
-        <input form={formId} name="full_name" defaultValue={user.full_name ?? ""} className="field !py-1.5 text-sm" aria-label="Name" />
+        <input form={formId} name="full_name" defaultValue={user.full_name ?? ""} className="field min-w-[9rem] !py-1.5 text-sm" aria-label="Name" />
       </td>
       <td>
         <select
           form={formId}
           name="role"
           defaultValue={user.role}
-          className="field !py-1.5 text-sm"
+          className="field min-w-[6.5rem] !py-1.5 text-sm"
           aria-label="Access"
           title={user.hub_role === "tm" || user.hub_role === "tmm" ? "TM and TMM are always admins" : undefined}
         >
@@ -35,7 +36,7 @@ export function UserRow({ user, markets, managers }: { user: Profile; markets: M
         </select>
       </td>
       <td>
-        <select form={formId} name="hub_role" defaultValue={user.hub_role ?? "kam"} className="field !py-1.5 text-sm" aria-label="Hub role">
+        <select form={formId} name="hub_role" defaultValue={user.hub_role ?? "kam"} className="field min-w-[5.5rem] !py-1.5 text-sm" aria-label="Hub role">
           {HUB_ROLES.map((r) => (
             <option key={r.code} value={r.code}>
               {r.short}
@@ -44,7 +45,7 @@ export function UserRow({ user, markets, managers }: { user: Profile; markets: M
         </select>
       </td>
       <td>
-        <select form={formId} name="manager_id" defaultValue={user.manager_id ?? ""} className="field !py-1.5 text-sm" aria-label="Reports to">
+        <select form={formId} name="manager_id" defaultValue={user.manager_id ?? ""} className="field min-w-[8rem] !py-1.5 text-sm" aria-label="Reports to">
           <option value="">—</option>
           {managers
             .filter((m) => m.id !== user.id)
@@ -59,7 +60,7 @@ export function UserRow({ user, markets, managers }: { user: Profile; markets: M
         <TradePicker formId={formId} value={user.trade ?? ["on"]} />
       </td>
       <td>
-        <select form={formId} name="market" defaultValue={user.market ?? ""} className="field !py-1.5 text-sm" aria-label="Market">
+        <select form={formId} name="market" defaultValue={user.market ?? ""} className="field min-w-[8rem] !py-1.5 text-sm" aria-label="Market">
           <option value="">None</option>
           {markets.map((m) => (
             <option key={m.code} value={m.code}>
@@ -147,11 +148,26 @@ function TradePicker({ value, formId }: { value: string[]; formId?: string }) {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<string[]>(value.length ? value : ["on"]);
   const ref = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  // The list floats above the page (in <body>), so the users table's scroll area can't cut it off.
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   useEffect(() => {
     if (!open) return;
-    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const place = () => {
+      const r = ref.current?.getBoundingClientRect();
+      if (r) setPos({ top: r.bottom + 4, left: r.left, width: Math.max(r.width, 176) });
+    };
+    place();
+    const close = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && !panelRef.current?.contains(e.target as Node) && setOpen(false);
+    const shut = () => setOpen(false);
     document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
+    window.addEventListener("resize", shut);
+    window.addEventListener("scroll", shut, true);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      window.removeEventListener("resize", shut);
+      window.removeEventListener("scroll", shut, true);
+    };
   }, [open]);
   const label = picked.length === 2 ? "On + off trade" : picked[0] === "off" ? "Off trade" : "On trade";
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? (p.length > 1 ? p.filter((x) => x !== v) : p) : [...p, v]));
@@ -172,8 +188,8 @@ function TradePicker({ value, formId }: { value: string[]; formId?: string }) {
           <path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
-      {open && (
-        <div className="absolute left-0 right-0 top-full z-30 mt-1 rounded-xl bg-white p-1.5 shadow-xl ring-1 ring-black/10">
+      {open && pos && createPortal(
+        <div ref={panelRef} style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width }} className="z-50 rounded-xl bg-white p-1.5 shadow-xl ring-1 ring-black/10">
           {TRADES.map((t) => (
             <label key={t.value} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-brand-black hover:bg-brand-light">
               <input type="checkbox" className="h-4 w-4 accent-[var(--color-brand-green)]" checked={picked.includes(t.value)} onChange={() => toggle(t.value)} />
@@ -181,7 +197,8 @@ function TradePicker({ value, formId }: { value: string[]; formId?: string }) {
             </label>
           ))}
           <p className="px-2 pt-1 text-xs">Tick both for someone on both.</p>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
