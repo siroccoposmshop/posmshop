@@ -244,7 +244,7 @@ export async function sendBack(id: string, reason: string): Promise<Result> {
   if (!profile) return SIGNED_OUT;
   const p = await loadProject(id, profile);
   if (!p || !(canApprove(profile, p) || (isProjectAdmin(profile) && p.status === "awaiting_tm"))) return { error: "You can't send this request back." };
-  if (reason.trim().length < 10) return { error: "Tell the KAM what to change (at least 10 characters)." };
+  if (reason.trim().length < 10) return { error: "Tell the project lead what to change (at least 10 characters)." };
   const { error } = await createAdminClient()
     .from("projects")
     .update({ status: "rejected", rejection_reason: reason.trim(), updated_at: new Date().toISOString() })
@@ -268,7 +268,7 @@ export async function runProject(id: string, input: { name: string; tmId: string
   if (!isProjectAdmin(profile)) return { error: "Only Trade Marketing can run projects." };
   const p = await loadProject(id, profile);
   if (!p || p.status !== "awaiting_tm") return { error: "This project isn't waiting to be run." };
-  if (p.hidden_for_kam) return { error: "The KAM deleted this project. Reallocate it to a KAM first." };
+  if (p.hidden_for_kam) return { error: "The project lead deleted this project. Reallocate it to a project lead first." };
   if (input.name.trim().length < 3) return { error: "Give the project a name." };
   if (!input.stages.length) return { error: "Choose at least one stage." };
 
@@ -421,7 +421,7 @@ export async function cancelProject(id: string, reason: string): Promise<Result>
 export async function reallocateProject(id: string, kamId: string): Promise<Result> {
   const db = createAdminClient();
   const { data: kam } = await db.from("profiles").select("id, manager_id, full_name, email").eq("id", kamId).maybeSingle();
-  if (!kam) return { error: "Choose a KAM." };
+  if (!kam) return { error: "Choose a project lead." };
   const { profile, p, result } = await adminUpdate(id, "reallocated", { kam_id: kamId, sm_id: kam.manager_id ?? null, hidden_for_kam: false }, { to: kamId });
   if (result.ok && p && profile) await notify([kamId], id, `${projectTitle(p)} has been passed to you.`, profile.id);
   return result;

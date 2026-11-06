@@ -22,16 +22,16 @@ const EVENT_LABEL: Record<string, string> = {
   resubmitted: "Request updated and resubmitted",
   approved_sm: "Approved by Sales Manager",
   approved_cm: "Approved by CM/TMM",
-  sent_back: "Sent back to KAM",
+  sent_back: "Sent back to the project lead",
   started: "Project started",
   stage: "Stage changed",
   completed: "Project completed",
   paused: "Paused",
   resumed: "Resumed",
   cancelled: "Cancelled",
-  reallocated: "Reallocated to a new KAM",
+  reallocated: "Reallocated to a new project lead",
   owner: "Owner changed",
-  hidden_by_kam: "Deleted by the KAM",
+  hidden_by_kam: "Deleted by the project lead",
   stages_edited: "Stages edited",
   picos_delivered: "PICOS item ticked off",
   picos_undelivered: "PICOS item un-ticked",
@@ -99,8 +99,8 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       )}
       {p.hidden_for_kam && (
         <div className="rounded-xl border-l-4 border-brand-red bg-brand-red/5 p-4 text-sm">
-          <p className="font-medium text-brand-black">Deleted by the KAM</p>
-          <p className="mt-1">It&apos;s kept here for the record and no longer counts in the dashboards or digests. Reallocate it to a KAM to bring it back, or cancel it.</p>
+          <p className="font-medium text-brand-black">Deleted by the project lead</p>
+          <p className="mt-1">It&apos;s kept here for the record and no longer counts in the dashboards or digests. Reallocate it to a project lead to bring it back, or cancel it.</p>
         </div>
       )}
       {p.status === "rejected" && (
@@ -169,7 +169,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
             <Item label="Desired date" value={formatDate(p.desired_date)} />
             <Item label="Brands" value={p.brands.join(", ")} />
             <Item label="Outlet type" value={p.outlet_type} />
-            <Item label="KAM" value={name(p.kam_id)} />
+            <Item label="Project lead" value={name(p.kam_id)} />
             <Item label="Sales Manager" value={name(p.sm_id)} />
             <Item label="Trade Marketing" value={p.tm_id ? name(p.tm_id) : "Not assigned"} />
           </dl>
