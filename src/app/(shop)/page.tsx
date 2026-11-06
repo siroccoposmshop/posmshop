@@ -47,7 +47,8 @@ export default async function HubHome() {
         <p className="mt-2 max-w-2xl text-sm">Everything for sales development in one place: order POSM, request and track projects, and find past work.</p>
       </div>
 
-      <div className={`grid gap-4 md:grid-cols-2 ${offTrade ? "xl:grid-cols-4" : "lg:grid-cols-3"}`}>
+      {/* Four tools (with Off trade): a 2 × 2 grid. Three: one row on wide screens. */}
+      <div className={`grid gap-4 md:grid-cols-2 ${offTrade ? "" : "lg:grid-cols-3"}`}>
         <Tool
           href="/projects"
           title="Projects"
