@@ -63,6 +63,7 @@ export function HistoryView({ all, f, year }: { all: StoreView[]; f: OffTradeFil
         </div>
       </div>
 
+      {activation.length > 0 && <CategoryChart stores={stores} years={activation.map((a) => a.year)} />}
       {activation.length > 0 && <Activation data={activation} selected={year} toDate={toDate} />}
       {activation.length > 0 && <YearByYear stores={stores} activation={activation} />}
 
@@ -284,6 +285,61 @@ function Activation({ data, selected, toDate }: { data: YearActivation[]; select
           Outlets {signed(last.outlets - prev.outlets)} ({prev.outlets} → {last.outlets}).
         </p>
       )}
+    </section>
+  );
+}
+
+/** The simple view: per category, how many outlets were activated each year. */
+function CategoryChart({ stores, years }: { stores: StoreView[]; years: number[] }) {
+  const thisYear = new Date().getFullYear();
+  const shades = ["bg-brand-black/20", "bg-brand-black/45", "bg-brand-green"];
+  const ys = years.slice(-3);
+  const shade = (i: number) => shades[shades.length - ys.length + i];
+  const count = new Map<string, number>();
+  const any = new Map<number, number>();
+  for (const y of ys) {
+    const rows = historyRows(stores, y).filter((r) => !r.store.bar);
+    any.set(y, new Set(rows.map((r) => r.store.id)).size);
+    for (const t of OFF_TRADE_PROJECT_TYPES) count.set(`${t}|${y}`, new Set(rows.filter((r) => r.project.type === t).map((r) => r.store.id)).size);
+  }
+  const types = OFF_TRADE_PROJECT_TYPES.filter((t) => ys.some((y) => count.get(`${t}|${y}`)));
+  const max = Math.max(1, ...count.values());
+  return (
+    <section className="bento" aria-label="Outlets activated by category and year">
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="font-display text-lg uppercase text-brand-black">Outlets activated by category</h2>
+        <div className="flex flex-wrap gap-4 text-xs">
+          {ys.map((y, i) => (
+            <span key={y} className="flex items-center gap-1.5">
+              <span className={`inline-block h-3 w-3 rounded-sm ${shade(i)}`} aria-hidden />
+              <span className="font-medium text-brand-black">
+                {y}
+                {y === thisYear ? " so far" : ""}
+              </span>
+              <span>· {any.get(y)} outlets in all</span>
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-4">
+        {types.map((t) => (
+          <div key={t} className="grid grid-cols-[6.5rem_1fr] items-center gap-3 sm:grid-cols-[9rem_1fr]">
+            <p className="text-sm font-medium text-brand-black">{t}</p>
+            <div className="space-y-1">
+              {ys.map((y, i) => {
+                const n = count.get(`${t}|${y}`) ?? 0;
+                return (
+                  <div key={y} className="flex items-center gap-2" role="img" aria-label={`${t} ${y}: ${n} outlets`}>
+                    <div className={`h-4 rounded-sm ${shade(i)}`} style={{ width: `${(n / max) * 85}%`, minWidth: n ? "2px" : 0 }} />
+                    <span className="text-xs font-medium text-brand-black">{n || "–"}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+        {!types.length && <p className="text-sm">Nothing installed yet.</p>}
+      </div>
     </section>
   );
 }
