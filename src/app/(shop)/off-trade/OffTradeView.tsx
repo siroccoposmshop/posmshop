@@ -58,9 +58,9 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
           href={`/off-trade/history${offTradeQuery(f) ? `?${offTradeQuery(f)}` : ""}`}
         />
         <Tile
-          label={`${TARGET_YEAR} targets`}
+          label="Targets"
           value={`${t.targeted}`}
-          sub={`stores · ${pct(t.targeted, t.stores)} of the universe · see progress`}
+          sub={`${TARGET_YEAR} target stores · ${pct(t.targeted, t.stores)} of the universe`}
           href={`/off-trade/targets${offTradeQuery(f) ? `?${offTradeQuery(f)}` : ""}`}
         />
         <Tile
