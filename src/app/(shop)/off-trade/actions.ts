@@ -118,6 +118,16 @@ export async function setStoreTarget(storeId: string, year: number | null): Prom
   return { ok: true };
 }
 
+export async function setStoreOpenedYear(storeId: string, year: number | null): Promise<Result> {
+  const profile = await me();
+  if (!profile) return DENIED;
+  if (year !== null && !(Number.isInteger(year) && year >= 1950 && year <= 2100)) return { error: "Enter a year, e.g. 2026." };
+  const { error } = await createAdminClient().from("off_trade_stores").update({ opened_year: year, updated_at: new Date().toISOString() }).eq("id", storeId);
+  if (error) return { error: dbError(error.message) };
+  refresh(storeId);
+  return { ok: true };
+}
+
 export type OffTradeImportSummary = { stores: number; created: number; projects: number; unknownStores: string[]; warnings: string[] };
 
 /** Stores are upserted by store code; projects from the Projects sheet are upserted by a key from their columns. */
@@ -229,6 +239,9 @@ async function importVisibilityMaster(master: NonNullable<Awaited<ReturnType<typ
       unknownStores: [],
       warnings: [
         `Read the "${master.sheet}" tab: ${master.groups.length} asset groups (${master.groups.join(", ")}).`,
+        master.hasOpened
+          ? `Opening years: ${master.stores.filter((s) => s.opened_year).length} stores have one; blank ones count in every year.`
+          : `No opening-year column: opening years set on the site are kept.`,
         ...(waiting ? [`${waiting} stores are waiting for their store code (shown as TBC-…). Add a "Store code" column and upload again to set them.`] : []),
       ],
     },

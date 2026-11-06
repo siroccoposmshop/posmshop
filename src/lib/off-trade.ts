@@ -46,6 +46,8 @@ export type OffTradeStore = {
   visibility_flag?: string | null;
   /** Targeted for this year, even before a project is chosen. */
   target_year?: number | null;
+  /** The year it opened; blank = before the history starts. It's an outlet from that year on. */
+  opened_year?: number | null;
   active: boolean;
 };
 
@@ -461,10 +463,10 @@ export type YearActivation = {
  * had something installed (a completed project) that year. Bars with work are counted on the side.
  */
 export function activationByYear(stores: StoreView[], years: number[]): YearActivation[] {
-  const outlets = stores.filter((s) => !s.bar);
   return [...years]
     .sort((a, b) => a - b)
     .map((year) => {
+      const outlets = stores.filter((s) => !s.bar && (!s.opened_year || s.opened_year <= year));
       const rows = historyRows(stores, year);
       const ids = new Set(rows.filter((r) => !r.store.bar).map((r) => r.store.id));
       const bars = new Set(rows.filter((r) => r.store.bar).map((r) => r.store.id)).size;

@@ -13,6 +13,12 @@ import { OFF_TRADE_PROJECT_TYPES, SEGMENTS, TARGET_YEAR } from "@/lib/off-trade"
  */
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+const OPENED_HEADINGS = ["openingyear", "yearopened", "openedyear", "opened", "openedin", "opening", "openingdate", "opendate", "dateopened", "yearofopening"];
+/** "2026", 2026 or a date → 2026. */
+export function openedYear(raw: string): number | null {
+  const m = raw.trim().match(/\b(19[5-9]\d|20\d\d)\b/);
+  return m ? Number(m[1]) : null;
+}
 const STORE_FIELDS: Record<string, string[]> = {
   code: ["storecode", "code", "storeno", "storenumber", "accountnumber", "accountno", "outletcode", "outletnumber", "storeid"],
   name: ["storename", "name", "store", "outletname", "outlet"],
@@ -24,6 +30,7 @@ const STORE_FIELDS: Record<string, string[]> = {
   segment: ["segment", "storesegment", "tier"],
   influenced: ["influence", "influenced", "influencestatus"],
   visit_frequency: ["visitfrequency", "frequency", "visits", "journeyplan"],
+  opened_year: OPENED_HEADINGS,
 };
 const PROJECT_FIELDS: Record<string, string[]> = {
   code: STORE_FIELDS.code,
@@ -130,6 +137,8 @@ export type ParsedStore = {
   influenced: boolean;
   visit_frequency: string | null;
   target_year: number | null;
+  /** Only when the sheet has an opening-year column. */
+  opened_year?: number | null;
 };
 
 /** "Dubai" → DXB, "Oman" → OM, "Duty Free" → DF …; codes are kept as they are. */
@@ -199,6 +208,7 @@ export async function parseOffTradeWorkbook(buffer: ArrayBuffer) {
         influenced: r.influenced ? yes(r.influenced) : false,
         visit_frequency: r.visit_frequency || null,
         target_year: targetYear(r.target_year ?? ""),
+        opened_year: openedYear(r.opened_year ?? ""),
       });
     }
   }
@@ -286,7 +296,7 @@ const CHANNEL: Record<string, { market: string; area: string }> = {
 export const matchKey = (channel: string, customer: string, store: string, type: string) =>
   [channel, customer, store, type].map((x) => x.trim().toLowerCase().replace(/\s+/g, " ")).join("|");
 
-export function parseVisibilityMaster(ws: ExcelJS.Worksheet): { stores: ParsedVisibilityStore[]; groups: string[] } | null {
+export function parseVisibilityMaster(ws: ExcelJS.Worksheet): { stores: ParsedVisibilityStore[]; groups: string[]; hasOpened: boolean } | null {
   for (let r = 1; r <= Math.min(15, ws.rowCount); r++) {
     const heads = new Map<string, number>();
     ws.getRow(r).eachCell((cell, c) => {
@@ -304,14 +314,17 @@ export function parseVisibilityMaster(ws: ExcelJS.Worksheet): { stores: ParsedVi
     const seg = col("segmentation", "segment");
     const flag = col("visibility");
     const code = col("storecode", "code", "uniquecode", "storeid", "accountnumber");
-    const fixed = new Set([channel, store, tm, city, customer, type, seg, flag, code].filter((x): x is number => !!x));
+    const opened = col(...OPENED_HEADINGS);
+    const fixed = new Set([channel, store, tm, city, customer, type, seg, flag, code, opened].filter((x): x is number => !!x));
+    // Asset columns start after the store details (an opening-year column may be added at the end).
+    const detailsEnd = Math.max(...[channel, store, tm, city, customer, type, seg, flag, code].filter((x): x is number => !!x));
 
     // Asset columns: after the fixed columns, with an asset group above (merged group headings
     // repeat across their columns). A column with no group above, e.g. the sheet's total, is skipped.
     const groupRow = ws.getRow(r - 1);
     const assetCols: { col: number; group: string; brand: string }[] = [];
     ws.getRow(r).eachCell((cell, c) => {
-      if (fixed.has(c) || c < Math.max(...fixed)) return;
+      if (fixed.has(c) || c < detailsEnd) return;
       const above = text(groupRow.getCell(c).value).trim();
       const head = text(cell.value).trim();
       if (!above || /^(total|sum|count)/i.test(head)) return;
@@ -357,9 +370,10 @@ export function parseVisibilityMaster(ws: ExcelJS.Worksheet): { stores: ParsedVi
         visibility,
         visibility_flag: get(flag) || null,
         match_key: key,
+        ...(opened ? { opened_year: openedYear(get(opened)) } : {}),
       });
     }
-    return { stores, groups: [...new Set(assetCols.map((a) => a.group))] };
+    return { stores, groups: [...new Set(assetCols.map((a) => a.group))], hasOpened: !!opened };
   }
   return null;
 }

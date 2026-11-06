@@ -218,7 +218,10 @@ function Activation({ data, selected }: { data: YearActivation[]; selected: numb
     <section className="bento space-y-4" aria-label="Outlets activated by year">
       <div>
         <h2 className="font-display text-lg uppercase text-brand-black">Outlets activated</h2>
-        <p className="text-xs">An outlet is activated in a year when something was installed in it that year. Bars are counted on the side, not as outlets.</p>
+        <p className="text-xs">
+          An outlet is activated in a year when something was installed in it that year. Outlets count from the year they opened (set on the
+          store page, or an Opening year column in the store list). Bars are counted on the side, not as outlets.
+        </p>
       </div>
       <div className={`grid gap-3 ${prev ? "md:grid-cols-[repeat(var(--n),minmax(0,1fr))_minmax(0,0.9fr)]" : ""}`} style={{ ["--n" as string]: data.length }}>
         {data.map((d) => (
