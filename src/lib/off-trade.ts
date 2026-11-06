@@ -37,10 +37,50 @@ export type OffTradeStore = {
   segment: string | null;
   influenced: boolean;
   visit_frequency: string | null;
+  city?: string | null;
+  /** Retail store, Bar … */
+  store_type?: string | null;
+  /** What's in the store: { asset group: { brand: quantity } } (Visibility Master File). */
+  visibility?: Visibility | null;
+  /** The master file's own "Visibility" Yes / No, kept for reference. */
+  visibility_flag?: string | null;
   /** Targeted for this year, even before a project is chosen. */
   target_year?: number | null;
   active: boolean;
 };
+
+// ---------------------------------------------------------------------------
+// Visibility in store (the five main titles always shown; the rest in the details)
+// ---------------------------------------------------------------------------
+
+export type Visibility = Record<string, Record<string, number>>;
+export const VISIBILITY_MAIN = ["Branding", "Perfect shelf", "Cold room", "Fridge", "FSU"] as const;
+export type VisibilityMain = (typeof VISIBILITY_MAIN)[number] | "Other";
+
+/** Which main title an asset group from the master file belongs to. */
+export function visibilityMain(group: string): VisibilityMain {
+  const g = group.toLowerCase();
+  if (/perfect\s*shelf/.test(g)) return "Perfect shelf";
+  if (/cold\s*room/.test(g)) return "Cold room";
+  if (/fridge|chiller unit/.test(g) && !/retailer/.test(g)) return "Fridge";
+  if (/\bfsu\b|floor\s*stand/.test(g)) return "FSU";
+  if (/brand|light\s*box|pallet\s*wall|take\s*over|wall/.test(g)) return "Branding";
+  return "Other";
+}
+
+/** Quantity per main title, and the groups behind each (for the details). */
+export function visibilitySummary(v: Visibility | null | undefined) {
+  const totals: Record<VisibilityMain, number> = { Branding: 0, "Perfect shelf": 0, "Cold room": 0, Fridge: 0, FSU: 0, Other: 0 };
+  const groups: Record<VisibilityMain, { group: string; items: [string, number][] }[]> = { Branding: [], "Perfect shelf": [], "Cold room": [], Fridge: [], FSU: [], Other: [] };
+  for (const [group, items] of Object.entries(v ?? {})) {
+    const list = Object.entries(items).filter(([, q]) => q > 0);
+    if (!list.length) continue;
+    const main = visibilityMain(group);
+    totals[main] += list.reduce((n, [, q]) => n + q, 0);
+    groups[main].push({ group, items: list });
+  }
+  return { totals, groups, any: Object.values(totals).some((n) => n > 0) };
+}
 
 /** Market codes used for off trade (UAE and the Gulf). */
 export const OFF_TRADE_MARKETS: Record<string, string> = {
@@ -76,6 +116,8 @@ export type StoreView = OffTradeStore & {
   targets: OffTradeProject[];
   /** A target store this year: marked as one, or with a project for the year. */
   targeted: boolean;
+  /** Visibility quantities per main title. */
+  vis: ReturnType<typeof visibilitySummary>;
 };
 
 export async function loadOffTrade(): Promise<StoreView[]> {
@@ -98,6 +140,7 @@ export function storeView(s: OffTradeStore, projects: OffTradeProject[]): StoreV
     projects: sorted,
     last: done.sort((a, b) => String(b.completed_date).localeCompare(String(a.completed_date)))[0] ?? null,
     targets: sorted.filter((p) => p.status !== "cancelled" && yearOf(p) === TARGET_YEAR),
+    vis: visibilitySummary(s.visibility),
     targeted: s.target_year === TARGET_YEAR || sorted.some((p) => p.status !== "cancelled" && yearOf(p) === TARGET_YEAR),
   };
 }
@@ -113,7 +156,7 @@ export function yearOf(p: OffTradeProject): number | null {
 // Filters (URL; repeated keys for several)
 // ---------------------------------------------------------------------------
 
-export type OffTradeFilters = { market: string[]; area: string[]; tmam: string[]; segment: string[]; chain: string[]; influence?: "yes" | "no" };
+export type OffTradeFilters = { market: string[]; area: string[]; tmam: string[]; segment: string[]; chain: string[]; type: string[]; influence?: "yes" | "no" };
 
 export function readOffTradeFilters(sp: Record<string, string | string[] | undefined>): OffTradeFilters {
   const list = (k: string) => {
@@ -121,7 +164,7 @@ export function readOffTradeFilters(sp: Record<string, string | string[] | undef
     return (Array.isArray(v) ? v : v ? [v] : []).map((x) => x.trim()).filter(Boolean);
   };
   const inf = sp.influence;
-  return { market: list("market"), area: list("area"), tmam: list("tmam"), segment: list("segment"), chain: list("chain"), influence: inf === "yes" || inf === "no" ? inf : undefined };
+  return { market: list("market"), area: list("area"), tmam: list("tmam"), segment: list("segment"), chain: list("chain"), type: list("type"), influence: inf === "yes" || inf === "no" ? inf : undefined };
 }
 
 export function applyOffTradeFilters(stores: StoreView[], f: OffTradeFilters) {
@@ -133,6 +176,7 @@ export function applyOffTradeFilters(stores: StoreView[], f: OffTradeFilters) {
       has(f.tmam, s.tmam) &&
       has(f.segment, s.segment) &&
       has(f.chain, s.chain) &&
+      has(f.type, s.store_type ?? null) &&
       (!f.influence || (f.influence === "yes") === s.influenced),
   );
 }
@@ -157,13 +201,16 @@ export type OffTradeSummary = {
   actual: number;
   /** Expected cost of the target-year projects that are completed (to compare with actual). */
   expectedDone: number;
+  /** Stores with each main visibility title in place. */
+  assets: Record<string, number>;
 };
 
 function summarise(stores: StoreView[], keyOf: (s: StoreView) => string) {
   const map = new Map<string, OffTradeSummary>();
   for (const s of stores) {
     const key = keyOf(s) || "—";
-    const e = map.get(key) ?? { key, label: key, stores: 0, influenced: 0, segments: {}, withProjects: 0, lastDate: null, targeted: 0, expected: 0, actual: 0, expectedDone: 0 };
+    const e = map.get(key) ?? { key, label: key, stores: 0, influenced: 0, segments: {}, withProjects: 0, lastDate: null, targeted: 0, expected: 0, actual: 0, expectedDone: 0, assets: {} };
+    for (const m of VISIBILITY_MAIN) if (s.vis.totals[m] > 0) e.assets[m] = (e.assets[m] ?? 0) + 1;
     e.stores++;
     if (s.influenced) e.influenced++;
     const seg = segmentShort(s.segment);
@@ -186,7 +233,7 @@ function summarise(stores: StoreView[], keyOf: (s: StoreView) => string) {
   return [...map.values()].sort((a, b) => b.stores - a.stores);
 }
 
-const EMPTY: OffTradeSummary = { key: "All", label: "All", stores: 0, influenced: 0, segments: {}, withProjects: 0, lastDate: null, targeted: 0, expected: 0, actual: 0, expectedDone: 0 };
+const EMPTY: OffTradeSummary = { key: "All", label: "All", stores: 0, influenced: 0, segments: {}, withProjects: 0, lastDate: null, targeted: 0, expected: 0, actual: 0, expectedDone: 0, assets: {} };
 export const offTradeTotals = (stores: StoreView[]) => summarise(stores, () => "All")[0] ?? EMPTY;
 export const byArea = (stores: StoreView[]) => summarise(stores, (s) => s.area ?? "");
 export const byTmam = (stores: StoreView[]) => summarise(stores, (s) => s.tmam ?? "");
@@ -221,5 +268,12 @@ export function byProjectType(stores: StoreView[]) {
 /** Distinct values for the filter lists. */
 export function filterOptions(stores: StoreView[]) {
   const vals = (f: (s: StoreView) => string | null) => [...new Set(stores.map(f).filter((x): x is string => !!x))].sort();
-  return { market: vals((s) => s.market), area: vals((s) => s.area), tmam: vals((s) => s.tmam), chain: vals((s) => s.chain), segment: vals((s) => s.segment) };
+  return {
+    market: vals((s) => s.market),
+    area: vals((s) => s.area),
+    tmam: vals((s) => s.tmam),
+    chain: vals((s) => s.chain),
+    segment: vals((s) => s.segment),
+    type: vals((s) => s.store_type ?? null),
+  };
 }

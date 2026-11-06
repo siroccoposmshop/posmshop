@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { formatDate } from "@/lib/format";
 import { formatAed } from "@/lib/hub";
@@ -5,6 +6,7 @@ import {
   OFF_TRADE_STATUS,
   SEGMENTS,
   TARGET_YEAR,
+  VISIBILITY_MAIN,
   applyOffTradeFilters,
   byArea,
   byMarket,
@@ -27,7 +29,7 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
   const t = offTradeTotals(stores);
   const opts = filterOptions(all);
   const types = byProjectType(stores);
-  const filtered = !!(f.market.length || f.area.length || f.tmam.length || f.segment.length || f.chain.length || f.influence);
+  const filtered = !!(f.market.length || f.area.length || f.tmam.length || f.segment.length || f.chain.length || f.type.length || f.influence);
   const pct = (n: number, d: number) => (d ? `${Math.round((n / d) * 100)}%` : "—");
 
   return (
@@ -42,12 +44,13 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
         </Link>
       </div>
 
-      <form className="bento grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <form className="bento grid gap-3 sm:grid-cols-3 lg:grid-cols-7">
         <MultiSelect name="market" label="Market" allLabel="All markets" options={opts.market.map((v) => ({ value: v, label: marketName(v) }))} selected={f.market} />
         <MultiSelect name="area" label="Area" allLabel="All areas" options={opts.area.map((v) => ({ value: v, label: v }))} selected={f.area} />
         <MultiSelect name="tmam" label="TM" allLabel="All TMs" options={opts.tmam.map((v) => ({ value: v, label: v }))} selected={f.tmam} />
         <MultiSelect name="segment" label="Segment" allLabel="All segments" options={opts.segment.map((v) => ({ value: v, label: v }))} selected={f.segment} />
         <MultiSelect name="chain" label="Chain" allLabel="All chains" options={opts.chain.map((v) => ({ value: v, label: v }))} selected={f.chain} />
+        <MultiSelect name="type" label="Store type" allLabel="All types" options={opts.type.map((v) => ({ value: v, label: v }))} selected={f.type} />
         <div>
           <label className="label" htmlFor="ot-inf">Influence</label>
           <select id="ot-inf" name="influence" defaultValue={f.influence ?? ""} className="field">
@@ -56,7 +59,7 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
             <option value="no">Not influenced</option>
           </select>
         </div>
-        <div className="flex items-end gap-2 sm:col-span-3 lg:col-span-6">
+        <div className="flex items-end gap-2 sm:col-span-3 lg:col-span-7">
           <button className="btn btn-primary">Apply filters</button>
           {filtered && (
             <Link href="/off-trade" className="btn btn-secondary">
@@ -85,6 +88,7 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
         />
       </div>
 
+      <VisibilityTable rows={byArea(stores)} total={t} />
       <SummaryTable title="By market" first="Market" rows={byMarket(stores)} />
       <SummaryTable title="By area" first="Area" rows={byArea(stores)} />
       <SummaryTable title="By TM" first="TM" rows={byTmam(stores)} />
@@ -131,10 +135,14 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
               <th>Area</th>
               <th>TM</th>
               <th>Segment</th>
-              <th>Influence</th>
+              {VISIBILITY_MAIN.map((m) => (
+                <th key={m} className="text-center">
+                  {m}
+                </th>
+              ))}
               <th>Last project</th>
               <th>{TARGET_YEAR} plan</th>
-              <th className="text-right">Expected / actual</th>
+              <th className="text-right">{TARGET_YEAR} cost</th>
             </tr>
           </thead>
           <tbody>
@@ -149,8 +157,11 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
                       {s.name}
                     </Link>
                     <span className="block text-xs">
-                      {s.chain ? `${s.chain} · ` : ""}#{s.code}
+                      {s.chain ? `${s.chain} · ` : ""}
+                      {s.code.startsWith("TBC-") ? "code tbc" : `#${s.code}`}
+                      {s.store_type && !/retail/i.test(s.store_type) ? ` · ${s.store_type}` : ""}
                     </span>
+                    {s.influenced && <span className="badge mt-0.5 bg-brand-green-tint text-brand-green-dark">Influenced</span>}
                   </td>
                   <td className="whitespace-nowrap">
                     {s.area ?? "—"}
@@ -158,7 +169,11 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
                   </td>
                   <td className="whitespace-nowrap">{s.tmam ?? "—"}</td>
                   <td className="whitespace-nowrap">{s.segment ?? "—"}</td>
-                  <td>{s.influenced ? <span className="badge bg-brand-green-tint text-brand-green-dark">Influenced</span> : <span className="text-xs">No</span>}</td>
+                  {VISIBILITY_MAIN.map((m) => (
+                    <td key={m} className="text-center">
+                      {s.vis.totals[m] > 0 ? <span className="font-medium text-brand-green-dark">✓{s.vis.totals[m] > 1 ? ` ${s.vis.totals[m]}` : ""}</span> : <span className="text-brand-grey/40">–</span>}
+                    </td>
+                  ))}
                   <td className="whitespace-nowrap">
                     {s.last ? (
                       <>
@@ -213,6 +228,62 @@ function Tile({ label, value, sub }: { label: string; value: string; sub?: strin
       <p className="mt-1 font-display text-2xl font-medium text-brand-black sm:text-3xl">{value}</p>
       {sub && <p className="text-xs">{sub}</p>}
     </div>
+  );
+}
+
+/** Stores with each main visibility title in place, by area. */
+function VisibilityTable({ rows, total }: { rows: OffTradeSummary[]; total: OffTradeSummary }) {
+  const cell = (n: number | undefined, of: number) => (
+    <td className="whitespace-nowrap text-right">
+      {n ? (
+        <>
+          {n}
+          <span className="block text-xs">{Math.round((n / of) * 100)}%</span>
+        </>
+      ) : (
+        "—"
+      )}
+    </td>
+  );
+  return (
+    <section className="bento overflow-x-auto">
+      <h2 className="mb-1 text-xl text-brand-black">Visibility in place</h2>
+      <p className="mb-3 text-sm">Stores with each type of visibility today (from the Visibility Master File). Open a store for the brands and units.</p>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Area</th>
+            <th className="text-right">Stores</th>
+            <th className="text-right">Influenced</th>
+            {VISIBILITY_MAIN.map((m) => (
+              <th key={m} className="text-right">
+                {m}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.key}>
+              <td className="font-medium text-brand-black">{r.label}</td>
+              <td className="text-right">{r.stores}</td>
+              {cell(r.influenced, r.stores)}
+              {VISIBILITY_MAIN.map((m) => (
+                <Fragment key={m}>{cell(r.assets[m], r.stores)}</Fragment>
+              ))}
+            </tr>
+          ))}
+          <tr className="font-medium">
+            <td className="text-brand-black">Total</td>
+            <td className="text-right text-brand-black">{total.stores}</td>
+            {cell(total.influenced, total.stores)}
+            {VISIBILITY_MAIN.map((m) => (
+              <Fragment key={m}>{cell(total.assets[m], total.stores)}</Fragment>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+    </section>
   );
 }
 
