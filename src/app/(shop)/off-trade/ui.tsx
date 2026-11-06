@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { MultiSelect } from "@/components/MultiSelect";
-import { filterOptions, marketName, offTradeQuery, type OffTradeFilters, type StoreView } from "@/lib/off-trade";
+import { TARGET_YEAR, activationByYear, filterOptions, historyYears, marketName, offTradeQuery, type OffTradeFilters, type StoreView } from "@/lib/off-trade";
 
 /** The off-trade filters, pinned under the header while scrolling. Submits to `action` (GET). */
 export function FilterBar({ all, f, shown, action, keep }: { all: StoreView[]; f: OffTradeFilters; shown: number; action: string; keep?: Record<string, string> }) {
@@ -92,5 +92,62 @@ export function Meter({ value, of, wide }: { value: number; of: number; wide?: b
       </span>
       <span className="w-10 shrink-0 text-right text-xs font-medium text-brand-black">{of ? `${pct}%` : "—"}</span>
     </span>
+  );
+}
+
+/**
+ * The simple picture, for the filters chosen: outlets now, activated each year, activated to date
+ * against influenced, and the next year's plan. One scale (today's outlets). Bars aren't outlets.
+ */
+export function OutletSummary({ stores }: { stores: StoreView[] }) {
+  const thisYear = new Date().getFullYear();
+  const outlets = stores.filter((s) => !s.bar);
+  const total = outlets.length;
+  const influenced = outlets.filter((s) => s.influenced).length;
+  const toDate = outlets.filter((s) => s.projects.some((p) => p.status === "completed")).length;
+  const plan = outlets.filter((s) => s.targeted).length;
+  const years = activationByYear(stores, historyYears(stores).filter((y) => y < TARGET_YEAR).slice(0, 3));
+  type Row = { label: string; sub?: string; value: number; cls: string; extra?: number; note?: string; gap?: boolean };
+  const rows: Row[] = [
+    { label: "Outlets now", value: total, cls: "bg-brand-black/70" },
+    ...years.map((a) => ({
+      label: `Activated ${a.year}`,
+      sub: a.year === thisYear ? "so far" : undefined,
+      value: a.activated,
+      cls: "bg-brand-green",
+      extra: a.year === thisYear ? a.planned : 0,
+      note: a.year === thisYear && a.planned ? `+${a.planned} still planned` : undefined,
+    })),
+    ...(years.length ? [{ label: "Activated to date", sub: "each outlet once", value: toDate, cls: "bg-brand-green-dark", gap: true }] : []),
+    { label: "Influenced", sub: "visibility in place", value: influenced, cls: "bg-brand-black/40", note: years.length && influenced ? `${toDate} activated to date = ${Math.round((toDate / influenced) * 100)}% of influenced` : undefined },
+    { label: `Plan ${TARGET_YEAR}`, sub: "target outlets", value: plan, cls: "bg-brand-red/70", gap: true },
+  ];
+  const of = (n: number) => (total ? (n / total) * 100 : 0);
+  return (
+    <section className="bento" aria-label="Outlets: now, activated, influenced and plan">
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="font-display text-lg uppercase text-brand-black">Outlets at a glance</h2>
+        <p className="text-xs">% of the {total} outlets now · bars aren&apos;t counted</p>
+      </div>
+      <div className="space-y-3">
+        {rows.map((r) => (
+          <div key={r.label} className={`grid grid-cols-[7.5rem_1fr] items-center gap-3 sm:grid-cols-[11rem_1fr_9rem] ${r.gap ? "border-t border-black/10 pt-3" : ""}`}>
+            <p className="text-sm font-medium leading-tight text-brand-black">
+              {r.label}
+              {r.sub && <span className="block text-xs font-normal text-brand-grey">{r.sub}</span>}
+            </p>
+            <div className="flex h-7 overflow-hidden rounded-md bg-brand-light" role="img" aria-label={`${r.label}: ${r.value} of ${total}`}>
+              <div className={`h-full ${r.cls}`} style={{ width: `${of(r.value)}%` }} />
+              {!!r.extra && <div className="h-full bg-brand-green/35" style={{ width: `${of(r.extra)}%` }} />}
+            </div>
+            <p className="col-start-2 -mt-2 text-sm sm:col-start-3 sm:mt-0 sm:text-right">
+              <strong className="font-display text-lg text-brand-black">{r.value}</strong>
+              {r.label !== "Outlets now" && <span className="ml-1.5">{Math.round(of(r.value))}%</span>}
+              {r.note && <span className="block text-xs">{r.note}</span>}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

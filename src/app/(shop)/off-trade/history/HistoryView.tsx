@@ -16,7 +16,7 @@ import {
   type YearActivation,
 } from "@/lib/off-trade";
 import { OffTradeImportForm } from "../import/ImportForm";
-import { Card, FilterBar, Tile } from "../ui";
+import { Card, FilterBar, OutletSummary, Tile } from "../ui";
 
 /** Everything installed (completed projects), by category, area, market and TM, with the full list. */
 export function HistoryView({ all, f, year }: { all: StoreView[]; f: OffTradeFilters; year: number | null }) {
@@ -63,6 +63,7 @@ export function HistoryView({ all, f, year }: { all: StoreView[]; f: OffTradeFil
         </div>
       </div>
 
+      <OutletSummary stores={stores} />
       {activation.length > 0 && <CategoryChart stores={stores} years={activation.map((a) => a.year)} />}
       {activation.length > 0 && <Activation data={activation} selected={year} toDate={toDate} />}
       {activation.length > 0 && <YearByYear stores={stores} activation={activation} />}
