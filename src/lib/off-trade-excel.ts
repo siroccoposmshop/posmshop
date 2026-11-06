@@ -409,6 +409,7 @@ export type KpiRow = ParsedProject & { market: string | null; sheet: string };
 
 const KPI_TABS = /^(abu\s*dhabi|adr|auh|ner|ne|dxbr|dxb\s*r(etail)?|dxb\s*ir|al\s*ain|oman|bahrain|qatar)$/i;
 const TAB_MARKET: [RegExp, string][] = [
+  [/omanr?/i, "OM"],
   [/abu|adr|auh|ain/i, "AUH"],
   [/ner|^ne$/i, "NE"],
   [/dxb/i, "DXB"],
@@ -417,12 +418,14 @@ const TAB_MARKET: [RegExp, string][] = [
   [/qatar/i, "QA"],
 ];
 const QUARTER_END = ["03-31", "06-30", "09-30", "12-31"];
+const QUARTER_START = ["01-01", "04-01", "07-01", "10-01"];
 
 /** What → project type and item. "Branded Unit" is the perfect-shelf KPI (its targets match). */
 export function kpiType(what: string): { type: string; item: string } | null {
   const w = what.replace(/\s+/g, " ").trim();
   const n = norm(w);
   if (!n || /^units?$|ofunits/.test(n)) return null;
+  if (n === "other" || n === "others") return { type: "Other", item: "Other" };
   if (/fulloutletbranding|fullbarbranding|takeover/.test(n)) return { type: "Takeover", item: w };
   if (/brandedunit|perfectshel|blade/.test(n)) return { type: "Perfect shelf", item: w };
   if (/coldroom|coolerroom/.test(n)) return { type: "Cold room", item: w };
@@ -432,12 +435,21 @@ export function kpiType(what: string): { type: string; item: string } | null {
   return { type: "Branding", item: w };
 }
 
+/**
+ * Two layouts are read:
+ *  - 2025: one tab per market (ABU DHABI, NER, DXBR) with What · Brand · # · Customer · Store and
+ *    Q1–Q4 holding "Y" when done.
+ *  - 2026: a combined tab ("ADR NER DXB OMAN DDF") with Channel · Customer · Store · Visibility ·
+ *    Brand · Q1–Q4 · TM · Cost Estimate · Actual Cost. When a combined tab is there, single-market
+ *    tabs (older working copies) are ignored.
+ * Quarter codes: Y = done, 1 = locked in, 0 = planned, N = cancelled, _ = nothing. Done rows become
+ * completed projects (end of that quarter); for the current or a future year, locked-in and planned
+ * rows become in-progress / planned projects (start of that quarter), so they show as targets.
+ */
 export function parseKpiTracker(wb: ExcelJS.Workbook, year: number): { rows: KpiRow[]; tabs: string[]; skipped: number } | null {
-  const rows: KpiRow[] = [];
-  const tabs: string[] = [];
-  let skipped = 0;
+  const sheets: { name: string; rows: KpiRow[]; skipped: number; channels: Set<string> }[] = [];
+  const thisYear = new Date().getFullYear();
   for (const ws of wb.worksheets) {
-    if (!KPI_TABS.test(ws.name.trim())) continue;
     let hr = 0;
     const col = new Map<string, number>();
     for (let r = 1; r <= Math.min(10, ws.rowCount) && !hr; r++) {
@@ -446,28 +458,50 @@ export function parseKpiTracker(wb: ExcelJS.Workbook, year: number): { rows: Kpi
         const h = norm(text(cell.value));
         if (h && !heads.has(h)) heads.set(h, c);
       });
-      if (heads.has("what") && heads.has("store") && heads.has("q1")) {
+      if (heads.has("store") && heads.has("q1") && (heads.has("what") || heads.has("visibility") || heads.has("newvisibility"))) {
         hr = r;
         for (const [k, v] of heads) col.set(k, v);
       }
     }
-    if (!hr) continue;
-    tabs.push(ws.name.trim());
-    const market = TAB_MARKET.find(([re]) => re.test(ws.name))?.[1] ?? null;
+    if (!hr || (!KPI_TABS.test(ws.name.trim()) && !col.has("channel"))) continue;
+    const whatKey = col.has("what") ? "what" : col.has("visibility") ? "visibility" : "newvisibility";
+    const tabMarket = TAB_MARKET.find(([re]) => re.test(ws.name))?.[1] ?? null;
     const get = (row: ExcelJS.Row, k: string) => (col.has(k) ? text(row.getCell(col.get(k)!).value).trim() : "");
+    const sheet = { name: ws.name.trim(), rows: [] as KpiRow[], skipped: 0, channels: new Set<string>() };
     for (let i = hr + 1; i <= ws.rowCount; i++) {
       const row = ws.getRow(i);
       const store = get(row, "store");
-      const what = get(row, "what");
+      const what = get(row, whatKey);
       if (!store || !what) continue;
-      const q = ["q1", "q2", "q3", "q4"].findIndex((k) => /^y/i.test(get(row, k)));
+      const channel = get(row, "channel");
+      let market = tabMarket;
+      if (col.has("channel")) {
+        if (!channel || /summary|channel|total/i.test(channel)) continue;
+        if (/ddf|duty\s*free/i.test(channel)) {
+          sheet.skipped++;
+          continue;
+        }
+        sheet.channels.add(channel.toUpperCase());
+        market = TAB_MARKET.find(([re]) => re.test(channel))?.[1] ?? null;
+      }
+      const qs = ["q1", "q2", "q3", "q4"].map((k) => get(row, k).toUpperCase());
+      const done = qs.findIndex((x) => x.startsWith("Y"));
+      const locked = qs.findIndex((x) => x === "1");
+      const planned = qs.findIndex((x) => x === "0");
       const t = kpiType(what);
-      if (q < 0 || !t) {
-        skipped++;
+      const live = year >= thisYear;
+      const status = done >= 0 ? "completed" : live && locked >= 0 ? "in_progress" : live && planned >= 0 ? "planned" : null;
+      if (!t || !status) {
+        sheet.skipped++;
         continue;
       }
-      const qty = Number(get(row, "") || get(row, "#") || "1");
-      rows.push({
+      const q = done >= 0 ? done : locked >= 0 ? locked : planned;
+      const qty = Number(get(row, "#") || "1");
+      const money = (k: string) => {
+        const n = Number(get(row, k).replace(/[^0-9.]/g, ""));
+        return n > 0 ? Math.round(n * 100) / 100 : null;
+      };
+      sheet.rows.push({
         code: get(row, "storecode") || get(row, "code"),
         name: store,
         chain: get(row, "customer") || get(row, "customername") || null,
@@ -475,19 +509,25 @@ export function parseKpiTracker(wb: ExcelJS.Workbook, year: number): { rows: Kpi
         item: t.item,
         brand: get(row, "brand") || null,
         quantity: Number.isFinite(qty) && qty > 0 ? Math.round(qty) : 1,
-        status: "completed",
+        status,
         plan_year: year,
-        planned_date: null,
-        completed_date: `${year}-${QUARTER_END[q]}`,
-        expected_cost_aed: null,
-        actual_cost_aed: null,
-        notes: [get(row, "remarks"), get(row, "comment")].filter(Boolean).join(" · ") || null,
+        // 2025 only marks what was done; from 2026 a done row was also planned for that quarter.
+        planned_date: col.has("channel") ? `${year}-${QUARTER_START[q]}` : status === "completed" ? null : `${year}-${QUARTER_START[q]}`,
+        completed_date: status === "completed" ? `${year}-${QUARTER_END[q]}` : null,
+        expected_cost_aed: money("costestimateaed"),
+        actual_cost_aed: status === "completed" ? money("actualcostaed") : null,
+        notes: [get(row, "remarks"), get(row, "comment"), get(row, "notes")].filter(Boolean).join(" · ") || null,
         market,
         sheet: ws.name.trim(),
       });
     }
+    sheets.push(sheet);
   }
-  return tabs.length ? { rows, tabs, skipped } : null;
+  // A combined tab (several channels) is the master; single-market tabs beside it are working copies.
+  const master = sheets.reduce<(typeof sheets)[number] | null>((m, x) => (x.channels.size >= 2 && x.channels.size > (m?.channels.size ?? 0) ? x : m), null);
+  const use = master ? [master] : sheets;
+  if (!use.length) return null;
+  return { rows: use.flatMap((x) => x.rows), tabs: use.map((x) => x.name), skipped: use.reduce((n, x) => n + x.skipped, 0) };
 }
 
 /** The year a KPI file is for: from its name ("2025 Retail KPIs"), else last year. */

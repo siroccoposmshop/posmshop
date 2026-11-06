@@ -268,7 +268,8 @@ async function importKpi(kpi: { rows: KpiRow[]; tabs: string[]; skipped: number 
       unmatched.set(label, (unmatched.get(label) ?? 0) + 1);
       return [];
     }
-    const base = ["kpi", storeId, r.type, r.item ?? "", r.brand ?? "", r.completed_date].join("|").toLowerCase();
+    // Status-free key, so a planned row that's later done updates the same project.
+    const base = ["kpi", year, storeId, r.type, r.item ?? "", r.brand ?? ""].join("|").toLowerCase();
     const nth = (seen.get(base) ?? 0) + 1;
     seen.set(base, nth);
     const { code: _c, name: _n, chain: _ch, market: _m, sheet: _s, ...project } = r;
@@ -278,8 +279,19 @@ async function importKpi(kpi: { rows: KpiRow[]; tabs: string[]; skipped: number 
     const { error: e } = await db.from("off_trade_projects").upsert(rows.slice(i, i + 500), { onConflict: "import_key" });
     if (e) return { error: dbError(e.message) };
   }
+  // The file is the master for its year: rows from an earlier upload that are no longer in it go.
+  const keys = new Set(rows.map((r) => r.import_key));
+  const { data: old } = await db.from("off_trade_projects").select("id, import_key").eq("plan_year", year).like("import_key", "kpi|%");
+  const stale = (rows.length ? old ?? [] : []).filter((o) => !keys.has(o.import_key as string)).map((o) => o.id as string);
+  for (let i = 0; i < stale.length; i += 200) {
+    const { error: e } = await db.from("off_trade_projects").delete().in("id", stale.slice(i, i + 200));
+    if (e) return { error: dbError(e.message) };
+  }
   refresh();
   const items = rows.reduce((n, r) => n + (r.quantity ?? 1), 0);
+  const count = (st: string) => rows.filter((r) => r.status === st).length;
+  const done = count("completed");
+  const open = count("in_progress") + count("planned");
   return {
     summary: {
       stores: 0,
@@ -287,8 +299,8 @@ async function importKpi(kpi: { rows: KpiRow[]; tabs: string[]; skipped: number 
       projects: rows.length,
       unknownStores: [...unmatched].map(([k, n]) => (n > 1 ? `${k} ×${n}` : k)).slice(0, 40),
       warnings: [
-        `${year}: ${rows.length} done (${items} items) from the ${kpi.tabs.join(", ")} tabs, dated at the end of their quarter.`,
-        `${kpi.skipped} rows weren't done that year (no Y in Q1–Q4, cancelled, or moved to the next year) and were left out.`,
+        `${year}: ${done} done (dated at the end of their quarter)${open ? `, ${count("in_progress")} locked in and ${count("planned")} planned (dated at the start of their quarter, shown under Targets)` : ""} · ${items} items, from the ${kpi.tabs.join(", ")} tab${kpi.tabs.length > 1 ? "s" : ""}.`,
+        `${kpi.skipped} rows were left out (nothing in Q1–Q4, cancelled, moved to the next year, or Duty Free).`,
       ],
     },
   };

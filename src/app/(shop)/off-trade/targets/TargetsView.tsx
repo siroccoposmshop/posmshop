@@ -3,6 +3,7 @@ import { formatDate } from "@/lib/format";
 import { formatAed } from "@/lib/hub";
 import {
   TARGET_YEAR,
+  TARGET_YEARS,
   applyOffTradeFilters,
   marketName,
   offTradeQuery,
@@ -16,9 +17,9 @@ import {
 import { Card, FilterBar, Meter, Tile } from "../ui";
 
 /** The target-year KPI tracker: targets achieved, by quarter, market, area and TM. */
-export function TargetsView({ all, f }: { all: StoreView[]; f: OffTradeFilters }) {
+export function TargetsView({ all, f, year }: { all: StoreView[]; f: OffTradeFilters; year: number }) {
   const stores = applyOffTradeFilters(all, f);
-  const rows = targetRows(stores);
+  const rows = targetRows(stores, year);
   const achieved = rows.filter((r) => r.achieved).length;
   const tbc = rows.filter((r) => r.tbc).length;
   const planned = rows.length - achieved - tbc;
@@ -27,20 +28,40 @@ export function TargetsView({ all, f }: { all: StoreView[]; f: OffTradeFilters }
   const actual = rows.reduce((n, r) => n + r.actual, 0);
   const quarters = targetsByQuarter(rows);
   const qs = offTradeQuery(f);
+  const link = (y: number) => {
+    const p = new URLSearchParams(qs);
+    if (y !== TARGET_YEAR) p.set("year", String(y));
+    const q = p.toString();
+    return `/off-trade/targets${q ? `?${q}` : ""}`;
+  };
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href={`/off-trade${qs ? `?${qs}` : ""}`} className="text-sm underline">
-          ← Off trade
-        </Link>
-        <h1 className="accent-square mt-1 text-3xl text-brand-black">{TARGET_YEAR} targets</h1>
-        <p className="mt-1 text-sm">
-          Target stores and how many are achieved (a {TARGET_YEAR} project completed), by quarter, market, area and TM.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <Link href={`/off-trade${qs ? `?${qs}` : ""}`} className="text-sm underline">
+            ← Off trade
+          </Link>
+          <h1 className="accent-square mt-1 text-3xl text-brand-black">Targets</h1>
+          <p className="mt-1 text-sm">
+            {year} target stores and how many are achieved (a {year} project completed), by quarter, market, area and TM.
+          </p>
+        </div>
+        <div className="flex rounded-full bg-white p-1 ring-1 ring-black/10" role="group" aria-label="Year">
+          {TARGET_YEARS.map((y) => (
+            <Link
+              key={y}
+              href={link(y)}
+              aria-current={year === y ? "true" : undefined}
+              className={`rounded-full px-3 py-1.5 font-display text-sm font-medium uppercase ${year === y ? "bg-brand-green text-white" : "text-brand-grey hover:text-brand-black"}`}
+            >
+              {y}
+            </Link>
+          ))}
+        </div>
       </div>
 
-      <FilterBar all={all} f={f} shown={stores.length} action="/off-trade/targets" />
+      <FilterBar all={all} f={f} shown={stores.length} action="/off-trade/targets" keep={year !== TARGET_YEAR ? { year: String(year) } : undefined} />
 
       <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr]">
         <div className="bento-green">
@@ -56,7 +77,7 @@ export function TargetsView({ all, f }: { all: StoreView[]; f: OffTradeFilters }
         <Tile label="Target stores" value={`${rows.length}`} sub={`of ${stores.length} stores`} />
         <Tile label="Planned" value={`${planned}`} sub="project chosen, not done yet" />
         <Tile label="Project tbc" value={`${tbc}`} sub="target, project not chosen" />
-        <Tile label={`${TARGET_YEAR} cost`} value={formatAed(expected)} sub={actual ? `expected · ${formatAed(actual)} actual so far` : "expected"} />
+        <Tile label={`${year} cost`} value={formatAed(expected)} sub={actual ? `expected · ${formatAed(actual)} actual so far` : "expected"} />
       </div>
 
       <Card title="By quarter" meta={`${achieved} achieved so far`} open>
@@ -117,7 +138,10 @@ export function TargetsView({ all, f }: { all: StoreView[]; f: OffTradeFilters }
                 </td>
                 <td className="whitespace-nowrap">{r.store.area ?? "—"}</td>
                 <td className="whitespace-nowrap">{r.store.tmam ?? "—"}</td>
-                <td className="whitespace-nowrap">{r.types.join(", ") || "—"}</td>
+                <td className="whitespace-nowrap">
+                  {r.types.join(", ") || "—"}
+                  {r.items > 1 && <span className="block text-xs">{r.itemsDone} of {r.items} done</span>}
+                </td>
                 <td className="whitespace-nowrap">
                   {r.dueQ ?? "—"}
                   {r.due && <span className="block text-xs">{formatDate(r.due)}</span>}
@@ -140,7 +164,7 @@ export function TargetsView({ all, f }: { all: StoreView[]; f: OffTradeFilters }
             {!rows.length && (
               <tr>
                 <td colSpan={7} className="text-sm">
-                  No target stores for these filters. Mark stores as a {TARGET_YEAR} target on their page, or give them a {TARGET_YEAR} project.
+                  No target stores for these filters. Mark stores as a {year} target on their page, or give them a {year} project.
                 </td>
               </tr>
             )}
