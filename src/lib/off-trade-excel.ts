@@ -395,3 +395,106 @@ export async function buildHistoryTemplate() {
   ws.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF58A244" } };
   return wb.xlsx.writeBuffer();
 }
+
+// ---------------------------------------------------------------------------
+// Retail KPI tracker (e.g. "2025 Retail KPIs": ABU DHABI, NER and DXBR tabs)
+// ---------------------------------------------------------------------------
+
+/**
+ * One row per asset: Market · What · Brand · Where · # · Customer · Store · …, then Q1–Q4 with "Y" in
+ * the quarter it was done ("N" = cancelled, "_" = not yet) and a 2026 column for carry-overs. Rows
+ * done in a quarter become completed projects dated at the end of that quarter.
+ */
+export type KpiRow = ParsedProject & { market: string | null; sheet: string };
+
+const KPI_TABS = /^(abu\s*dhabi|adr|auh|ner|ne|dxbr|dxb\s*r(etail)?|dxb\s*ir|al\s*ain|oman|bahrain|qatar)$/i;
+const TAB_MARKET: [RegExp, string][] = [
+  [/abu|adr|auh|ain/i, "AUH"],
+  [/ner|^ne$/i, "NE"],
+  [/dxb/i, "DXB"],
+  [/oman/i, "OM"],
+  [/bahrain/i, "BH"],
+  [/qatar/i, "QA"],
+];
+const QUARTER_END = ["03-31", "06-30", "09-30", "12-31"];
+
+/** What → project type and item. "Branded Unit" is the perfect-shelf KPI (its targets match). */
+export function kpiType(what: string): { type: string; item: string } | null {
+  const w = what.replace(/\s+/g, " ").trim();
+  const n = norm(w);
+  if (!n || /^units?$|ofunits/.test(n)) return null;
+  if (/fulloutletbranding|fullbarbranding|takeover/.test(n)) return { type: "Takeover", item: w };
+  if (/brandedunit|perfectshel|blade/.test(n)) return { type: "Perfect shelf", item: w };
+  if (/coldroom|coolerroom/.test(n)) return { type: "Cold room", item: w };
+  if (/^fridges?$/.test(n)) return { type: "Fridge", item: "Fridge" };
+  if (/^fsus?$/.test(n)) return { type: "FSU", item: "FSU" };
+  if (/fridge/.test(n)) return { type: "Fridge", item: w };
+  return { type: "Branding", item: w };
+}
+
+export function parseKpiTracker(wb: ExcelJS.Workbook, year: number): { rows: KpiRow[]; tabs: string[]; skipped: number } | null {
+  const rows: KpiRow[] = [];
+  const tabs: string[] = [];
+  let skipped = 0;
+  for (const ws of wb.worksheets) {
+    if (!KPI_TABS.test(ws.name.trim())) continue;
+    let hr = 0;
+    const col = new Map<string, number>();
+    for (let r = 1; r <= Math.min(10, ws.rowCount) && !hr; r++) {
+      const heads = new Map<string, number>();
+      ws.getRow(r).eachCell((cell, c) => {
+        const h = norm(text(cell.value));
+        if (h && !heads.has(h)) heads.set(h, c);
+      });
+      if (heads.has("what") && heads.has("store") && heads.has("q1")) {
+        hr = r;
+        for (const [k, v] of heads) col.set(k, v);
+      }
+    }
+    if (!hr) continue;
+    tabs.push(ws.name.trim());
+    const market = TAB_MARKET.find(([re]) => re.test(ws.name))?.[1] ?? null;
+    const get = (row: ExcelJS.Row, k: string) => (col.has(k) ? text(row.getCell(col.get(k)!).value).trim() : "");
+    for (let i = hr + 1; i <= ws.rowCount; i++) {
+      const row = ws.getRow(i);
+      const store = get(row, "store");
+      const what = get(row, "what");
+      if (!store || !what) continue;
+      const q = ["q1", "q2", "q3", "q4"].findIndex((k) => /^y/i.test(get(row, k)));
+      const t = kpiType(what);
+      if (q < 0 || !t) {
+        skipped++;
+        continue;
+      }
+      const qty = Number(get(row, "") || get(row, "#") || "1");
+      rows.push({
+        code: get(row, "storecode") || get(row, "code"),
+        name: store,
+        chain: get(row, "customer") || get(row, "customername") || null,
+        type: t.type,
+        item: t.item,
+        brand: get(row, "brand") || null,
+        quantity: Number.isFinite(qty) && qty > 0 ? Math.round(qty) : 1,
+        status: "completed",
+        plan_year: year,
+        planned_date: null,
+        completed_date: `${year}-${QUARTER_END[q]}`,
+        expected_cost_aed: null,
+        actual_cost_aed: null,
+        notes: [get(row, "remarks"), get(row, "comment")].filter(Boolean).join(" · ") || null,
+        market,
+        sheet: ws.name.trim(),
+      });
+    }
+  }
+  return tabs.length ? { rows, tabs, skipped } : null;
+}
+
+/** The year a KPI file is for: from its name ("2025 Retail KPIs"), else last year. */
+export const kpiYear = (filename: string) => Number(filename.match(/20\d\d/)?.[0]) || new Date().getFullYear() - 1;
+
+export async function loadWorkbook(buffer: ArrayBuffer) {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buffer);
+  return wb;
+}

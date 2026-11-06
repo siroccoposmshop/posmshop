@@ -57,9 +57,18 @@ export function OffTradeImportForm() {
       {s && (
         <div className="space-y-1 rounded-lg bg-brand-green-tint p-3 text-sm text-brand-green-dark">
           <p className="font-medium">
-            ✓ {s.stores} stores ({s.created} new) and {s.projects} projects saved.
+            ✓ {s.stores > 0 ? `${s.stores} stores (${s.created} new)${s.projects ? ` and ${s.projects} projects` : ""}` : `${s.projects} projects`} saved.
           </p>
-          {s.unknownStores.length > 0 && <p className="text-brand-red">Rows whose store couldn’t be matched (by code or name) were skipped: {s.unknownStores.join(", ")}.</p>}
+          {s.unknownStores.length > 0 && (
+            <div className="text-brand-red">
+              <p>These couldn&apos;t be matched to a store (by code or name), so they were left out. Rename them in the file to match the store list and upload again:</p>
+              <ul className="mt-1 list-disc pl-5 text-xs">
+                {s.unknownStores.map((u) => (
+                  <li key={u}>{u}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {s.warnings.map((w) => (
             <p key={w} className="text-brand-black">
               {w}
