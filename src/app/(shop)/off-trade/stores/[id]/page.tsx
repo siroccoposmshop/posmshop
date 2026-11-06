@@ -7,6 +7,7 @@ import { formatAed } from "@/lib/hub";
 import { OFF_TRADE_STATUS, TARGET_YEAR, VISIBILITY_MAIN, canUseOffTrade, marketName, storeView, type OffTradeProject, type OffTradeStore } from "@/lib/off-trade";
 import { ProjectForm, ProjectItem } from "./ProjectForm";
 import { TargetToggle } from "./TargetToggle";
+import { OpenedYear } from "./OpenedYear";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,7 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
         <div className="flex flex-wrap items-start gap-3">
           {s.influenced ? <span className="badge bg-brand-green text-white">Influenced</span> : <span className="badge bg-brand-light text-brand-grey">Not influenced</span>}
           <TargetToggle storeId={s.id} year={TARGET_YEAR} on={s.target_year === TARGET_YEAR} viaProject={s.targets.length > 0} />
+          <OpenedYear storeId={s.id} year={s.opened_year ?? null} />
         </div>
       </div>
 
