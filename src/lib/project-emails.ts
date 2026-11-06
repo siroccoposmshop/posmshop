@@ -3,7 +3,7 @@ import { Resend } from "resend";
 import { DEFAULT_HUB_SETTINGS, EXTRA_SOURCE_LABEL, STATUS_LABEL, budgetSplit, gpCheck, gpWarningText, type HubSettings } from "@/lib/hub";
 import { companyName, formatDate, outletName } from "@/lib/format";
 import { outletLine, projectHealth, projectTitle, type Investment, type Project } from "@/lib/projects";
-import { otherOutletsWithTicks, otherPromised, picosScores, promisedItems } from "@/lib/picos";
+import { otherOutletsWithTicks, otherPromised, picosLines, picosScores, promisedItems } from "@/lib/picos";
 
 // Same look as the POSM order emails.
 const GREEN = "#58a244";
@@ -215,7 +215,7 @@ export function renderProjectEmail(
 }
 
 /** Monday digest: one row per project, most urgent first. */
-export function renderDigest(firstName: string, scope: string, projects: Project[], kamName: (p: Project) => string) {
+export function renderDigest(firstName: string, scope: string, projects: Project[], kamName: (p: Project) => string, picosDue: Project[] = []) {
   const live = projects.filter((p) => p.status === "live");
   const behind = live.filter((p) => projectHealth(p).state === "behind").length;
   const waiting = projects.filter((p) => p.status.startsWith("awaiting")).length;
@@ -236,9 +236,31 @@ export function renderDigest(firstName: string, scope: string, projects: Project
     (rows
       ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><th align="left" colspan="2" style="padding:4px 0;border-bottom:2px solid ${GREEN};${LABEL};font-weight:500">Projects</th></tr>${rows}</table>`
       : `<p style="${VALUE}">No open projects this week.</p>`) +
+    picosDueHtml(picosDue, kamName) +
     button(`${siteUrl()}/projects`, "Open the tracker");
-  const subject = `Your projects this week: ${live.length} live${behind ? `, ${behind} behind` : ""}`;
+  const subject = `Your projects this week: ${live.length} live${behind ? `, ${behind} behind` : ""}${picosDue.length ? `, ${picosDue.length} with PICOS to deliver` : ""}`;
   return { subject, html: shell(subject, "Your week in projects", `Good morning ${esc(firstName)}, here's ${esc(scope)}.`, body) };
+}
+
+/** Completed projects whose negotiated PICOS aren't all in place yet, with the items still to do. */
+function picosDueHtml(projects: Project[], kamName: (p: Project) => string) {
+  if (!projects.length) return "";
+  const rows = projects
+    .map((p) => {
+      const pending = picosLines(p).filter((l) => !l.deliveredAt);
+      const items = pending
+        .map((l) => `${esc(l.label)}${l.outletId ? ` <span style="color:${GREY}">(${esc(outletName(l.outlet))})</span>` : ""}`)
+        .join("<br>");
+      return `<tr>
+        <td style="padding:9px 8px 9px 0;border-bottom:1px solid #eeeded;${VALUE}"><a href="${siteUrl()}/projects/${p.id}" style="color:#000;text-decoration:none"><strong>${esc(projectTitle(p))}</strong></a>
+          <div style="font-size:12px;color:${GREY}">${esc(outletLine(p))} · ${esc(kamName(p))} · completed ${date(p.completed_at)}</div>
+          <div style="font-size:13px;margin-top:4px">${items}</div></td>
+        <td align="right" style="padding:9px 0;border-bottom:1px solid #eeeded;vertical-align:top;font-family:${FONT};font-weight:700;color:${RED};white-space:nowrap">${pending.length} pending</td>
+      </tr>`;
+    })
+    .join("");
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:14px 0 0">
+    <tr><th align="left" colspan="2" style="padding:4px 0;border-bottom:2px solid ${RED};${LABEL};font-weight:500">PICOS to deliver · project complete</th></tr>${rows}</table>`;
 }
 
 // ---------------------------------------------------------------------------
