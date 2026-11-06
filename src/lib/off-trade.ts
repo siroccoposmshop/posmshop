@@ -334,8 +334,8 @@ export function filterOptions(stores: StoreView[]) {
 
 export const QUARTERS = ["Q1", "Q2", "Q3", "Q4"] as const;
 export type Quarter = (typeof QUARTERS)[number];
-const quarterOf = (d: string | null | undefined): Quarter | null => {
-  if (!d || Number(d.slice(0, 4)) !== TARGET_YEAR) return null;
+const quarterOf = (d: string | null | undefined, year: number): Quarter | null => {
+  if (!d || Number(d.slice(0, 4)) !== year) return null;
   return QUARTERS[Math.floor((Number(d.slice(5, 7)) - 1) / 3)] ?? null;
 };
 
@@ -352,6 +352,9 @@ export type TargetRow = {
   /** No project chosen yet, only flagged as a target. */
   tbc: boolean;
   types: string[];
+  /** Projects for the year, and how many of them are done. */
+  items: number;
+  itemsDone: number;
   expected: number;
   actual: number;
 };
@@ -360,11 +363,12 @@ export type TargetRow = {
  * Every target store with its progress. A target is achieved once one of its target-year projects is
  * completed. It falls due in the quarter of its earliest planned date.
  */
-export function targetRows(stores: StoreView[]): TargetRow[] {
+export function targetRows(stores: StoreView[], year: number = TARGET_YEAR): TargetRow[] {
+  const of = (s: StoreView) => (year === TARGET_YEAR ? s.targets : s.projects.filter((p) => p.status !== "cancelled" && yearOf(p) === year));
   return stores
-    .filter((s) => s.targeted)
+    .filter((s) => (year === TARGET_YEAR ? s.targeted : s.target_year === year || of(s).length > 0))
     .map((s) => {
-      const projects = s.targets;
+      const projects = of(s);
       const done = projects.filter((p) => p.status === "completed");
       const doneDate = done.map((p) => p.completed_date).filter((d): d is string => !!d).sort().at(-1) ?? null;
       const due = projects.map((p) => p.planned_date).filter((d): d is string => !!d).sort()[0] ?? null;
@@ -372,11 +376,13 @@ export function targetRows(stores: StoreView[]): TargetRow[] {
         store: s,
         achieved: done.length > 0,
         due,
-        dueQ: quarterOf(due),
+        dueQ: quarterOf(due, year),
         doneDate,
-        doneQ: quarterOf(doneDate),
+        doneQ: quarterOf(doneDate, year),
         tbc: projects.length === 0,
         types: [...new Set(projects.map((p) => p.type))],
+        items: projects.length,
+        itemsDone: done.length,
         expected: projects.reduce((n, p) => n + Number(p.expected_cost_aed ?? 0), 0),
         actual: done.reduce((n, p) => n + Number(p.actual_cost_aed ?? 0), 0),
       };
@@ -475,6 +481,13 @@ export function historyBy(rows: HistoryRow[], keyOf: (r: HistoryRow) => string |
     .map(({ storeIds, yearStores: _y, ...e }) => ({ ...e, stores: storeIds.size }))
     .sort((a, b) => b.items - a.items);
 }
+
+/** Years the Targets page offers: the target year and the one before it (the year in progress). */
+export const TARGET_YEARS = [TARGET_YEAR - 1, TARGET_YEAR];
+export const readTargetYear = (v: string | string[] | undefined) => {
+  const y = Number(Array.isArray(v) ? v[0] : v);
+  return TARGET_YEARS.includes(y) ? y : TARGET_YEAR;
+};
 
 export const readHistoryYear = (v: string | string[] | undefined) => {
   const y = Number(Array.isArray(v) ? v[0] : v);

@@ -8,7 +8,16 @@
 export type MatchStore = { id: string; code: string; name: string; chain: string | null; market: string | null; bar?: boolean };
 
 const SMALL = new Set(["the", "and", "of", "at", "store", "shop", "branch", "llc", "trading", "general", "marketing"]);
-export const normName = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
+// Spellings that vary between files.
+const SPELLINGS: [RegExp, string][] = [
+  [/\bmus+af+ah\b/g, "musaffah"],
+  [/\bindustrial retail\b/g, "ir"],
+];
+export const normName = (s: string | null | undefined) => {
+  let n = (s ?? "").toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").replace(/\b0+(\d)/g, "$1").trim();
+  for (const [re, to] of SPELLINGS) n = n.replace(re, to);
+  return n;
+};
 const tokens = (s: string) => new Set(normName(s).split(" ").filter((t) => t && !SMALL.has(t)));
 
 /** At most one letter added, dropped or changed ("Trubell" / "Truebell"). */
@@ -59,19 +68,34 @@ export function makeStoreMatcher(stores: MatchStore[]) {
   return function match(q: { code?: string | null; name?: string | null; chain?: string | null; market?: string | null }): string | undefined {
     if (q.code && byCode.has(q.code.toUpperCase())) return byCode.get(q.code.toUpperCase());
     if (!q.name) return undefined;
-    const qt = tokens(q.name);
+    // A note in brackets ("NCTH Dhafra (Renovation)") isn't part of the name.
+    const name = q.name.replace(/\([^)]*\)/g, " ").trim() || q.name;
+    const qt = tokens(name);
     const qc = /independent/i.test(q.chain ?? "") ? new Set<string>() : tokens(q.chain ?? "");
-    const n = normName(q.name);
+    const n = normName(name);
     const market = q.market ? prepared.filter((s) => !s.market || s.market === q.market) : prepared;
     const ok = market.filter((s) => numbersAgree(qt, s.t));
-    // Same chain first (a shared word, typos allowed), then stores with no chain or independents.
-    const sameChain = qc.size ? ok.filter((s) => s.c.size && !s.independent && (shares(qc, s.c) || shares(qc, s.t))) : [];
-    const loose = ok.filter((s) => !qc.size || !s.c.size || s.independent || shares(qc, s.c) || shares(qc, s.t));
+    // Same chain first (a shared word, typos allowed, or the whole chain name in the store's name),
+    // then stores with no chain or independents.
+    const chainIn = (s: P) => shares(qc, s.c) || [...qc].every((x) => [...s.t].some((y) => sameWord(x, y)));
+    const sameChain = qc.size ? ok.filter((s) => s.c.size && !s.independent && chainIn(s)) : [];
+    const loose = ok.filter((s) => !qc.size || !s.c.size || s.independent || chainIn(s));
+    // Industrial retail sites: "MMI Al Quoz IR 1" → "MMI Industrial Retail 1 - Al Quoz 4". The site
+    // number and the place must both agree; with no number, the place alone.
+    if (qt.has("ir")) {
+      const num = n.match(/\bir (\d+)\b/)?.[1];
+      const place = [...qt].filter((t) => t !== "ir" && t !== num && !qc.has(t) && !/^\d+$/.test(t));
+      const sites = market.filter((s) => s.t.has("ir") && (!qc.size || chainIn(s)) && place.every((t) => [...s.t].some((w) => sameWord(t, w))));
+      const hits = num ? sites.filter((s) => s.n.match(/\bir (\d+)\b/)?.[1] === num) : sites;
+      if (place.length && hits.length === 1) return hits[0].id;
+    }
     for (const pool of qc.size ? [sameChain, loose] : [loose]) {
       const hit = matchIn(pool);
       if (hit) return hit;
     }
-    return undefined;
+    // Last, a name that's unique in the market whatever the chain ("Dolphin Bulk Store" filed under OUA).
+    const exact = ok.filter((s) => s.n === n);
+    return exact.length === 1 ? exact[0].id : undefined;
 
     function matchIn(pool: P[]): string | undefined {
       const chainTier = pool === sameChain;
