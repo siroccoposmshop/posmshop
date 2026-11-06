@@ -58,7 +58,7 @@ export function ApprovalPanel({
       )}
       {back ? (
         <div className="mt-3 space-y-2">
-          <textarea className="field min-h-20" placeholder="What should the KAM change?" value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
+          <textarea className="field min-h-20" placeholder="What should the project lead change?" value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
           <div className="flex gap-2">
             <button className="btn btn-danger" disabled={pending} onClick={() => run(() => sendBack(id, reason))}>
               Send back
@@ -206,7 +206,7 @@ export function RunProjectPanel({
 
       {back ? (
         <div className="space-y-2">
-          <textarea className="field min-h-20" placeholder="What should the KAM change?" value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
+          <textarea className="field min-h-20" placeholder="What should the project lead change?" value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
           <div className="flex gap-2">
             <button className="btn btn-danger" disabled={pending} onClick={() => run(() => sendBack(id, reason))}>
               Send back
@@ -226,7 +226,7 @@ export function RunProjectPanel({
             {pending ? <Spinner /> : "▶"} Run project
           </button>
           <button className="btn btn-secondary" onClick={() => setBack(true)}>
-            Send back to KAM
+            Send back to project lead
           </button>
         </div>
       )}

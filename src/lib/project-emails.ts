@@ -130,7 +130,7 @@ function summary(p: Project, people: { kam?: string; sm?: string; tm?: string })
   return [
     pair(field("Project", `<strong>${esc(projectTitle(p))}</strong><br><span style="color:${GREY};font-size:12px">${esc(p.ref)} · ${esc(p.project_type)}</span>`), field("Status", pill(p))),
     pair(field("Outlet", outletHtml(p)), field("Budget", budgetHtml(p))),
-    pair(field("KAM", esc(people.kam ?? "—")), field("Trade Marketing", esc(people.tm ?? "Not assigned yet"))),
+    pair(field("Project lead", esc(people.kam ?? "—")), field("Trade Marketing", esc(people.tm ?? "Not assigned yet"))),
     pair(field("Desired date", date(p.desired_date)), field("Expected completion", date(projectHealth(p).forecast ?? p.target_date))),
   ].join("");
 }

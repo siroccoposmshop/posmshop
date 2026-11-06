@@ -258,7 +258,7 @@ const COLUMNS: { header: string; width: number; value: (r: ProjectReportRow) => 
   { header: "Status", width: 22, value: (r) => r.statusLabel },
   { header: "Submitted", width: 12, value: (r) => r.submitted.slice(0, 10) },
   { header: "Completed", width: 12, value: (r) => r.completed?.slice(0, 10) ?? "" },
-  { header: "KAM", width: 20, value: (r) => r.kam },
+  { header: "Project lead", width: 20, value: (r) => r.kam },
   { header: "Customer", width: 28, value: (r) => r.customer },
   { header: "Customer #", width: 12, value: (r) => r.customerKey },
   { header: "Outlet", width: 28, value: (r) => r.outlet },
@@ -308,7 +308,7 @@ export async function projectsToXlsx(rows: ProjectReportRow[]) {
     for (const s of data) ws.addRow({ ...s, outlets: s.outlets.size });
     return ws;
   };
-  const sheets = [list, sheet("By KAM", "KAM", byKam(rows)), sheet("By customer", "Customer", byCustomer(rows)), sheet("By outlet", "Outlet", byOutlet(rows))];
+  const sheets = [list, sheet("By project lead", "Project lead", byKam(rows)), sheet("By customer", "Customer", byCustomer(rows)), sheet("By outlet", "Outlet", byOutlet(rows))];
   for (const ws of sheets) {
     ws.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
     ws.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF58A244" } };

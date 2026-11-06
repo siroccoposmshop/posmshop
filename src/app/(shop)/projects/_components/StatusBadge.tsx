@@ -4,7 +4,7 @@ import type { ProjectView } from "./types";
 /** On track / due soon / behind for live projects, otherwise the status. */
 export function ProjectBadge({ p, large }: { p: Pick<ProjectView, "status" | "health"> & { hidden_for_kam?: boolean }; large?: boolean }) {
   if (p.hidden_for_kam) {
-    return <span className={`badge whitespace-nowrap bg-white text-brand-red ring-1 ring-brand-red ${large ? "!px-3 !py-1 !text-sm" : ""}`}>Deleted by KAM</span>;
+    return <span className={`badge whitespace-nowrap bg-white text-brand-red ring-1 ring-brand-red ${large ? "!px-3 !py-1 !text-sm" : ""}`}>Deleted by project lead</span>;
   }
   const h = p.health;
   const [cls, text] =

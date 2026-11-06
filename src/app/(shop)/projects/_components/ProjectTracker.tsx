@@ -72,7 +72,7 @@ export function ProjectTracker({ projects, viewer, today, showPeopleFilters }: {
 
       <div className={`${showFilters ? "grid" : "hidden"} gap-2 sm:grid sm:grid-cols-2 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]`}>
         {showPeopleFilters && <Filter label="All sales managers" value={sm} onChange={setSm} options={options.sm} />}
-        {showPeopleFilters && <Filter label="All KAMs" value={kam} onChange={setKam} options={options.kam} />}
+        {showPeopleFilters && <Filter label="All project leads" value={kam} onChange={setKam} options={options.kam} />}
         <Filter label="All Trade Marketing" value={tm} onChange={setTm} options={options.tm} />
         <Filter label="All types" value={type} onChange={setType} options={[...PROJECT_TYPES]} />
         {filtered && (

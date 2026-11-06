@@ -30,7 +30,7 @@ export function ReportsView({ rows, all, f, team }: { rows: ProjectReportRow[]; 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="accent-square text-3xl text-brand-black">Project reports</h1>
-          <p className="mt-1 text-sm">{team ? "Your team's projects" : "All projects"} · spend, PICOS and progress by KAM, customer and outlet.</p>
+          <p className="mt-1 text-sm">{team ? "Your team's projects" : "All projects"} · spend, PICOS and progress by project lead, customer and outlet.</p>
         </div>
         <div className="flex gap-2">
           <a href={`/projects/reports/export?format=xlsx${qs ? `&${qs}` : ""}`} className="btn btn-secondary">
@@ -43,7 +43,7 @@ export function ReportsView({ rows, all, f, team }: { rows: ProjectReportRow[]; 
       </div>
 
       <form className="bento grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <MultiSelect name="kam" label="KAM" allLabel="All KAMs" options={kamOptions} selected={f.kam} />
+        <MultiSelect name="kam" label="Project lead" allLabel="All project leads" options={kamOptions} selected={f.kam} />
         <MultiSelect name="customer" label="Customer" allLabel="All customers" options={customerOptions} selected={f.customer} />
         <MultiSelect name="status" label="Status" allLabel="All statuses" options={statusOptions} selected={f.status} />
         <MultiSelect name="type" label="Project type" allLabel="All types" options={typeOptions} selected={f.type} />
@@ -98,7 +98,7 @@ export function ReportsView({ rows, all, f, team }: { rows: ProjectReportRow[]; 
       </div>
 
       <div className="grid gap-6">
-        <SummaryTable title="By KAM" first="KAM" data={kams} max={maxKam} />
+        <SummaryTable title="By project lead" first="Project lead" data={kams} max={maxKam} />
         <SummaryTable title="By customer" first="Customer" data={customers} max={maxCustomer} showOutlets />
       </div>
 
@@ -110,7 +110,7 @@ export function ReportsView({ rows, all, f, team }: { rows: ProjectReportRow[]; 
           <thead>
             <tr>
               <th>Project</th>
-              <th>KAM</th>
+              <th>Project lead</th>
               <th>Outlet</th>
               <th>Status</th>
               <th className="text-right">Budget</th>
