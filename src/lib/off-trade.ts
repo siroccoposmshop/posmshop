@@ -46,6 +46,8 @@ export type OffTradeStore = {
   visibility_flag?: string | null;
   /** Targeted for this year, even before a project is chosen. */
   target_year?: number | null;
+  /** Set on the site; blank = as the store list says. */
+  has_cold_room?: boolean | null;
   /** The year it opened; blank = before the history starts. It's an outlet from that year on. */
   opened_year?: number | null;
   active: boolean;
@@ -56,9 +58,12 @@ export type OffTradeStore = {
 // ---------------------------------------------------------------------------
 
 export type Visibility = Record<string, Record<string, number>>;
-/** Always shown. Takeover (Value and IR stores, bars) is an addition alongside the five. */
-export const VISIBILITY_MAIN = ["Branding", "Perfect shelf", "Cold room", "Fridge", "FSU", "Takeover"] as const;
-export type VisibilityMain = (typeof VISIBILITY_MAIN)[number] | "Other";
+/**
+ * Always shown. Takeover (Value and IR stores, bars) is an addition alongside the others. A cold room
+ * is a feature of the store, not visibility: see StoreView.coldRoom.
+ */
+export const VISIBILITY_MAIN = ["Branding", "Perfect shelf", "Fridge", "FSU", "Takeover"] as const;
+export type VisibilityMain = (typeof VISIBILITY_MAIN)[number] | "Cold room" | "Other";
 /** Logged on the store but not counted as visibility (so they don't make a store influenced). */
 export const NOT_VISIBILITY = /t-?\s*shirt/i;
 
@@ -87,10 +92,16 @@ export function visibilitySummary(v: Visibility | null | undefined) {
     Other: [],
   };
   let counted = 0;
+  let coldRoom = false;
   for (const [group, items] of Object.entries(v ?? {})) {
     const list = Object.entries(items).filter(([, q]) => q > 0);
     if (!list.length) continue;
     const main = visibilityMain(group);
+    // The store has a cold room: a feature, not visibility of ours.
+    if (main === "Cold room") {
+      coldRoom = true;
+      continue;
+    }
     const logged = NOT_VISIBILITY.test(group);
     const qty = list.reduce((n, [, q]) => n + q, 0);
     if (!logged) {
@@ -100,7 +111,7 @@ export function visibilitySummary(v: Visibility | null | undefined) {
     groups[main].push({ group, items: list, logged });
   }
   /** Any visibility that counts (T-shirts are logged only). */
-  return { totals, groups, any: counted > 0 };
+  return { totals, groups, any: counted > 0, coldRoom };
 }
 
 /** Market codes used for off trade (UAE and the Gulf). */
@@ -135,6 +146,10 @@ export type OffTradeProject = {
 
 export type StoreView = OffTradeStore & {
   projects: OffTradeProject[];
+  /** The store has a cold room (set on the site, else the store list, else a cold room project). */
+  coldRoom: boolean;
+  /** Its cold room has been activated (a completed cold room project): the date, or null. */
+  coldRoomActivated: string | null;
   /** The latest completed project. */
   last: OffTradeProject | null;
   /** The target year's projects (planned, in progress or already done), not cancelled. */
@@ -175,6 +190,8 @@ export function storeView(s: OffTradeStore, projects: OffTradeProject[]): StoreV
     // Master-file stores: influenced = visibility that counts (not T-shirts). Others keep the upload's flag.
     influenced: s.match_key ? vis.any : s.influenced,
     bar: isBar(s),
+    coldRoom: s.has_cold_room ?? (vis.coldRoom || projects.some((p) => p.type === "Cold room" && p.status !== "cancelled")),
+    coldRoomActivated: done.filter((p) => p.type === "Cold room").map((p) => p.completed_date ?? p.created_at.slice(0, 10)).sort().at(-1) ?? null,
     targeted: s.target_year === TARGET_YEAR || sorted.some((p) => p.status !== "cancelled" && yearOf(p) === TARGET_YEAR),
   };
 }

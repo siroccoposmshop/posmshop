@@ -106,6 +106,8 @@ export function OutletSummary({ stores }: { stores: StoreView[] }) {
   const influenced = outlets.filter((s) => s.influenced).length;
   const toDate = outlets.filter((s) => s.projects.some((p) => p.status === "completed")).length;
   const plan = outlets.filter((s) => s.targeted).length;
+  const coldRooms = outlets.filter((s) => s.coldRoom);
+  const coldDone = coldRooms.filter((s) => s.coldRoomActivated).length;
   const years = activationByYear(stores, historyYears(stores).filter((y) => y < TARGET_YEAR).slice(0, 3));
   type Row = { label: string; sub?: string; value: number; cls: string; extra?: number; note?: string; gap?: boolean };
   const rows: Row[] = [
@@ -197,6 +199,23 @@ export function OutletSummary({ stores }: { stores: StoreView[] }) {
             </p>
           </div>
         ))}
+        {coldRooms.length > 0 && (
+          <div className="grid grid-cols-[7.5rem_1fr] items-center gap-3 border-t border-black/10 pt-3 sm:grid-cols-[11rem_1fr_9rem]">
+            <p className="text-sm font-medium leading-tight text-brand-black">
+              Cold rooms activated
+              <span className="block text-xs font-normal text-brand-grey">of the {coldRooms.length} outlets with one</span>
+            </p>
+            <div className="flex h-7 overflow-hidden rounded-md bg-brand-light" role="img" aria-label={`Cold rooms activated: ${coldDone} of ${coldRooms.length}`}>
+              <div className="h-full bg-brand-green" style={{ width: `${(coldDone / coldRooms.length) * 100}%` }} />
+            </div>
+            <p className="col-start-2 -mt-2 text-sm sm:col-start-3 sm:mt-0 sm:text-right">
+              <strong className="font-display text-lg text-brand-black">{coldDone}</strong>
+              <span className="ml-1.5">
+                of {coldRooms.length} · {Math.round((coldDone / coldRooms.length) * 100)}%
+              </span>
+            </p>
+          </div>
+        )}
       </div>
     </section>
   );

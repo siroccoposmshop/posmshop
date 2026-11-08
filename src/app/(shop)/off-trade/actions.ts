@@ -118,6 +118,15 @@ export async function setStoreTarget(storeId: string, year: number | null): Prom
   return { ok: true };
 }
 
+export async function setStoreColdRoom(storeId: string, has: boolean | null): Promise<Result> {
+  const profile = await me();
+  if (!profile) return DENIED;
+  const { error } = await createAdminClient().from("off_trade_stores").update({ has_cold_room: has, updated_at: new Date().toISOString() }).eq("id", storeId);
+  if (error) return { error: /has_cold_room/.test(error.message) ? "Run supabase/migrations/20261116000000_off_trade_cold_room.sql in Supabase first." : dbError(error.message) };
+  refresh(storeId);
+  return { ok: true };
+}
+
 export async function setStoreOpenedYear(storeId: string, year: number | null): Promise<Result> {
   const profile = await me();
   if (!profile) return DENIED;
