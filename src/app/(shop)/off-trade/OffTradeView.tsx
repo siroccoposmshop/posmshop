@@ -112,7 +112,7 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
         )}
       </Card>
 
-      <Card title="Stores" meta={`${stores.length} store${stores.length === 1 ? "" : "s"}`}>
+      <Card title="Stores" meta={`${stores.length} store${stores.length === 1 ? "" : "s"}`} sticky>
         <table className="table">
           <thead>
             <tr>
@@ -125,6 +125,7 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
                   {m}
                 </th>
               ))}
+              <th className="text-center">Cold room</th>
               <th>Last project</th>
               <th>{TARGET_YEAR} plan</th>
               <th className="text-right">{TARGET_YEAR} cost</th>
@@ -159,6 +160,15 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
                       {s.vis.totals[m] > 0 ? <span className="font-medium text-brand-green-dark">✓{s.vis.totals[m] > 1 ? ` ${s.vis.totals[m]}` : ""}</span> : <span className="text-brand-grey/40">–</span>}
                     </td>
                   ))}
+                  <td className="whitespace-nowrap text-center text-xs">
+                    {!s.coldRoom ? (
+                      <span className="text-brand-grey/40">–</span>
+                    ) : s.coldRoomActivated ? (
+                      <span className="font-medium text-brand-green-dark">✓ Activated</span>
+                    ) : (
+                      <span>Has one</span>
+                    )}
+                  </td>
                   <td className="whitespace-nowrap">
                     {s.last ? (
                       <>

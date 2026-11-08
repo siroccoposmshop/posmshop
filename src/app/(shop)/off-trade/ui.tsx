@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { MultiSelect } from "@/components/MultiSelect";
+import { FilterHeight } from "./FilterHeight";
 import { TARGET_YEAR, activationByYear, filterOptions, historyYears, marketName, offTradeQuery, type OffTradeFilters, type StoreView } from "@/lib/off-trade";
 
 /** The off-trade filters, pinned under the header while scrolling. Submits to `action` (GET). */
@@ -8,6 +9,7 @@ export function FilterBar({ all, f, shown, action, keep }: { all: StoreView[]; f
   const filtered = offTradeQuery(f).length > 0;
   return (
     <form action={action} className="bento sticky top-16 z-20 grid gap-3 !py-4 shadow-md sm:grid-cols-3 lg:grid-cols-7">
+      <FilterHeight />
       {Object.entries(keep ?? {}).map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}
@@ -41,7 +43,8 @@ export function FilterBar({ all, f, shown, action, keep }: { all: StoreView[]; f
 }
 
 /** A dashboard card: the title (and a short summary) shows; click to open. Closed unless `open`. */
-export function Card({ title, meta, open, children }: { title: string; meta?: string; open?: boolean; children: React.ReactNode }) {
+/** `sticky`: the table's headings stay pinned under the filters while scrolling a long list (laptop width). */
+export function Card({ title, meta, open, sticky, children }: { title: string; meta?: string; open?: boolean; sticky?: boolean; children: React.ReactNode }) {
   return (
     <details className="bento group" open={open}>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
@@ -53,7 +56,7 @@ export function Card({ title, meta, open, children }: { title: string; meta?: st
           </svg>
         </span>
       </summary>
-      <div className="mt-3 overflow-x-auto">{children}</div>
+      <div className={`mt-3 overflow-x-auto ${sticky ? "sticky-head lg:overflow-x-clip" : ""}`}>{children}</div>
     </details>
   );
 }

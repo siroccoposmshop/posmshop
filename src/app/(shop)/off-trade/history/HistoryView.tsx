@@ -137,7 +137,7 @@ export function HistoryView({ all, f, year }: { all: StoreView[]; f: OffTradeFil
       <HistoryTable title="By TM" first="TM" data={historyBy(rows, (r) => r.store.tmam)} />
       <HistoryTable title="By store" first="Store" data={historyBy(rows, (r) => r.store.id, (id) => stores.find((s) => s.id === id)?.name ?? id)} />
 
-      <Card title="Everything installed" meta={`${rows.length} project${rows.length === 1 ? "" : "s"}`}>
+      <Card title="Everything installed" meta={`${rows.length} project${rows.length === 1 ? "" : "s"}`} sticky>
         <table className="table">
           <thead>
             <tr>

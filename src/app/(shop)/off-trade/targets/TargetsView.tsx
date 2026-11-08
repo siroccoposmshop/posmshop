@@ -114,7 +114,7 @@ export function TargetsView({ all, f, year }: { all: StoreView[]; f: OffTradeFil
       <TargetTable title="By market" first="Market" data={targetsBy(rows, (r) => r.store.market, (k) => marketName(k))} />
       <TargetTable title="By area" first="Area" data={targetsBy(rows, (r) => r.store.area)} />
 
-      <Card title="Target stores" meta={`${rows.length} store${rows.length === 1 ? "" : "s"}`}>
+      <Card title="Target stores" meta={`${rows.length} store${rows.length === 1 ? "" : "s"}`} sticky>
         <table className="table">
           <thead>
             <tr>
