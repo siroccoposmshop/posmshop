@@ -12,5 +12,12 @@
       "path": "/api/cron/project-digest",
       "schedule": "0 5 * * 1"
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "*": false,
+      "**": false
+    }
+  }
 }
