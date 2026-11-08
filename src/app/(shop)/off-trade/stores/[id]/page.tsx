@@ -8,6 +8,7 @@ import { OFF_TRADE_STATUS, TARGET_YEAR, VISIBILITY_MAIN, canUseOffTrade, marketN
 import { ProjectForm, ProjectItem } from "./ProjectForm";
 import { TargetToggle } from "./TargetToggle";
 import { OpenedYear } from "./OpenedYear";
+import { ColdRoom } from "./ColdRoom";
 
 export const dynamic = "force-dynamic";
 
@@ -53,7 +54,7 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
 
       <section className="bento space-y-3">
         <h2 className="text-xl text-brand-black">Visibility in store</h2>
-        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {VISIBILITY_MAIN.map((m) => {
             const n = s.vis.totals[m];
             return (
@@ -84,6 +85,7 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
             </ul>
           </details>
         )}
+        <ColdRoom storeId={s.id} has={s.coldRoom} set={s.has_cold_room ?? null} fromList={s.vis.coldRoom} activated={s.coldRoomActivated} />
         {s.visibility_flag && <p className="text-xs">Master file &ldquo;Visibility&rdquo;: {s.visibility_flag}</p>}
       </section>
 
