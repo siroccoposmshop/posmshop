@@ -5,7 +5,8 @@ import { companyName, formatDate, friendlyAccountName, money, outletName } from 
 
 export { friendlyAccountName };
 import { DEFAULT_ORDER_DESK } from "@/lib/markets";
-import { buildMmiOrderXlsx, mmiOrderFilename } from "@/lib/mmi-order-xlsx";
+import { buildMmiOrderXlsx } from "@/lib/mmi-order-xlsx";
+import { buildOrderSheet, orderSheetFilename } from "@/lib/order-sheet";
 import type { Market, Order, OrderItem } from "@/lib/types";
 
 /** "kam": the order confirmation, sent to the KAM and the order desk (MMI) together. "customer": the outlet contact. */
@@ -191,10 +192,16 @@ export async function sendOrderEmails(orderId: string) {
     { to: [order.contact_email], audience: "customer" },
   ];
 
-  // The confirmation carries MMI's order sheet. Sent one by one: Resend's batch endpoint takes no attachments.
-  const sheet = await buildMmiOrderXlsx(order, items).catch((e) => {
-    console.error("Order sheet failed", order.order_number, e);
-    return null;
+  // The confirmation carries Customer Service's order file (their template, Admin → POSM Shop → Order
+  // sheet); the older designed sheet only if that can't be built. Sent one by one: Resend's batch
+  // endpoint takes no attachments.
+  const companyCode = (market.salesforce_company_codes ?? [])[0] ?? null;
+  const sheet = await buildOrderSheet(order, items, companyCode).catch(async (e) => {
+    console.error("Order file failed, sending the designed sheet instead", order.order_number, e);
+    return buildMmiOrderXlsx(order, items).catch((e2) => {
+      console.error("Order sheet failed", order.order_number, e2);
+      return null;
+    });
   });
   const results = await Promise.all(
     messages.map((m) =>
@@ -204,7 +211,7 @@ export async function sendOrderEmails(orderId: string) {
         replyTo: order.kam_email,
         subject: emailSubject(order, m.audience),
         html: renderOrderEmail(order, items, market, m.audience),
-        attachments: m.audience === "kam" && sheet ? [{ filename: mmiOrderFilename(order), content: sheet }] : undefined,
+        attachments: m.audience === "kam" && sheet ? [{ filename: orderSheetFilename(order), content: sheet }] : undefined,
       }),
     ),
   );

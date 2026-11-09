@@ -118,6 +118,7 @@ export const ADMIN_MENU: { title: string; items: { href: string; label: string; 
           { href: "/admin", label: "Dashboard" },
           { href: "/admin/orders", label: "Orders" },
           { href: "/admin/items", label: "Items" },
+          { href: "/admin/order-sheet", label: "Order sheet" },
         ],
       },
       { href: "/admin/projects", label: "Projects" },
@@ -134,7 +135,7 @@ export const ADMIN_MENU: { title: string; items: { href: string; label: string; 
   },
 ];
 
-const POSM_ADMIN = ["/admin/orders", "/admin/items", "/admin/import"];
+const POSM_ADMIN = ["/admin/orders", "/admin/items", "/admin/import", "/admin/order-sheet"];
 
 /** Which Admin menu entry a page belongs to (POSM Shop's admin includes its sub-pages and Upload). */
 export function adminEntryFor(pathname: string) {
