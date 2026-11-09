@@ -116,6 +116,12 @@ export function TargetsView({ all, f, year }: { all: StoreView[]; f: OffTradeFil
       <TargetTable title="By area" first="Area" data={targetsBy(rows, (r) => r.store.area)} />
 
       <Card title="Target stores" meta={`${rows.length} store${rows.length === 1 ? "" : "s"}`} sticky>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs">The download has the {year} target stores{qs ? " in these filters" : ""}.</p>
+          <a href={`/off-trade/targets/export?${[qs, `year=${year}`].filter(Boolean).join("&")}`} className="btn btn-secondary !py-1.5 text-sm" download>
+            ⬇ Download Excel
+          </a>
+        </div>
         <table className="table">
           <thead>
             <tr>

@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { requireProfile } from "@/lib/auth";
+import { queryOf, styleSheet, xlsxResponse } from "@/lib/off-trade-export";
 import {
   TARGET_YEAR,
   VISIBILITY_MAIN,
@@ -16,8 +17,7 @@ import {
 export async function GET(req: Request) {
   const profile = await requireProfile();
   if (!canUseOffTrade(profile)) return new Response("Not allowed", { status: 403 });
-  const sp = Object.fromEntries([...new URL(req.url).searchParams.keys()].map((k) => [k, new URL(req.url).searchParams.getAll(k)]));
-  const stores = applyOffTradeFilters(await loadOffTrade(), readOffTradeFilters(sp));
+  const stores = applyOffTradeFilters(await loadOffTrade(), readOffTradeFilters(queryOf(req)));
   const years = [...new Set(stores.flatMap((s) => executedYears(s)))].filter((y) => y < TARGET_YEAR).sort();
 
   const wb = new ExcelJS.Workbook();
@@ -75,19 +75,9 @@ export async function GET(req: Request) {
       expected: year.reduce((n, p) => n + Number(p.expected_cost_aed ?? 0), 0) || "",
     });
   }
-  ws.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" } };
-  ws.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF58A244" } };
-  ws.views = [{ state: "frozen", ySplit: 1, xSplit: 2 }];
-  ws.autoFilter = { from: "A1", to: { row: 1, column: ws.columnCount } };
+  styleSheet(ws, 2);
   for (const k of ["coldDone", "lastDate"]) ws.getColumn(k).numFmt = "dd mmm yyyy";
   ws.getColumn("expected").numFmt = "#,##0";
 
-  const stamp = new Date().toISOString().slice(0, 10);
-  return new Response((await wb.xlsx.writeBuffer()) as ArrayBuffer, {
-    headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="off-trade-stores-${stamp}.xlsx"`,
-      "Cache-Control": "no-store",
-    },
-  });
+  return xlsxResponse(wb, "off-trade-stores");
 }

@@ -142,6 +142,12 @@ export function HistoryView({ all, f, year }: { all: StoreView[]; f: OffTradeFil
         })} />
 
       <Card title="Everything installed" meta={`${rows.length} project${rows.length === 1 ? "" : "s"}`} sticky>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs">The download has every line installed{year ? ` in ${year}` : ""}{qs ? ", in these filters" : ""}.</p>
+          <a href={`/off-trade/history/export?${[qs, year ? `year=${year}` : ""].filter(Boolean).join("&")}`} className="btn btn-secondary !py-1.5 text-sm" download>
+            ⬇ Download Excel
+          </a>
+        </div>
         <table className="table">
           <thead>
             <tr>
