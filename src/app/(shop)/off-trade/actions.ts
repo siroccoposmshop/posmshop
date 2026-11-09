@@ -246,39 +246,67 @@ export async function importOffTrade(input: { path: string; filename: string }):
  */
 async function importVisibilityMaster(master: NonNullable<Awaited<ReturnType<typeof findVisibilityMaster>>>): Promise<{ summary?: OffTradeImportSummary; error?: string }> {
   const db = createAdminClient();
-  const { data: existing, error: exErr } = await db.from("off_trade_stores").select("id, match_key, code");
+  const { data: existing, error: exErr } = await db.from("off_trade_stores").select("id, match_key, code, name, active");
   if (exErr) return { error: dbError(exErr.message) };
-  const before = new Set((existing ?? []).map((s) => s.match_key as string | null).filter(Boolean));
-  // A store's real code (e.g. set from the CRM) is kept when the master file has none for it.
-  const realCode = new Map((existing ?? []).filter((s) => s.match_key && !String(s.code).startsWith("TBC-")).map((s) => [s.match_key as string, s.code as string]));
+  type Ex = { id: string; match_key: string | null; code: string; name: string; active: boolean };
+  const ex = (existing ?? []) as Ex[];
+  const real = (c: string | null | undefined) => !!c && !c.startsWith("TBC-");
+  // A store is recognised by its code first (so a store renamed in the list keeps its history),
+  // then by channel · customer · store · type.
+  const byCode = new Map(ex.filter((s) => real(s.code)).map((s) => [s.code.toUpperCase(), s]));
+  const byKey = new Map(ex.filter((s) => s.match_key).map((s) => [s.match_key as string, s]));
   const now = new Date().toISOString();
+  const claimed = new Set<string>();
+  const updates: Record<string, unknown>[] = [];
+  const inserts: Record<string, unknown>[] = [];
+  const renamed: string[] = [];
+  const clashes: string[] = [];
   // One row per store: if the same store appears twice, the last one wins.
-  const rows = [
-    ...new Map(
-      master.stores.map(({ target_year: _t, visit_frequency: _v, ...s }) => [
-        s.match_key,
-        { ...s, code: s.code.startsWith("TBC-") ? (realCode.get(s.match_key) ?? s.code) : s.code, active: true, updated_at: now },
-      ]),
-    ).values(),
-  ];
-  for (let i = 0; i < rows.length; i += 200) {
-    const { error } = await db.from("off_trade_stores").upsert(rows.slice(i, i + 200), { onConflict: "match_key" });
+  const parsed = [...new Map(master.stores.map((s) => [s.match_key, s])).values()];
+  for (const { target_year: _t, visit_frequency: _v, ...s } of parsed) {
+    const hit = (real(s.code) ? byCode.get(s.code.toUpperCase()) : undefined) ?? byKey.get(s.match_key);
+    if (hit && claimed.has(hit.id)) {
+      clashes.push(`${s.name}: same store code as another row (${s.code}); added as a separate store`);
+    }
+    if (hit && !claimed.has(hit.id)) {
+      claimed.add(hit.id);
+      if (hit.name !== s.name) renamed.push(`${hit.name} → ${s.name}`);
+      updates.push({ ...s, id: hit.id, code: real(s.code) ? s.code : hit.code, active: true, updated_at: now });
+    } else {
+      inserts.push({ ...s, code: real(s.code) && byCode.has(s.code.toUpperCase()) ? `TBC-DUP-${Math.random().toString(36).slice(2, 9).toUpperCase()}` : s.code, active: true, updated_at: now });
+    }
+  }
+  for (let i = 0; i < updates.length; i += 200) {
+    const { error } = await db.from("off_trade_stores").upsert(updates.slice(i, i + 200), { onConflict: "id" });
+    if (error) return { error: dbError(error.message) };
+  }
+  for (let i = 0; i < inserts.length; i += 200) {
+    const { error } = await db.from("off_trade_stores").insert(inserts.slice(i, i + 200));
+    if (error) return { error: dbError(error.message) };
+  }
+  // Stores from the list that aren't in it any more (closed, merged): hidden, their records kept.
+  const gone = ex.filter((s) => s.active && s.match_key && !claimed.has(s.id));
+  for (let i = 0; i < gone.length; i += 200) {
+    const { error } = await db.from("off_trade_stores").update({ active: false, updated_at: now }).in("id", gone.slice(i, i + 200).map((s) => s.id));
     if (error) return { error: dbError(error.message) };
   }
   refresh();
-  const waiting = master.stores.filter((s) => s.code.startsWith("TBC-")).length;
+  const waiting = master.stores.filter((s) => !real(s.code)).length;
   return {
     summary: {
       stores: master.stores.length,
-      created: master.stores.filter((s) => !before.has(s.match_key)).length,
+      created: inserts.length,
       projects: 0,
-      unknownStores: [],
+      unknownStores: clashes,
       warnings: [
         `Read the "${master.sheet}" tab: ${master.groups.length} asset groups (${master.groups.join(", ")}).`,
+        ...(renamed.length ? [`Renamed (kept their history): ${renamed.join(" · ")}`] : []),
+        ...(inserts.length ? [`New stores: ${inserts.map((r) => r.name).join(" · ")}`] : []),
+        ...(gone.length ? [`No longer in the list, now hidden (their records are kept): ${gone.map((s) => s.name).join(" · ")}`] : []),
         master.hasOpened
           ? `Opening years: ${master.stores.filter((s) => s.opened_year).length} stores have one; blank ones count in every year.`
           : `No opening-year column: opening years set on the site are kept.`,
-        ...(waiting ? [`${waiting} stores are waiting for their store code (shown as TBC-…). Add a "Store code" column and upload again to set them.`] : []),
+        ...(waiting ? [`${waiting} stores have no store code yet. Store codes come from the CRM (Account Number): add a "Store code" column, or upload the store-codes sheet.`] : []),
       ],
     },
   };
