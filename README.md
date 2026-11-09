@@ -6,7 +6,7 @@ users and reports.
 
 - **Stack:** Next.js 16 (App Router) on **Vercel**, **Supabase** (Postgres, Auth, Storage), **Resend** for email.
 - **Look and feel:** Sirocco Brand Guidelines 2026. Colours, Roboto Condensed + Vazirmatn, bento modules, red accent element, hyper-logotype.
-- **Separate from PintFinder:** this project must live in its own GitHub, Vercel, Supabase and Resend accounts, all registered to a Sirocco email. Nothing here is shared with PintFinder.
+- **Separate from PintFinder:** this project must live in its own Git (GitHub or GitLab), Vercel, Supabase and Resend accounts, all registered to a Sirocco email. Nothing here is shared with PintFinder.
 
 ## What it does
 
@@ -29,7 +29,7 @@ users and reports.
 
 ## Setting it up (in order)
 
-> Use a **Sirocco email** (e.g. the one behind the `siroccoposmshop` GitHub account) for every sign-up below, not the PintFinder one.
+> Use a **Sirocco email** (e.g. the one behind the `siroccoposmshop` GitHub account, or the Sirocco GitLab account) for every sign-up below, not the PintFinder one.
 
 ### 1. Supabase (database, login, image storage)
 1. Sign up at <https://supabase.com> with the Sirocco email. Create an organisation (e.g. "Sirocco") and a project called `posmshop`. Choose the region closest to the Gulf that IT is happy with.
@@ -45,7 +45,7 @@ users and reports.
 8. **Project Settings → API Keys:** copy the Project URL, the publishable key (`sb_publishable_…`) and a secret key (`sb_secret_…`).
 
 ### 2. Vercel (hosting)
-1. Sign up at <https://vercel.com> **with the Sirocco GitHub account** (`siroccoposmshop`).
+1. Sign up at <https://vercel.com> **with the Sirocco Git account** (GitHub `siroccoposmshop`, or GitLab: see `docs/move-to-gitlab.md`).
 2. "Add New → Project" → import `siroccoposmshop/posmshop`. Framework: Next.js (auto-detected).
 3. Add the environment variables from `.env.example`:
    `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `NEXT_PUBLIC_SITE_URL`, `RESEND_API_KEY`, `EMAIL_FROM`.
