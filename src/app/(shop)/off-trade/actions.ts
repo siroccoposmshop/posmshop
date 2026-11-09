@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { OFF_TRADE_PROJECT_TYPES, canUseOffTrade } from "@/lib/off-trade";
-import { findVisibilityMaster, kpiYear, loadWorkbook, parseKpiTracker, parseOffTradeWorkbook, type KpiRow } from "@/lib/off-trade-excel";
+import { findVisibilityMaster, kpiYear, loadWorkbook, parseKpiTracker, parseOffTradeWorkbook, parseStoreCodes, type KpiRow, type StoreCodeRow } from "@/lib/off-trade-excel";
 import { makeStoreMatcher } from "@/lib/off-trade-match";
 
 type Result = { ok?: boolean; error?: string };
@@ -167,6 +167,14 @@ export async function importOffTrade(input: { path: string; filename: string }):
   }
   if (master) return importVisibilityMaster(master);
 
+  // Store codes (CRM Account Number) from the reviewed matching sheet.
+  try {
+    const codes = parseStoreCodes(await loadWorkbook(buffer));
+    if (codes) return importStoreCodes(codes);
+  } catch {
+    return { error: "That file couldn't be read. Is it a valid .xlsx workbook?" };
+  }
+
   // A retail KPI tracker (ABU DHABI / NER / DXBR tabs with Q1–Q4): what was done that year.
   try {
     const kpi = parseKpiTracker(await loadWorkbook(buffer), kpiYear(input.filename));
@@ -238,12 +246,21 @@ export async function importOffTrade(input: { path: string; filename: string }):
  */
 async function importVisibilityMaster(master: NonNullable<Awaited<ReturnType<typeof findVisibilityMaster>>>): Promise<{ summary?: OffTradeImportSummary; error?: string }> {
   const db = createAdminClient();
-  const { data: existing, error: exErr } = await db.from("off_trade_stores").select("id, match_key");
+  const { data: existing, error: exErr } = await db.from("off_trade_stores").select("id, match_key, code");
   if (exErr) return { error: dbError(exErr.message) };
   const before = new Set((existing ?? []).map((s) => s.match_key as string | null).filter(Boolean));
+  // A store's real code (e.g. set from the CRM) is kept when the master file has none for it.
+  const realCode = new Map((existing ?? []).filter((s) => s.match_key && !String(s.code).startsWith("TBC-")).map((s) => [s.match_key as string, s.code as string]));
   const now = new Date().toISOString();
   // One row per store: if the same store appears twice, the last one wins.
-  const rows = [...new Map(master.stores.map(({ target_year: _t, visit_frequency: _v, ...s }) => [s.match_key, { ...s, active: true, updated_at: now }])).values()];
+  const rows = [
+    ...new Map(
+      master.stores.map(({ target_year: _t, visit_frequency: _v, ...s }) => [
+        s.match_key,
+        { ...s, code: s.code.startsWith("TBC-") ? (realCode.get(s.match_key) ?? s.code) : s.code, active: true, updated_at: now },
+      ]),
+    ).values(),
+  ];
   for (let i = 0; i < rows.length; i += 200) {
     const { error } = await db.from("off_trade_stores").upsert(rows.slice(i, i + 200), { onConflict: "match_key" });
     if (error) return { error: dbError(error.message) };
@@ -263,6 +280,76 @@ async function importVisibilityMaster(master: NonNullable<Awaited<ReturnType<typ
           : `No opening-year column: opening years set on the site are kept.`,
         ...(waiting ? [`${waiting} stores are waiting for their store code (shown as TBC-…). Add a "Store code" column and upload again to set them.`] : []),
       ],
+    },
+  };
+}
+
+/** Sets each store's code to its CRM Account Number, by the store's exact name (and chain, market). */
+async function importStoreCodes(rows: StoreCodeRow[]): Promise<{ summary?: OffTradeImportSummary; error?: string }> {
+  const db = createAdminClient();
+  const { data, error } = await db.from("off_trade_stores").select("id, code, name, chain, market").eq("active", true);
+  if (error) return { error: dbError(error.message) };
+  const stores = (data ?? []) as { id: string; code: string; name: string; chain: string | null; market: string | null }[];
+  const key = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+  const problems: string[] = [];
+  const plan = new Map<string, { id: string; code: string; label: string }>();
+  const byCode = new Map<string, string>();
+  for (const r of rows) {
+    let hits = stores.filter((s) => key(s.name) === key(r.store));
+    if (hits.length > 1 && r.chain) hits = hits.filter((s) => key(s.chain) === key(r.chain));
+    if (hits.length > 1 && r.market) hits = hits.filter((s) => key(s.market) === key(r.market));
+    const where = `${r.code} → ${r.store}`;
+    if (!hits.length) {
+      problems.push(`${where}: no store with that name in the store list`);
+      continue;
+    }
+    if (hits.length > 1) {
+      problems.push(`${where}: ${hits.length} stores have that name; add the chain to tell them apart`);
+      continue;
+    }
+    const s = hits[0];
+    if (byCode.has(r.code) && byCode.get(r.code) !== s.id) {
+      problems.push(`${r.code} is given to two stores (${r.store} and ${plan.get(byCode.get(r.code)!)?.label}); left out`);
+      plan.delete(byCode.get(r.code)!);
+      continue;
+    }
+    const other = plan.get(s.id);
+    if (other && other.code !== r.code) {
+      problems.push(`${r.store} is given two codes (${other.code} and ${r.code}); left out`);
+      plan.delete(s.id);
+      continue;
+    }
+    byCode.set(r.code, s.id);
+    plan.set(s.id, { id: s.id, code: r.code, label: s.name });
+  }
+  // A code that another store already has (not being changed in this file).
+  const changing = new Set(plan.keys());
+  for (const p of [...plan.values()]) {
+    const holder = stores.find((s) => s.code.toUpperCase() === p.code && s.id !== p.id && !changing.has(s.id));
+    if (holder) {
+      problems.push(`${p.code} → ${p.label}: ${holder.name} already has that code; left out`);
+      plan.delete(p.id);
+    }
+  }
+  // Two steps so codes can swap between stores without clashing.
+  const now = new Date().toISOString();
+  const todo = [...plan.values()].filter((p) => stores.find((s) => s.id === p.id)?.code.toUpperCase() !== p.code);
+  for (const p of todo) {
+    const { error: e } = await db.from("off_trade_stores").update({ code: `TMP-${p.id}`, updated_at: now }).eq("id", p.id);
+    if (e) return { error: dbError(e.message) };
+  }
+  for (const p of todo) {
+    const { error: e } = await db.from("off_trade_stores").update({ code: p.code, updated_at: now }).eq("id", p.id);
+    if (e) return { error: dbError(e.message) };
+  }
+  refresh();
+  return {
+    summary: {
+      stores: 0,
+      created: 0,
+      projects: 0,
+      unknownStores: problems.slice(0, 60),
+      warnings: [`Store codes: ${todo.length} set or changed, ${plan.size - todo.length} already right, ${problems.length} left out (listed above).`],
     },
   };
 }

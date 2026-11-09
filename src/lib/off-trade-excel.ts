@@ -546,6 +546,44 @@ export function parseKpiTracker(wb: ExcelJS.Workbook, year: number): { rows: Kpi
   return { rows: use.flatMap((x) => x.rows), tabs: use.map((x) => x.name), skipped: use.reduce((n, x) => n + x.skipped, 0) };
 }
 
+// ---------------------------------------------------------------------------
+// Store codes (CRM Account Number) from the reviewed matching sheet
+// ---------------------------------------------------------------------------
+
+export type StoreCodeRow = { code: string; store: string; chain: string | null; market: string | null; sheet: string; row: number };
+
+/**
+ * Sheets with an "Account Number" column and the store's name as in the store list ("Store in the
+ * store list" or "Store (store list)"), optionally its chain and market. Also reads the "CRM Account
+ * Number" column of the list of stores without one. Rows without both a code and a store are skipped.
+ */
+export function parseStoreCodes(wb: ExcelJS.Workbook): StoreCodeRow[] | null {
+  const out: StoreCodeRow[] = [];
+  let found = false;
+  for (const ws of wb.worksheets) {
+    const head = new Map<string, number>();
+    ws.getRow(1).eachCell((cell, c) => {
+      const h = norm(text(cell.value));
+      if (h) head.set(h, c);
+    });
+    const codeCol = [...head].find(([h]) => h === "accountnumber" || h.startsWith("crmaccountnumber"))?.[1];
+    const storeCol = [...head].find(([h]) => h === "storeinthestorelist" || h === "storestorelist")?.[1];
+    if (!codeCol || !storeCol) continue;
+    found = true;
+    const chainCol = head.get("storechain") ?? head.get("chain");
+    const marketCol = head.get("market");
+    for (let i = 2; i <= ws.rowCount; i++) {
+      const row = ws.getRow(i);
+      const get = (c?: number) => (c ? text(row.getCell(c).value).trim() : "");
+      const code = get(codeCol).toUpperCase();
+      const store = get(storeCol);
+      if (!code || !store) continue;
+      out.push({ code, store, chain: get(chainCol) || null, market: get(marketCol) || null, sheet: ws.name, row: i });
+    }
+  }
+  return found ? out : null;
+}
+
 /** The year a KPI file is for: from its name ("2025 Retail KPIs"), else last year. */
 export const kpiYear = (filename: string) => Number(filename.match(/20\d\d/)?.[0]) || new Date().getFullYear() - 1;
 

@@ -126,7 +126,7 @@ export function OutletSummary({ stores }: { stores: StoreView[] }) {
       note: a.year === thisYear && a.planned ? `+${a.planned} still planned` : undefined,
     })),
     ...(years.length
-      ? [{ label: "Coverage", sub: "executed to date, each store once", value: toDate, cls: "bg-brand-black/70", gap: true, note: influenced ? `${Math.round((toDate / influenced) * 100)}% of influenced` : undefined }]
+      ? [{ label: "Coverage", sub: "executed to date, each store once", value: toDate, cls: "bg-brand-black/70", gap: true, note: `${influenced ? Math.round((toDate / influenced) * 100) : 0}% of influenced` }]
       : []),
     { label: `Plan ${TARGET_YEAR}`, sub: "target stores", value: plan, cls: "bg-brand-red/70", gap: true },
   ];
@@ -159,8 +159,7 @@ export function OutletSummary({ stores }: { stores: StoreView[] }) {
           <span className="font-display text-lg uppercase text-brand-black">All {total} stores</span>
           <span className="text-sm">
             Coverage <strong className="text-brand-black">{activatedAny}</strong> stores ({Math.round(of(activatedAny))}%) ·{" "}
-            <strong className="text-brand-black">{influenced}</strong> influenced
-            {influenced ? ` (coverage = ${Math.round((activatedAny / influenced) * 100)}% of influenced)` : ""}
+            <strong className="text-brand-black">{influenced}</strong> influenced ({Math.round(of(influenced))}%) · coverage = {influenced ? Math.round((activatedAny / influenced) * 100) : 0}% of influenced
           </span>
         </p>
         <div className="flex h-14 overflow-hidden rounded-lg ring-1 ring-black/10" role="img" aria-label={parts.map((p) => `${p.label}: ${p.value}`).join(", ")}>

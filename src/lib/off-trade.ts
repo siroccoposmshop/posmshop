@@ -194,7 +194,8 @@ export function storeView(s: OffTradeStore, projects: OffTradeProject[]): StoreV
     targets: sorted.filter((p) => p.status !== "cancelled" && yearOf(p) === TARGET_YEAR),
     vis,
     // Master-file stores: influenced = visibility that counts (not T-shirts). Others keep the upload's flag.
-    influenced: s.influenced_set ?? (s.match_key ? vis.any : s.influenced),
+    // Executed (something of ours installed) always counts as influenced, unless set to No by hand.
+    influenced: s.influenced_set ?? ((s.match_key ? vis.any : s.influenced) || done.length > 0),
     bar: isBar(s),
     coldRoom: s.has_cold_room ?? (vis.coldRoom || projects.some((p) => p.type === "Cold room" && p.status !== "cancelled")),
     coldRoomActivated: done.filter((p) => p.type === "Cold room").map((p) => p.completed_date ?? p.created_at.slice(0, 10)).sort().at(-1) ?? null,

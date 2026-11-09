@@ -57,7 +57,7 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
         <Tile
           label="Coverage"
           value={`${t.coverage}`}
-          sub={`stores executed to date${t.influenced ? ` · ${Math.round((t.coverage / t.influenced) * 100)}% of influenced` : ""}${t.lastDate ? ` · last ${formatDate(t.lastDate)}` : ""}`}
+          sub={`stores executed to date · ${t.influenced ? Math.round((t.coverage / t.influenced) * 100) : 0}% of influenced · ${t.stores ? Math.round((t.coverage / t.stores) * 100) : 0}% of all stores${t.lastDate ? ` · last ${formatDate(t.lastDate)}` : ""}`}
           href={`/off-trade/history${offTradeQuery(f) ? `?${offTradeQuery(f)}` : ""}`}
         />
         <Tile
@@ -326,7 +326,11 @@ function SummaryTable({ title, first, rows, compact, hideSegments }: { title: st
               })}
               <td className="whitespace-nowrap text-right font-medium text-brand-black">
                 {r.coverage || "—"}
-                {r.coverage > 0 && r.influenced > 0 && <span className="block text-xs font-normal">{Math.round((r.coverage / r.influenced) * 100)}% of influenced</span>}
+                {r.coverage > 0 && (
+                  <span className="block text-xs font-normal">
+                    {r.influenced ? Math.round((r.coverage / r.influenced) * 100) : 0}% of influenced · {r.stores ? Math.round((r.coverage / r.stores) * 100) : 0}% of all
+                  </span>
+                )}
               </td>
               <td className="text-right">{r.targeted || "—"}</td>
               {!compact && <td className="whitespace-nowrap text-right">{r.expected ? formatAed(r.expected) : "—"}</td>}
