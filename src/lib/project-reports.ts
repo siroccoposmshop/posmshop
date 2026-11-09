@@ -136,7 +136,8 @@ export async function getProjectReportRows(f: ProjectReportFilters, scope: strin
   if (error) throw new Error(error.message);
   const byId = new Map(((people as Person[]) ?? []).map((p) => [p.id, p]));
 
-  const all: ProjectReportRow[] = ((data as Project[]) ?? []).map((p) => {
+  // On-trade (outlet) projects: budgets, approvals and PICOS. Off-trade store projects report under Off trade.
+  const all: ProjectReportRow[] = ((data as Project[]) ?? []).filter((p) => (p.trade ?? "on") === "on").map((p) => {
     const b = budgetSplit(p);
     const sc = picosScores(p.outlet_type, p.picos);
     const pc = picosCounts(p);

@@ -62,10 +62,16 @@ export type Project = {
   completed_at: string | null;
   cancelled_at: string | null;
   updated_at: string;
+  /** On-trade outlet project (the default) or an off-trade store project. */
+  trade?: "on" | "off";
+  off_trade_store_id?: string | null;
+  notes?: string | null;
   project_stages?: Stage[];
 };
 
-export type StageType = { key: string; name: string; default_days: number; sort: number; active?: boolean };
+export type StageType = { key: string; name: string; default_days: number; sort: number; active?: boolean; trade?: "on" | "off" };
+/** Stage types for on-trade or off-trade projects (types saved before the split are on-trade). */
+export const stageTypesFor = (types: StageType[], trade: "on" | "off" | undefined) => types.filter((t) => (t.trade ?? "on") === (trade ?? "on"));
 export type Person = { id: string; email: string; full_name: string | null; hub_role: HubRole; manager_id: string | null };
 
 export const hubRole = (p: Pick<Profile, "hub_role">): HubRole => p.hub_role ?? "kam";

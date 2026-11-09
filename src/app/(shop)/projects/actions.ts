@@ -5,7 +5,8 @@ import { getProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normaliseEmail, normaliseMobile } from "@/lib/contact";
 import { formatDate } from "@/lib/format";
-import { MIN_BRIEF_CHARS, PROJECT_TYPES, approvalStatus, isAdminProfile, profileMarkets, type ProjectStatus } from "@/lib/hub";
+import { MIN_BRIEF_CHARS, PROJECT_TYPES, approvalStatus, canUseOffTrade, isAdminProfile, profileMarkets, type ProjectStatus } from "@/lib/hub";
+import { OFF_TRADE_PROJECT_TYPES, VISIBILITY_MAIN, executedYears, marketName, storeLabel, storeView, type OffTradeProject, type OffTradeStore } from "@/lib/off-trade";
 import { loadHubSettings } from "@/lib/hub-settings";
 import { OUTLET_TYPES, anyNegotiated, otherOutletsWithTicks, picosScores, type Picos } from "@/lib/picos";
 import { addWorkingDays, dubaiDate, planStages, todayIso } from "@/lib/working-days";
@@ -20,9 +21,11 @@ import {
   notify,
   personName,
   projectTitle,
+  stageTypesFor,
   usersWithRoles,
   type Investment,
   type Project,
+  type StageType,
 } from "@/lib/projects";
 import { renderProjectEmail, sendProjectEmail, type ProjectEmailKind } from "@/lib/project-emails";
 
@@ -368,6 +371,7 @@ export async function completeProject(id: string, finalCost: number): Promise<Re
     if (s.status !== "done") await db.from("project_stages").update({ status: "done", completed_at: now, started_at: s.started_at ?? now }).eq("id", s.id);
   }
   await db.from("projects").update({ status: "completed", completed_at: now, updated_at: now }).eq("id", id);
+  if (p.trade === "off") await syncOffTradeHistory(p, { status: "completed", completed_date: todayIso(), actual_cost_aed: cost });
   await logEvent(id, profile.id, "completed", { final_cost: cost, budget: p.budget_aed });
   await notify([p.kam_id, p.sm_id], id, `${projectTitle(p)} is complete.`, profile.id);
   const people = await loadPeople();
@@ -414,6 +418,7 @@ export async function setPaused(id: string, paused: boolean): Promise<Result> {
 
 export async function cancelProject(id: string, reason: string): Promise<Result> {
   const { profile, p, result } = await adminUpdate(id, "cancelled", { status: "cancelled", cancelled_at: new Date().toISOString() }, { reason });
+  if (result.ok && p?.trade === "off") await syncOffTradeHistory(p, { status: "cancelled" });
   if (result.ok && p && profile) await notify([p.kam_id, p.sm_id], id, `${projectTitle(p)} has been cancelled.`, profile.id);
   return result;
 }
@@ -491,7 +496,7 @@ export async function editStages(id: string, wanted: { key: string; days: number
 
   const db = createAdminClient();
   const { data: types } = await db.from("project_stage_types").select("*").order("sort");
-  const typeByKey = new Map((types ?? []).map((t) => [t.key as string, t]));
+  const typeByKey = new Map(stageTypesFor((types ?? []) as StageType[], p.trade).map((t) => [t.key, t as unknown as Record<string, unknown>]));
   const stages = p.project_stages ?? [];
   const active = stages.find((s) => s.status === "active");
   if (!active) return { error: "This project has no current stage." };
@@ -550,4 +555,219 @@ export async function outletInvestment(accountId: string, excludeProjectId?: str
   const { data: account } = await createAdminClient().from("accounts").select("id, parent_number").eq("id", accountId).maybeSingle();
   if (!account) return null;
   return investmentFor(account.id as string, (account.parent_number as string | null) ?? null, excludeProjectId);
+}
+
+// ---------------------------------------------------------------------------
+// Off-trade projects: a store project raised by Trade Marketing, no approvals
+// ---------------------------------------------------------------------------
+
+export type OffTradeStoreOption = { id: string; name: string; detail: string };
+
+/** Off-trade stores matching a search (name, chain, area, TM), for the project form. */
+export async function searchOffTradeStores(query: string): Promise<OffTradeStoreOption[]> {
+  const profile = await me();
+  if (!profile || !canUseOffTrade(profile)) return [];
+  const q = query.trim().replace(/[%,()]/g, " ");
+  if (q.length < 2) return [];
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const { data } = await createAdminClient()
+    .from("off_trade_stores")
+    .select("id, name, chain, area, market, tmam, store_type, code")
+    .eq("active", true)
+    .or(`name.ilike.%${words[0]}%,chain.ilike.%${words[0]}%,area.ilike.%${words[0]}%,tmam.ilike.%${words[0]}%,code.ilike.%${words[0]}%`)
+    .order("name")
+    .limit(200);
+  return (data ?? [])
+    .filter((s) => words.every((w) => [s.name, s.chain, s.area, s.tmam, s.code].join(" ").toLowerCase().includes(w)))
+    .slice(0, 25)
+    .map((s) => ({
+      id: s.id as string,
+      name: storeLabel(s.name as string, s.chain as string | null),
+      detail: [s.chain, s.area ?? marketName(s.market as string | null), /\bbar\b/i.test((s.store_type as string) ?? "") ? "Bar" : null, s.tmam ? `TM ${s.tmam}` : null].filter(Boolean).join(" · "),
+    }));
+}
+
+export type OffTradeStoreSummary = {
+  id: string;
+  name: string;
+  fullName: string;
+  chain: string | null;
+  area: string | null;
+  market: string;
+  tm: string | null;
+  segment: string | null;
+  code: string | null;
+  influenced: boolean;
+  visibility: { title: string; qty: number }[];
+  coldRoom: boolean;
+  coldRoomActivated: string | null;
+  executedYears: number[];
+  done: { type: string; item: string | null; brand: string | null; qty: number; date: string | null }[];
+  planned: { type: string; status: string; date: string | null }[];
+  openProjects: { id: string; ref: string; title: string; status: string }[];
+};
+
+/** What the form shows once a store is chosen: influence, what's installed and when, what's planned. */
+export async function offTradeStoreSummary(storeId: string): Promise<OffTradeStoreSummary | null> {
+  const profile = await me();
+  if (!profile || !canUseOffTrade(profile)) return null;
+  const db = createAdminClient();
+  const [{ data: store }, { data: rows }, { data: projects }] = await Promise.all([
+    db.from("off_trade_stores").select("*").eq("id", storeId).maybeSingle(),
+    db.from("off_trade_projects").select("*").eq("store_id", storeId),
+    db.from("projects").select("id, ref, name, account_name, project_type, status").eq("off_trade_store_id", storeId).in("status", ["live", "paused"]),
+  ]);
+  if (!store) return null;
+  const s = storeView(store as OffTradeStore, (rows as OffTradeProject[]) ?? []);
+  return {
+    id: s.id,
+    name: storeLabel(s.name, s.chain),
+    fullName: s.name,
+    chain: s.chain,
+    area: s.area,
+    market: marketName(s.market),
+    tm: s.tmam,
+    segment: s.segment,
+    code: s.code.startsWith("TBC-") ? null : s.code,
+    influenced: s.influenced,
+    visibility: VISIBILITY_MAIN.map((t) => ({ title: t as string, qty: s.vis.totals[t] })).filter((v) => v.qty > 0),
+    coldRoom: s.coldRoom,
+    coldRoomActivated: s.coldRoomActivated,
+    executedYears: executedYears(s),
+    done: s.projects
+      .filter((p) => p.status === "completed")
+      .slice(0, 8)
+      .map((p) => ({ type: p.type, item: p.item ?? null, brand: p.brand ?? null, qty: Math.max(1, Number(p.quantity) || 1), date: p.completed_date })),
+    planned: s.projects.filter((p) => p.status === "planned" || p.status === "in_progress").map((p) => ({ type: p.type, status: p.status, date: p.planned_date })),
+    openProjects: (projects ?? []).map((p) => ({ id: p.id as string, ref: p.ref as string, title: projectTitle(p as { name: string | null; account_name: string; project_type: string }), status: p.status as string })),
+  };
+}
+
+export type OffTradeProjectInput = {
+  storeId: string;
+  contact: { name: string; mobile: string; email: string };
+  projectType: string;
+  brands: string[];
+  estimatedCost: number;
+  brief: string;
+  notes: string;
+  targetDate: string;
+  stages: { key: string; days: number }[];
+};
+
+/** Creates an off-trade store project, live straight away with its stages (Trade Marketing run it). */
+export async function submitOffTradeProject(input: OffTradeProjectInput): Promise<Result & { fieldErrors?: Record<string, string> }> {
+  const profile = await me();
+  if (!profile) return SIGNED_OUT;
+  if (!canUseOffTrade(profile)) return { error: "Only the off-trade team can raise off-trade projects." };
+  const db = createAdminClient();
+  const errors: Record<string, string> = {};
+  const { data: store } = await db.from("off_trade_stores").select("*").eq("id", input.storeId).eq("active", true).maybeSingle();
+  if (!store) errors.account = "Choose the store.";
+  if (!input.contact?.name?.trim()) errors.contactName = "Enter the contact's name.";
+  const mobile = normaliseMobile(input.contact?.mobile ?? "");
+  if (!mobile.ok) errors.contactMobile = mobile.error;
+  const emailRaw = (input.contact?.email ?? "").trim();
+  const email = emailRaw ? normaliseEmail(emailRaw) : ({ ok: true, value: "" } as const);
+  if (!email.ok) errors.contactEmail = email.error;
+  if (!OFF_TRADE_PROJECT_TYPES.includes(input.projectType as (typeof OFF_TRADE_PROJECT_TYPES)[number])) errors.projectType = "Choose the project type.";
+  if (!input.brands?.length) errors.brands = "Choose at least one brand.";
+  const cost = Math.round((Number(input.estimatedCost) || 0) * 100) / 100;
+  if (!(cost > 0)) errors.cost = "Enter the estimated cost in AED.";
+  if ((input.brief ?? "").trim().length < MIN_BRIEF_CHARS) errors.brief = `Describe the project in at least ${MIN_BRIEF_CHARS} characters.`;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.targetDate ?? "") || input.targetDate <= todayIso()) errors.targetDate = "Choose a target date in the future.";
+  const { data: types } = await db.from("project_stage_types").select("*").order("sort");
+  const offTypes = new Map(stageTypesFor((types ?? []) as StageType[], "off").map((t) => [t.key, t]));
+  const chosen = (input.stages ?? [])
+    .filter((s) => offTypes.has(s.key))
+    .map((s) => ({ key: s.key, name: offTypes.get(s.key)!.name, sort: offTypes.get(s.key)!.sort, days: Math.max(1, Math.min(250, Math.round(s.days))) }))
+    .sort((a, b) => a.sort - b.sort);
+  if (!chosen.length) errors.stages = offTypes.size ? "Choose at least one stage." : "Run supabase/migrations/20261119000000_off_trade_projects_hub.sql in Supabase first.";
+  if (Object.keys(errors).length) return { error: "Please complete the highlighted sections.", fieldErrors: errors };
+
+  const name = storeLabel(store.name as string, store.chain as string | null);
+  const today = todayIso();
+  const planned = planStages(today, chosen);
+  const now = new Date().toISOString();
+  const row = {
+    trade: "off",
+    off_trade_store_id: store.id,
+    status: "live" as ProjectStatus,
+    name: `${input.projectType} · ${name}`,
+    kam_id: profile.id,
+    sm_id: null,
+    tm_id: profile.id,
+    account_id: null,
+    account_number: (store.code as string).startsWith("TBC-") ? "—" : (store.code as string),
+    account_name: store.name,
+    parent_number: null,
+    parent_name: store.chain,
+    market: store.market,
+    project_type: input.projectType,
+    brands: input.brands,
+    // Not a PICOS outlet type, so no PICOS scoring applies; the segment is on the store.
+    outlet_type: "Off trade",
+    contact_name: input.contact.name.trim(),
+    contact_mobile: mobile.ok ? mobile.value : "",
+    contact_email: email.ok ? email.value : "",
+    budget_aed: cost,
+    brief: input.brief.trim(),
+    notes: input.notes?.trim() || null,
+    desired_date: input.targetDate,
+    target_date: planned.at(-1)!.due_date,
+    picos: { items: {}, notes: {} },
+    submitted_at: now,
+    started_at: now,
+    updated_at: now,
+  };
+  const saved = await db.from("projects").insert(row).select("id").single();
+  if (saved.error) {
+    return { error: /trade|off_trade_store_id|notes/.test(saved.error.message) ? "Run supabase/migrations/20261119000000_off_trade_projects_hub.sql in Supabase first." : saved.error.message };
+  }
+  const id = saved.data.id as string;
+  const { error: sErr } = await db.from("project_stages").insert(
+    planned.map((s, i) => ({ project_id: id, key: s.key, name: s.name, sort: s.sort, days: s.days, due_date: s.due_date, status: i === 0 ? "active" : "pending", started_at: i === 0 ? now : null })),
+  );
+  if (sErr) {
+    await db.from("projects").delete().eq("id", id);
+    return { error: sErr.message };
+  }
+  const { data: full } = await db.from("projects").select("*").eq("id", id).single();
+  if (full) await syncOffTradeHistory(full as Project, { status: "in_progress" });
+  await logEvent(id, profile.id, "started", { stages: chosen.map((s) => s.key), target: planned.at(-1)!.due_date, trade: "off" });
+  refresh(id);
+  revalidatePath("/off-trade");
+  return { ok: true, id };
+}
+
+/**
+ * Keeps the store's off-trade record in step with its project: planned while it runs (shows under
+ * Targets), completed with the final cost (History and coverage), cancelled if it's stopped.
+ */
+async function syncOffTradeHistory(p: Project, patch: { status: "in_progress" | "completed" | "cancelled"; completed_date?: string; actual_cost_aed?: number }) {
+  if (!p.off_trade_store_id) return;
+  const { error } = await createAdminClient()
+    .from("off_trade_projects")
+    .upsert(
+      {
+        store_id: p.off_trade_store_id,
+        import_key: `prj|${p.id}`,
+        type: p.project_type,
+        item: p.name,
+        brand: p.brands.join(", ") || null,
+        quantity: 1,
+        status: patch.status,
+        plan_year: Number((p.desired_date ?? todayIso()).slice(0, 4)),
+        planned_date: p.desired_date,
+        completed_date: patch.status === "completed" ? patch.completed_date : null,
+        expected_cost_aed: p.budget_aed,
+        actual_cost_aed: patch.status === "completed" ? (patch.actual_cost_aed ?? null) : null,
+        notes: `${p.ref} (Projects)`,
+        created_by: p.kam_id,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "import_key" },
+    );
+  if (error) console.error("Off-trade history sync failed", p.ref, error.message);
+  revalidatePath("/off-trade", "layout");
 }

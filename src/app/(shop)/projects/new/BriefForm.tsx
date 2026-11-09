@@ -11,14 +11,45 @@ import type { Investment } from "@/lib/projects";
 import { InvestmentNote } from "../_components/InvestmentNote";
 import { Spinner } from "@/components/Spinner";
 import type { Account, ParentAccount } from "@/lib/types";
-import { outletInvestment, submitBrief, type BriefInput } from "../actions";
+import { offTradeStoreSummary, outletInvestment, searchOffTradeStores, submitBrief, type BriefInput, type OffTradeStoreOption, type OffTradeStoreSummary } from "../actions";
+import type { StageType } from "@/lib/projects";
+import { OffTradeBrief, StoreSummary } from "./OffTradeBrief";
 
 
 export type BriefDefaults = Partial<Omit<BriefInput, "accountId">> & { account?: Account | null };
 
-export function BriefForm({ brands, defaults, submitterIsSm, settings }: { brands: string[]; defaults?: BriefDefaults; submitterIsSm: boolean; settings: HubSettings }) {
+export function BriefForm({
+  brands,
+  defaults,
+  submitterIsSm,
+  settings,
+  canOn = true,
+  canOff = false,
+  offStageTypes = [],
+}: {
+  brands: string[];
+  defaults?: BriefDefaults;
+  submitterIsSm: boolean;
+  settings: HubSettings;
+  /** Can raise on-trade outlet projects / off-trade store projects. The search offers what they can. */
+  canOn?: boolean;
+  canOff?: boolean;
+  offStageTypes?: StageType[];
+}) {
   const router = useRouter();
   const [account, setAccount] = useState<Account | null>(defaults?.account ?? null);
+  // An off-trade store chosen instead of an outlet: the rest of the form changes to the off-trade one.
+  const [store, setStore] = useState<OffTradeStoreOption | null>(null);
+  const [storeSummary, setStoreSummary] = useState<OffTradeStoreSummary | null>(null);
+  useEffect(() => {
+    setStoreSummary(null);
+    if (!store) return;
+    let live = true;
+    offTradeStoreSummary(store.id).then((s) => live && setStoreSummary(s));
+    return () => {
+      live = false;
+    };
+  }, [store]);
   const [contact, setContact] = useState(defaults?.contact ?? { name: "", mobile: `${UAE_PREFIX} `, email: "" });
   const [projectType, setProjectType] = useState(defaults?.projectType ?? "");
   const [chosenBrands, setChosenBrands] = useState<string[]>(defaults?.brands ?? []);
@@ -132,10 +163,45 @@ export function BriefForm({ brands, defaults, submitterIsSm, settings }: { brand
 
   const err = (k: string) => (errors[k] ? <p className="mt-1 text-xs text-brand-red">{errors[k]}</p> : null);
 
+  if (store) {
+    return (
+      <div className="mt-6 space-y-4">
+        <Section n={1} title="Store" id="account">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-brand-black p-4 text-white">
+            <div>
+              <p className="font-display text-xs uppercase tracking-wide text-white/70">Off trade</p>
+              <p className="font-display text-lg font-medium uppercase leading-tight">{store.name}</p>
+              <p className="text-sm text-white/85">{store.detail}</p>
+            </div>
+            <button type="button" className="btn bg-white/15 text-white hover:bg-white/25" onClick={() => setStore(null)}>
+              Change
+            </button>
+          </div>
+          {storeSummary ? <StoreSummary s={storeSummary} /> : <p className="mt-3 text-sm">Loading the store…</p>}
+        </Section>
+        <OffTradeBrief key={store.id} storeId={store.id} brands={brands} stageTypes={offStageTypes} Section={Section} Chips={Chips} />
+      </div>
+    );
+  }
+
+  // Off-trade only: just the store search until a store is chosen.
+  if (!canOn) {
+    return (
+      <div className="mt-6">
+        <Section n={1} title="Store" id="account">
+          <OutletPicker canOn={false} canOff onStore={setStore} account={null} onChange={() => undefined} />
+        </Section>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={submit} noValidate className="mt-6 space-y-4">
-      <Section n={1} title="Customer & outlet" id="account" error={errors.account}>
+      <Section n={1} title={canOn ? (canOff ? "Outlet or store" : "Customer & outlet") : "Store"} id="account" error={errors.account}>
         <OutletPicker
+          canOn={canOn && !defaults?.projectId}
+          canOff={canOff && !defaults?.projectId}
+          onStore={setStore}
           account={account}
           onChange={(a) => {
             setAccount(a);
@@ -569,9 +635,22 @@ function ScoreTile({ label, value, highlight }: { label: string; value: number; 
 }
 
 /** Parent account search → outlet, as in POSM Shop. The contact isn't pre-filled (until it comes from Salesforce). */
-function OutletPicker({ account, onChange }: { account: Account | null; onChange: (a: Account | null) => void }) {
+function OutletPicker({
+  account,
+  onChange,
+  canOn = true,
+  canOff = false,
+  onStore,
+}: {
+  account: Account | null;
+  onChange: (a: Account | null) => void;
+  canOn?: boolean;
+  canOff?: boolean;
+  onStore?: (s: OffTradeStoreOption) => void;
+}) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ParentAccount[]>([]);
+  const [stores, setStores] = useState<OffTradeStoreOption[]>([]);
   const [parent, setParent] = useState<ParentAccount | null>(null);
   const [outlets, setOutlets] = useState<Account[] | null>(null);
   const [outletError, setOutletError] = useState(false);
@@ -581,20 +660,24 @@ function OutletPicker({ account, onChange }: { account: Account | null; onChange
   useEffect(() => {
     if (debounce.current) clearTimeout(debounce.current);
     const q = query.trim();
-    if (q.length < 2) return setResults([]);
+    if (q.length < 2) {
+      setStores([]);
+      return setResults([]);
+    }
     debounce.current = setTimeout(async () => {
       setSearching(true);
       const safe = q.replace(/[%,()]/g, " ");
-      const { data } = await createClient()
-        .from("parent_accounts")
-        .select("*")
-        .or(`parent_name.ilike.%${safe}%,parent_number.ilike.%${safe}%`)
-        .order("parent_name")
-        .limit(25);
-      setResults((data as ParentAccount[]) ?? []);
+      const [parents, offStores] = await Promise.all([
+        canOn
+          ? createClient().from("parent_accounts").select("*").or(`parent_name.ilike.%${safe}%,parent_number.ilike.%${safe}%`).order("parent_name").limit(25)
+          : Promise.resolve({ data: [] }),
+        canOff ? searchOffTradeStores(q) : Promise.resolve([] as OffTradeStoreOption[]),
+      ]);
+      setResults((parents.data as ParentAccount[]) ?? []);
+      setStores(offStores);
       setSearching(false);
     }, 250);
-  }, [query]);
+  }, [query, canOn, canOff]);
 
   useEffect(() => {
     if (!parent) return setOutlets(null);
@@ -679,12 +762,40 @@ function OutletPicker({ account, onChange }: { account: Account | null; onChange
   return (
     <div>
       <label className="label" htmlFor="b-search">
-        Search customer (parent account) name or number
+        {canOn && canOff ? "Search an on-trade customer or an off-trade store" : canOn ? "Search customer (parent account) name or number" : "Search a store, chain, area or TM"}
       </label>
-      <input id="b-search" type="search" className="field" placeholder="e.g. 25 Hours Hotel or 53248" value={query} onChange={(e) => setQuery(e.target.value)} autoComplete="off" />
+      <input
+        id="b-search"
+        type="search"
+        className="field"
+        placeholder={canOn ? (canOff ? "e.g. 25 Hours Hotel, 53248 or Spinneys Al Bandar" : "e.g. 25 Hours Hotel or 53248") : "e.g. Spinneys Al Bandar"}
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        autoComplete="off"
+      />
+      {canOn && canOff && <p className="mt-1 text-xs">The rest of the form follows what you pick: an outlet for on trade, a store for off trade.</p>}
+      {stores.length > 0 && (
+        <div className="mt-3">
+          <p className="font-display text-xs uppercase tracking-wide text-brand-black">Off-trade stores</p>
+          <ul className="divide-y divide-black/5">
+            {stores.map((s) => (
+              <li key={s.id}>
+                <button type="button" onClick={() => onStore?.(s)} className="flex w-full items-center justify-between rounded-lg px-2 py-2.5 text-left hover:bg-brand-green-tint">
+                  <span>
+                    <span className="block font-medium text-brand-black">{s.name}</span>
+                    <span className="text-xs">{s.detail}</span>
+                  </span>
+                  <span className="badge bg-brand-black text-white">Off trade</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {canOn && canOff && results.length > 0 && <p className="mt-3 font-display text-xs uppercase tracking-wide text-brand-black">On-trade customers</p>}
       <ul className="mt-2 divide-y divide-black/5">
         {searching && <li className="py-2 text-sm">Searching…</li>}
-        {!searching && query.trim().length >= 2 && !results.length && <li className="py-2 text-sm">No customers match “{query}”.</li>}
+        {!searching && query.trim().length >= 2 && !results.length && !stores.length && <li className="py-2 text-sm">Nothing matches “{query}”.</li>}
         {results.map((p) => (
           <li key={`${p.parent_number}-${p.parent_name}`}>
             <button type="button" onClick={() => setParent(p)} className="flex w-full items-center justify-between rounded-lg px-2 py-2.5 text-left hover:bg-brand-green-tint">

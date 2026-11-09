@@ -79,7 +79,7 @@ export function StageRow({ stage }: { stage: StageType }) {
   );
 }
 
-export function AddStage() {
+export function AddStage({ trade = "on" }: { trade?: "on" | "off" }) {
   const [state, action, pending] = useActionState(addStageType, null);
   const [key, setKey] = useState(0);
   return (
@@ -91,13 +91,14 @@ export function AddStage() {
       }}
       className="flex flex-wrap items-end gap-2"
     >
+      <input type="hidden" name="trade" value={trade} />
       <div className="min-w-48 flex-1">
-        <label className="label" htmlFor="new-stage">Add a stage</label>
-        <input id="new-stage" name="name" className="field" placeholder="e.g. Permits" />
+        <label className="label" htmlFor={`new-stage-${trade}`}>Add a stage</label>
+        <input id={`new-stage-${trade}`} name="name" className="field" placeholder="e.g. Permits" />
       </div>
       <div>
-        <label className="label" htmlFor="new-days">Days</label>
-        <input id="new-days" name="default_days" type="number" min={1} max={250} defaultValue={5} className="field !w-20 text-center" />
+        <label className="label" htmlFor={`new-days-${trade}`}>Days</label>
+        <input id={`new-days-${trade}`} name="default_days" type="number" min={1} max={250} defaultValue={5} className="field !w-20 text-center" />
       </div>
       <button className="btn btn-secondary" disabled={pending}>{pending ? "Adding…" : "+ Add"}</button>
       {state?.error && <p className="w-full text-sm text-brand-red">{state.error}</p>}

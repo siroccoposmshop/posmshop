@@ -1,5 +1,5 @@
 import { loadHubSettings } from "@/lib/hub-settings";
-import { loadStageTypes } from "@/lib/projects";
+import { loadStageTypes, stageTypesFor } from "@/lib/projects";
 import { OUTLET_TYPES, PICOS_GROUPS, PICOS_ITEMS } from "@/lib/picos";
 import { AddStage, SettingsForm, StageRow } from "./Forms";
 
@@ -15,34 +15,53 @@ export default async function ProjectsAdminPage() {
 
       <SettingsForm settings={settings} />
 
-      <section className="bento space-y-4">
-        <div>
-          <h2 className="text-xl text-brand-black">Stages</h2>
-          <p className="text-sm">
-            What Trade Marketing picks from when running a project, in this order, with the default working days. Untick to stop
-            offering a stage; projects already using it keep it.
-          </p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Order</th>
-                <th>Stage</th>
-                <th>Days</th>
-                <th className="text-center">Offered</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {stages.map((s) => (
-                <StageRow key={s.key} stage={s} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <AddStage />
-      </section>
+      {(["on", "off"] as const).map((trade) => {
+        const list = stageTypesFor(stages, trade);
+        return (
+          <section key={trade} className="bento space-y-4">
+            <div>
+              <h2 className="text-xl text-brand-black">{trade === "on" ? "On-trade stages" : "Off-trade stages"}</h2>
+              <p className="text-sm">
+                {trade === "on"
+                  ? "What Trade Marketing picks from when running an outlet project, in this order, with the default working days."
+                  : "Offered when an off-trade store project is created, in this order, with the default working days (changeable per project)."}{" "}
+                Untick to stop offering a stage; projects already using it keep it.
+              </p>
+            </div>
+            {list.length === 0 ? (
+              <p className="text-sm">
+                {trade === "off" ? (
+                  <>
+                    Run <code>supabase/migrations/20261119000000_off_trade_projects_hub.sql</code> in Supabase to add the off-trade stages.
+                  </>
+                ) : (
+                  "No stages yet."
+                )}
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Order</th>
+                      <th>Stage</th>
+                      <th>Days</th>
+                      <th className="text-center">Offered</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {list.map((s) => (
+                      <StageRow key={s.key} stage={s} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <AddStage trade={trade} />
+          </section>
+        );
+      })}
 
       <section className="bento space-y-3">
         <div>

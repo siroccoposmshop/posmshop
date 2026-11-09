@@ -21,7 +21,8 @@ export function ProjectCard({ p, viewer, today }: { p: ProjectView; viewer: View
         <div className="min-w-0 flex-1">
           <p className="font-display text-base font-medium uppercase leading-tight text-brand-black sm:text-lg">{projectTitle(p)}</p>
           <p className="mt-0.5 truncate text-xs">
-            {p.ref} · {outletLine(p)} · {p.kamName}
+            {p.trade === "off" && <span className="badge mr-1.5 bg-brand-black !py-0 text-[0.65rem] text-white">Off trade</span>}
+            {p.ref} · {p.trade === "off" ? [p.parent_name, p.tmName ? `TM ${p.tmName}` : null].filter(Boolean).join(" · ") : `${outletLine(p)} · ${p.kamName}`}
           </p>
           {p.status === "live" && h.total > 0 && (
             <div className="mt-2 flex items-center gap-2">
@@ -56,6 +57,16 @@ export function ProjectCard({ p, viewer, today }: { p: ProjectView; viewer: View
             </p>
             <StageTrack projectId={p.id} stages={p.project_stages ?? []} canMove={viewer.isAdmin && p.status === "live"} today={today} />
           </div>
+          {p.trade === "off" ? (
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4">
+              <Item label="Type" value={p.project_type} />
+              <Item label="Brands" value={p.brands.join(", ")} />
+              <Item label="Estimated cost" value={formatAed(p.budget_aed)} />
+              <Item label="Target date" value={formatDate(p.desired_date)} />
+              <Item label="Expected" value={h.forecast ? formatDate(h.forecast) : "—"} />
+              <Item label="Trade Marketing" value={p.tmName ?? "—"} />
+            </dl>
+          ) : (
           <div className="grid gap-4 md:grid-cols-[1fr_1fr]">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
               <Item label="Type" value={p.project_type} />
@@ -72,6 +83,7 @@ export function ProjectCard({ p, viewer, today }: { p: ProjectView; viewer: View
               <PicosPromised projectId={p.id} outletType={p.outlet_type} picos={p.picos} canTick={viewer.isAdmin || viewer.isSm} />
             </div>
           </div>
+          )}
           <Link href={`/projects/${p.id}`} className="btn btn-secondary !py-1.5 text-sm">
             Open project →
           </Link>

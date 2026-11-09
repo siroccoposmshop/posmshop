@@ -69,7 +69,7 @@ export default async function ProjectsPage() {
   const live = open.filter((p) => p.status === "live");
   // Completed projects with PICOS still to deliver: an action for the project lead and their SM (and Trade Marketing).
   const picosToDeliver = open
-    .filter((p) => p.status === "completed")
+    .filter((p) => p.status === "completed" && p.trade !== "off")
     .map((p) => ({ p, pending: picosLines(p).filter((l) => !l.deliveredAt) }))
     .filter((x) => x.pending.length > 0)
     .sort((a, b) => String(a.p.completed_at).localeCompare(String(b.p.completed_at)));
@@ -159,7 +159,18 @@ export default async function ProjectsPage() {
 
       <div>
         <h2 className="mb-3 text-2xl text-brand-black">Project tracker</h2>
-        <ProjectTracker projects={views} viewer={{ id: profile.id, isAdmin: admin, isSm: role === "sm" }} today={today} showPeopleFilters={role !== "kam"} />
+        <ProjectTracker
+          projects={views}
+          viewer={{
+            id: profile.id,
+            isAdmin: admin,
+            isSm: role === "sm",
+            defaultTrade: profile.trade?.length === 1 ? profile.trade[0] : "all",
+            defaultTm: role === "tm" && views.some((p) => p.tm_id === profile.id) ? personName(profile) : null,
+          }}
+          today={today}
+          showPeopleFilters={role !== "kam"}
+        />
       </div>
     </div>
   );

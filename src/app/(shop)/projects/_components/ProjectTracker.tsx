@@ -7,6 +7,8 @@ import { ProjectCard } from "./ProjectCard";
 import type { ProjectView, Viewer } from "./types";
 
 type Tab = "live" | "requests" | "past";
+type Trade = "on" | "off" | "all";
+const OFF_TYPES = ["Branding", "Perfect shelf", "Cold room", "Fridge", "FSU", "Takeover", "Other"];
 
 /** Live / requests / past projects, most urgent first, with search and filters. */
 export function ProjectTracker({ projects, viewer, today, showPeopleFilters }: { projects: ProjectView[]; viewer: Viewer; today: string; showPeopleFilters: boolean }) {
@@ -14,7 +16,10 @@ export function ProjectTracker({ projects, viewer, today, showPeopleFilters }: {
   const [q, setQ] = useState("");
   const [sm, setSm] = useState("");
   const [kam, setKam] = useState("");
-  const [tm, setTm] = useState("");
+  const [tm, setTm] = useState(viewer.defaultTm ?? "");
+  const [trade, setTrade] = useState<Trade>(viewer.defaultTrade ?? "all");
+  const tradeOf = (p: ProjectView) => p.trade ?? "on";
+  const inTrade = (p: ProjectView) => trade === "all" || tradeOf(p) === trade;
   const [type, setType] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
@@ -28,7 +33,8 @@ export function ProjectTracker({ projects, viewer, today, showPeopleFilters }: {
           ? isRequest(p.status)
           : isPast(p.status);
   const counts = { live: 0, requests: 0, past: 0 };
-  for (const p of projects) for (const t of ["live", "requests", "past"] as Tab[]) if (inTab(p, t)) counts[t]++;
+  for (const p of projects) for (const t of ["live", "requests", "past"] as Tab[]) if (inTrade(p) && inTab(p, t)) counts[t]++;
+  const hasOff = projects.some((p) => tradeOf(p) === "off");
 
   const names = (pick: (p: ProjectView) => string | null) => [...new Set(projects.map(pick).filter((x): x is string => !!x))].sort();
   const options = useMemo(() => ({ sm: names((p) => p.smName), kam: names((p) => p.kamName), tm: names((p) => p.tmName) }), [projects]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -37,6 +43,7 @@ export function ProjectTracker({ projects, viewer, today, showPeopleFilters }: {
   const shown = projects.filter(
     (p) =>
       inTab(p, tab) &&
+      inTrade(p) &&
       (!sm || p.smName === sm) &&
       (!kam || p.kamName === kam) &&
       (!tm || p.tmName === tm) &&
@@ -45,10 +52,12 @@ export function ProjectTracker({ projects, viewer, today, showPeopleFilters }: {
         [projectTitle(p), p.ref, p.account_name, p.parent_name ?? "", p.project_type, ...p.brands].some((v) => v.toLowerCase().includes(needle))),
   );
   const filtered = !!(q || sm || kam || tm || type);
+  const typeOptions = trade === "off" ? OFF_TYPES : trade === "on" ? [...PROJECT_TYPES] : [...new Set([...PROJECT_TYPES, ...OFF_TYPES])];
 
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
         <div className="flex gap-1 rounded-full bg-white p-1 ring-1 ring-black/5" role="tablist">
           {(["live", "requests", "past"] as Tab[]).map((t) => (
             <button
@@ -62,6 +71,22 @@ export function ProjectTracker({ projects, viewer, today, showPeopleFilters }: {
             </button>
           ))}
         </div>
+        {(hasOff || viewer.defaultTrade === "off") && (
+          <div className="flex gap-1 rounded-full bg-white p-1 ring-1 ring-black/5" role="group" aria-label="On or off trade">
+            {(["on", "off", "all"] as Trade[]).map((t) => (
+              <button
+                key={t}
+                type="button"
+                aria-pressed={trade === t}
+                onClick={() => setTrade(t)}
+                className={`rounded-full px-3 py-1.5 font-display text-sm font-medium uppercase tracking-wide ${trade === t ? "bg-brand-black text-white" : "hover:text-brand-black"}`}
+              >
+                {t === "on" ? "On trade" : t === "off" ? "Off trade" : "All"}
+              </button>
+            ))}
+          </div>
+        )}
+        </div>
         <div className="flex w-full gap-2 sm:w-auto">
           <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search project, customer, brand, type" className="field !w-full !py-2 text-sm sm:!w-72" />
           <button type="button" onClick={() => setShowFilters((v) => !v)} aria-expanded={showFilters} className="btn btn-secondary shrink-0 !px-3 !py-2 text-sm sm:hidden">
@@ -74,7 +99,7 @@ export function ProjectTracker({ projects, viewer, today, showPeopleFilters }: {
         {showPeopleFilters && <Filter label="All sales managers" value={sm} onChange={setSm} options={options.sm} />}
         {showPeopleFilters && <Filter label="All project leads" value={kam} onChange={setKam} options={options.kam} />}
         <Filter label="All Trade Marketing" value={tm} onChange={setTm} options={options.tm} />
-        <Filter label="All types" value={type} onChange={setType} options={[...PROJECT_TYPES]} />
+        <Filter label="All types" value={type} onChange={setType} options={typeOptions} />
         {filtered && (
           <button
             type="button"

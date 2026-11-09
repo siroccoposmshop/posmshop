@@ -8,7 +8,9 @@ import { loadHubSettings } from "@/lib/hub-settings";
 import { PICOS_GROUPS, otherOutletsWithTicks, picosItemsFor, picosScores, pointsFor } from "@/lib/picos";
 import { InvestmentNote } from "../_components/InvestmentNote";
 import { todayIso } from "@/lib/working-days";
-import { canApprove, hubRole, isProjectAdmin, loadPeople, loadProject, investmentFor, loadStageTypes, outletLine, personName, projectHealth, projectTitle } from "@/lib/projects";
+import { canApprove, hubRole, isProjectAdmin, loadPeople, loadProject, investmentFor, loadStageTypes, outletLine, personName, projectHealth, projectTitle, stageTypesFor } from "@/lib/projects";
+import { offTradeStoreSummary } from "../actions";
+import { StoreSummary } from "../new/OffTradeBrief";
 import { MARKETS } from "@/lib/markets";
 import { ProjectBadge } from "../_components/StatusBadge";
 import { PicosPromised } from "../_components/PicosPromised";
@@ -40,7 +42,7 @@ const EVENT_LABEL: Record<string, string> = {
 export default async function ProjectPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ submitted?: string; edit?: string }> }) {
   const profile = await requireProfile();
   const { id } = await params;
-  const { submitted, edit } = await searchParams;
+  const { submitted, edit, started } = (await searchParams) as { submitted?: string; edit?: string; started?: string };
   const p = await loadProject(id, profile);
   if (!p) notFound();
 
@@ -52,7 +54,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
     loadPeople(),
     loadStageTypes(),
     loadHubSettings(),
-    p.account_id ? investmentFor(p.account_id, p.parent_number, p.id) : Promise.resolve(null),
+    p.account_id && p.trade !== "off" ? investmentFor(p.account_id, p.parent_number, p.id) : Promise.resolve(null),
     createAdminClient().from("project_events").select("*").eq("project_id", id).order("created_at", { ascending: false }).limit(100),
   ]);
   const name = (uid: string | null | undefined) => (uid ? personName(people.get(uid)) : "—");
@@ -66,6 +68,11 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
   if (!kams.some((k) => k.id === p.kam_id)) kams.unshift({ id: p.kam_id, name: `${name(p.kam_id)} (current)` });
   const stages = p.project_stages ?? [];
   const isKam = p.kam_id === profile.id;
+  const off = p.trade === "off";
+  const store = off && p.off_trade_store_id ? await offTradeStoreSummary(p.off_trade_store_id) : null;
+  // Off-trade projects are led by Trade Marketing, so their lead can be any TM, TMM or CM.
+  const leads = off ? owners.map((o) => ({ ...o, name: `${o.name} (TM)` })) : kams;
+  if (off && !leads.some((k) => k.id === p.kam_id)) leads.unshift({ id: p.kam_id, name: `${name(p.kam_id)} (current)` });
   const budget = budgetSplit(p);
   const gp = gpCheck(budget.total, p.incremental_volume_hl, settings);
   const stageName = (key: unknown) => stages.find((s) => s.key === key)?.name ?? stageTypes.find((s) => s.key === key)?.name ?? String(key ?? "");
@@ -79,11 +86,19 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-display text-xs uppercase tracking-wide">
+            {off && <span className="badge mr-1.5 bg-brand-black !py-0 text-white">Off trade</span>}
             {p.ref} · {p.project_type}
           </p>
           <h1 className="accent-square text-2xl leading-tight text-brand-black sm:text-3xl">{projectTitle(p)}</h1>
           <p className="mt-1 text-sm" title={[p.account_name, p.parent_name].filter(Boolean).join(" · ")}>
-            {outletLine(p)} · #{p.account_number} · {MARKETS.find((m) => m.code === p.market)?.name ?? p.market}
+            {off && p.off_trade_store_id ? (
+              <Link href={`/off-trade/stores/${p.off_trade_store_id}`} className="underline">
+                {p.account_name}
+              </Link>
+            ) : (
+              outletLine(p)
+            )}
+            {p.account_number && p.account_number !== "—" ? ` · #${p.account_number}` : ""} · {MARKETS.find((m) => m.code === p.market)?.name ?? p.market}
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1 pt-1 text-right">
@@ -92,6 +107,11 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         </div>
       </div>
 
+      {started && p.status === "live" && (
+        <p className="rounded-xl bg-brand-green-tint p-4 text-sm text-brand-green-dark">
+          ✓ Project created and started. First stage: {stages.find((s) => s.status === "active")?.name ?? "—"}. It&apos;s also on the store&apos;s Off trade record as locked in.
+        </p>
+      )}
       {submitted && p.status.startsWith("awaiting") && (
         <p className="rounded-xl bg-brand-green-tint p-4 text-sm text-brand-green-dark">
           ✓ Request submitted. It&apos;s now {STATUS_LABEL[p.status].toLowerCase()}. You&apos;ll be notified as it moves on.
@@ -128,7 +148,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           id={p.id}
           defaultName={`${p.project_type} · ${outletName(p.account_name)}`}
           desiredDate={p.desired_date}
-          stageTypes={stageTypes.filter((t) => t.active !== false)}
+          stageTypes={stageTypesFor(stageTypes, "on").filter((t) => t.active !== false)}
           owners={owners}
           me={profile.id}
         />
@@ -138,7 +158,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         <StagesSection
           projectId={p.id}
           stages={stages}
-          stageTypes={stageTypes.filter((t) => t.active !== false || stages.some((s) => s.key === t.key))}
+          stageTypes={stageTypesFor(stageTypes, p.trade).filter((t) => t.active !== false || stages.some((s) => s.key === t.key))}
           canEdit={admin && (p.status === "live" || p.status === "paused")}
           canMove={admin && p.status === "live"}
           targetDate={p.target_date}
@@ -155,6 +175,55 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         </div>
       )}
 
+      {off ? (
+        <section className="bento space-y-4">
+          <h2 className="text-xl text-brand-black">Brief</h2>
+          <p className="whitespace-pre-line text-sm text-brand-black">{p.brief}</p>
+          {p.notes && (
+            <div>
+              <p className="label">Notes</p>
+              <p className="whitespace-pre-line text-sm text-brand-black">{p.notes}</p>
+            </div>
+          )}
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-4">
+            <Item label="Estimated cost" value={formatAed(p.budget_aed)} />
+            {p.final_cost_aed != null && <Item label="Final cost" value={formatAed(Number(p.final_cost_aed))} />}
+            <Item label="Target date" value={formatDate(p.desired_date)} />
+            <Item label="Type" value={p.project_type} />
+            <Item label="Brands" value={p.brands.join(", ")} />
+            <Item label="Project lead" value={name(p.kam_id)} />
+            <Item label="Trade Marketing" value={p.tm_id ? name(p.tm_id) : "—"} />
+            <Item label="Created" value={formatDate(p.submitted_at)} />
+          </dl>
+          <div>
+            <p className="label">Customer contact</p>
+            <p className="text-sm text-brand-black">
+              {p.contact_name}
+              {p.contact_mobile && (
+                <>
+                  {" "}
+                  · <a href={`tel:${p.contact_mobile.replace(/\s/g, "")}`}>{p.contact_mobile}</a>
+                </>
+              )}
+              {p.contact_email && (
+                <>
+                  {" "}
+                  ·{" "}
+                  <a href={`mailto:${p.contact_email}`} className="underline">
+                    {p.contact_email}
+                  </a>
+                </>
+              )}
+            </p>
+          </div>
+          {store && (
+            <div className="border-t border-black/5 pt-3">
+              <p className="label">The store</p>
+              <StoreSummary s={{ ...store, openProjects: store.openProjects.filter((x) => x.id !== p.id) }} />
+            </div>
+          )}
+        </section>
+      ) : (
       <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
         <section className="bento space-y-4">
           <h2 className="text-xl text-brand-black">Brief</h2>
@@ -240,13 +309,14 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
           )}
         </section>
       </div>
+      )}
 
       {admin && !["awaiting_sm", "awaiting_cm", "awaiting_tm", "rejected"].includes(p.status) && (
         <ProjectAdminPanel
           id={p.id}
           status={p.status}
           lastStageActive={stages.at(-1)?.status === "active"}
-          kams={kams}
+          kams={leads}
           owners={owners}
           kamId={p.kam_id}
           tmId={p.tm_id}
@@ -277,7 +347,7 @@ export default async function ProjectPage({ params, searchParams }: { params: Pr
         </ol>
       </section>
 
-      {isKam && !p.hidden_for_kam && <DeleteProject id={p.id} />}
+      {isKam && !off && !p.hidden_for_kam && <DeleteProject id={p.id} />}
     </div>
   );
 }
