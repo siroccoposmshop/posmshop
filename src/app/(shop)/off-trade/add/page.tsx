@@ -30,12 +30,12 @@ export default async function AddProjectPage({ searchParams }: { searchParams: P
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <Link href="/off-trade" className="text-sm underline">
-        ← Off trade
+      <Link href="/off-trade/history" className="text-sm underline">
+        ← History
       </Link>
       <div>
-        <h1 className="accent-square text-3xl text-brand-black">Add a project</h1>
-        <p className="mt-1 text-sm">Record something already done: the store, what, when and what it cost. It shows in History straight away.</p>
+        <h1 className="accent-square text-3xl text-brand-black">Add an old project</h1>
+        <p className="mt-1 text-sm">Record work already done: the store, what, when and what it cost. It shows in History straight away. New work is raised in Projects.</p>
       </div>
       <AddProjectForm stores={stores} initialStore={store ?? null} />
     </div>

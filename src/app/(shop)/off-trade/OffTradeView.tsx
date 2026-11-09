@@ -37,9 +37,6 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
           <h1 className="accent-square text-3xl text-brand-black">Off trade</h1>
           <p className="mt-1 text-sm">Store universe, influence, what&apos;s been done and the {TARGET_YEAR} plan.</p>
         </div>
-        <Link href="/off-trade/add" className="btn btn-primary">
-          + Add project
-        </Link>
       </div>
 
       <FilterBar all={all} f={f} shown={stores.length} action="/off-trade" />

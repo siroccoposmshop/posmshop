@@ -50,6 +50,10 @@ export function HistoryView({ all, f, year }: { all: StoreView[]; f: OffTradeFil
           <h1 className="accent-square mt-1 text-3xl text-brand-black">History</h1>
           <p className="mt-1 text-sm">Stores executed each year, coverage to date, and everything installed by category, store, area and TM.</p>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+        <Link href="/off-trade/add" className="btn btn-primary" title="Record work already done: store, what, when and the cost">
+          + Old project
+        </Link>
         <div className="flex rounded-full bg-white p-1 ring-1 ring-black/10" role="group" aria-label="Year">
           {[null, ...years].map((y) => (
             <Link
@@ -61,6 +65,7 @@ export function HistoryView({ all, f, year }: { all: StoreView[]; f: OffTradeFil
               {y ?? "All years"}
             </Link>
           ))}
+        </div>
         </div>
       </div>
 
