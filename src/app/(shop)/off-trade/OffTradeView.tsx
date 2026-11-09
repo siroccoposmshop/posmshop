@@ -55,9 +55,9 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
         </div>
         <Tile label="Influenced" value={`${t.influenced}`} sub={`${pct(t.influenced, t.stores)} of stores · ${t.stores - t.influenced} not influenced`} />
         <Tile
-          label="History"
-          value={`${t.withProjects}`}
-          sub={`stores with projects done${t.lastDate ? ` · last ${formatDate(t.lastDate)}` : ""}`}
+          label="Coverage"
+          value={`${t.coverage}`}
+          sub={`stores executed to date${t.influenced ? ` · ${Math.round((t.coverage / t.influenced) * 100)}% of influenced` : ""}${t.lastDate ? ` · last ${formatDate(t.lastDate)}` : ""}`}
           href={`/off-trade/history${offTradeQuery(f) ? `?${offTradeQuery(f)}` : ""}`}
         />
         <Tile
@@ -280,6 +280,8 @@ function VisibilityTable({ rows, total }: { rows: OffTradeSummary[]; total: OffT
 }
 
 function SummaryTable({ title, first, rows, compact, hideSegments }: { title: string; first: string; rows: OffTradeSummary[]; compact?: boolean; hideSegments?: boolean }) {
+  // Stores executed per year (and how many for the first time), then coverage: each store once.
+  const years = [...new Set(rows.flatMap((r) => Object.keys(r.executed).map(Number)))].filter((y) => y < TARGET_YEAR).sort((a, b) => a - b).slice(-3);
   return (
     <Card title={title} meta={`${rows.length} ${first.toLowerCase()}${rows.length === 1 ? "" : "s"}`}>
       <table className="table">
@@ -289,7 +291,12 @@ function SummaryTable({ title, first, rows, compact, hideSegments }: { title: st
             <th className="text-right">Stores</th>
             {!hideSegments && <th>Segment mix</th>}
             <th className="text-right">Influenced</th>
-            <th className="text-right">Projects done</th>
+            {years.map((y) => (
+              <th key={y} className="text-right">
+                Executed {y}
+              </th>
+            ))}
+            <th className="text-right">Coverage</th>
             <th className="text-right">{TARGET_YEAR} targets</th>
             {!compact && <th className="text-right">Expected {TARGET_YEAR}</th>}
             {!compact && <th className="text-right">Actual {TARGET_YEAR}</th>}
@@ -308,9 +315,18 @@ function SummaryTable({ title, first, rows, compact, hideSegments }: { title: st
                 {r.influenced}
                 <span className="block text-xs">{r.stores ? `${Math.round((r.influenced / r.stores) * 100)}%` : ""}</span>
               </td>
-              <td className="whitespace-nowrap text-right">
-                {r.withProjects || "—"}
-                {r.lastDate && <span className="block text-xs">last {formatDate(r.lastDate)}</span>}
+              {years.map((y, i) => {
+                const x = r.executed[y];
+                return (
+                  <td key={y} className="whitespace-nowrap text-right">
+                    {x?.stores || "—"}
+                    {x && i > 0 && <span className="block text-xs">{x.fresh} new</span>}
+                  </td>
+                );
+              })}
+              <td className="whitespace-nowrap text-right font-medium text-brand-black">
+                {r.coverage || "—"}
+                {r.coverage > 0 && r.influenced > 0 && <span className="block text-xs font-normal">{Math.round((r.coverage / r.influenced) * 100)}% of influenced</span>}
               </td>
               <td className="text-right">{r.targeted || "—"}</td>
               {!compact && <td className="whitespace-nowrap text-right">{r.expected ? formatAed(r.expected) : "—"}</td>}

@@ -176,6 +176,10 @@ export async function loadOffTrade(): Promise<StoreView[]> {
   return ((stores as OffTradeStore[]) ?? []).map((s) => storeView(s, byStore.get(s.id) ?? []));
 }
 
+/** The years a store had something completed (executed), oldest first. */
+export const executedYears = (s: { projects: OffTradeProject[] }) =>
+  [...new Set(s.projects.filter((p) => p.status === "completed").map((p) => (p.completed_date ? Number(p.completed_date.slice(0, 4)) : yearOf(p))).filter((y): y is number => !!y))].sort((a, b) => a - b);
+
 /** Bars are inside a (Value) store: an addition, not a store in the universe. */
 export const isBar = (s: Pick<OffTradeStore, "store_type">) => /\bbar\b/i.test(s.store_type ?? "");
 
@@ -268,13 +272,17 @@ export type OffTradeSummary = {
   bars: number;
   /** Bars with visibility. */
   barsInfluenced: number;
+  /** Stores executed each year (something completed that year), and how many of them for the first time. */
+  executed: Record<number, { stores: number; fresh: number }>;
+  /** Coverage: stores executed in any year, each counted once. */
+  coverage: number;
 };
 
 function summarise(stores: StoreView[], keyOf: (s: StoreView) => string) {
   const map = new Map<string, OffTradeSummary>();
   for (const s of stores) {
     const key = keyOf(s) || "—";
-    const e = map.get(key) ?? { key, label: key, stores: 0, influenced: 0, segments: {}, withProjects: 0, lastDate: null, targeted: 0, expected: 0, actual: 0, expectedDone: 0, assets: {}, bars: 0, barsInfluenced: 0 };
+    const e = map.get(key) ?? { key, label: key, stores: 0, influenced: 0, segments: {}, withProjects: 0, lastDate: null, targeted: 0, expected: 0, actual: 0, expectedDone: 0, assets: {}, bars: 0, barsInfluenced: 0, executed: {}, coverage: 0 };
     if (s.bar) {
       // An addition inside a store: counted on its own, not in the universe, mix or influence.
       e.bars++;
@@ -285,6 +293,13 @@ function summarise(stores: StoreView[], keyOf: (s: StoreView) => string) {
       if (s.influenced) e.influenced++;
       const seg = segmentShort(s.segment);
       e.segments[seg] = (e.segments[seg] ?? 0) + 1;
+      const ys = executedYears(s);
+      if (ys.length) e.coverage++;
+      ys.forEach((y, i) => {
+        const x = (e.executed[y] ??= { stores: 0, fresh: 0 });
+        x.stores++;
+        if (i === 0) x.fresh++;
+      });
     }
     if (s.last) {
       e.withProjects++;
@@ -304,7 +319,7 @@ function summarise(stores: StoreView[], keyOf: (s: StoreView) => string) {
   return [...map.values()].sort((a, b) => b.stores - a.stores);
 }
 
-const EMPTY: OffTradeSummary = { key: "All", label: "All", stores: 0, influenced: 0, segments: {}, withProjects: 0, lastDate: null, targeted: 0, expected: 0, actual: 0, expectedDone: 0, assets: {}, bars: 0, barsInfluenced: 0 };
+const EMPTY: OffTradeSummary = { key: "All", label: "All", stores: 0, influenced: 0, segments: {}, withProjects: 0, lastDate: null, targeted: 0, expected: 0, actual: 0, expectedDone: 0, assets: {}, bars: 0, barsInfluenced: 0, executed: {}, coverage: 0 };
 export const offTradeTotals = (stores: StoreView[]) => summarise(stores, () => "All")[0] ?? EMPTY;
 export const byArea = (stores: StoreView[]) => summarise(stores, (s) => s.area ?? "");
 export const byTmam = (stores: StoreView[]) => summarise(stores, (s) => s.tmam ?? "");
@@ -475,6 +490,10 @@ export type YearActivation = {
   bars: number;
   /** Outlets not activated yet with work planned or locked in for the year. */
   planned: number;
+  /** Of those activated (executed) that year, how many for the first time. */
+  fresh: number;
+  /** Coverage: outlets executed in this year or any year before (each counted once). */
+  coverage: number;
 };
 
 /**
@@ -490,7 +509,10 @@ export function activationByYear(stores: StoreView[], years: number[]): YearActi
       const ids = new Set(rows.filter((r) => !r.store.bar).map((r) => r.store.id));
       const bars = new Set(rows.filter((r) => r.store.bar).map((r) => r.store.id)).size;
       const planned = outlets.filter((s) => !ids.has(s.id) && s.projects.some((p) => (p.status === "planned" || p.status === "in_progress") && yearOf(p) === year)).length;
-      return { year, outlets: outlets.length, activated: ids.size, pct: outlets.length ? (ids.size / outlets.length) * 100 : 0, bars, planned };
+      const firsts = outlets.map((s) => executedYears(s)[0]).filter((y): y is number => !!y);
+      const fresh = firsts.filter((y) => y === year).length;
+      const coverage = firsts.filter((y) => y <= year).length;
+      return { year, outlets: outlets.length, activated: ids.size, pct: outlets.length ? (ids.size / outlets.length) * 100 : 0, bars, planned, fresh, coverage };
     });
 }
 

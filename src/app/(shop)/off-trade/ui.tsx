@@ -114,18 +114,21 @@ export function OutletSummary({ stores }: { stores: StoreView[] }) {
   const years = activationByYear(stores, historyYears(stores).filter((y) => y < TARGET_YEAR).slice(0, 3));
   type Row = { label: string; sub?: string; value: number; cls: string; extra?: number; note?: string; gap?: boolean };
   const rows: Row[] = [
-    { label: "Outlets now", value: total, cls: "bg-brand-black/25" },
+    { label: "Stores now", value: total, cls: "bg-brand-black/25" },
+    { label: "Influenced", sub: "we can action these", value: influenced, cls: "bg-brand-black/40" },
     ...years.map((a, i) => ({
-      label: `Activated ${a.year}`,
-      sub: a.year === thisYear ? "so far" : undefined,
+      label: `Executed ${a.year}`,
+      sub: [a.year === thisYear ? "so far" : null, i > 0 ? `${a.fresh} new` : null].filter(Boolean).join(" · ") || undefined,
       value: a.activated,
+      gap: i === 0,
       cls: ["bg-brand-green-dark", "bg-brand-green", "bg-[#8cc47a]"][i] ?? "bg-brand-green",
       extra: a.year === thisYear ? a.planned : 0,
       note: a.year === thisYear && a.planned ? `+${a.planned} still planned` : undefined,
     })),
-    ...(years.length ? [{ label: "Activated to date", sub: "each outlet once", value: toDate, cls: "bg-brand-black/70", gap: true }] : []),
-    { label: "Influenced", sub: "visibility in place", value: influenced, cls: "bg-brand-black/40", note: years.length && influenced ? `${toDate} activated to date = ${Math.round((toDate / influenced) * 100)}% of influenced` : undefined },
-    { label: `Plan ${TARGET_YEAR}`, sub: "target outlets", value: plan, cls: "bg-brand-red/70", gap: true },
+    ...(years.length
+      ? [{ label: "Coverage", sub: "executed to date, each store once", value: toDate, cls: "bg-brand-black/70", gap: true, note: influenced ? `${Math.round((toDate / influenced) * 100)}% of influenced` : undefined }]
+      : []),
+    { label: `Plan ${TARGET_YEAR}`, sub: "target stores", value: plan, cls: "bg-brand-red/70", gap: true },
   ];
   const of = (n: number) => (total ? (n / total) * 100 : 0);
 
@@ -138,7 +141,7 @@ export function OutletSummary({ stores }: { stores: StoreView[] }) {
     ids.forEach((s) => done.add(s.id));
     return {
       key: String(a.year),
-      label: i === 0 ? `Activated ${a.year}` : `Activated ${a.year}${a.year === thisYear ? " so far" : ""} (new)`,
+      label: i === 0 ? `Executed ${a.year}` : `New in ${a.year}${a.year === thisYear ? " so far" : ""}`,
       value: ids.length,
       cls: yearShades[i] ?? "bg-brand-green",
       text: "text-white",
@@ -146,17 +149,18 @@ export function OutletSummary({ stores }: { stores: StoreView[] }) {
   });
   const influencedOnly = outlets.filter((s) => s.influenced && !done.has(s.id) && !s.projects.some((p) => p.status === "completed")).length;
   const activatedAny = outlets.filter((s) => done.has(s.id) || s.projects.some((p) => p.status === "completed")).length;
-  parts.push({ key: "inf", label: "Influenced, not activated", value: influencedOnly, cls: "bg-brand-black/45", text: "text-white" });
+  parts.push({ key: "inf", label: "Influenced, not executed yet", value: influencedOnly, cls: "bg-brand-black/45", text: "text-white" });
   parts.push({ key: "gap", label: "Not yet reached", value: Math.max(0, total - activatedAny - influencedOnly), cls: "bg-brand-light", text: "text-brand-black" });
 
   return (
-    <section className="bento" aria-label="Outlets: now, activated, influenced and plan">
+    <section className="bento" aria-label="Stores: now, influenced, executed and plan">
       <div className="mb-6">
         <p className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-          <span className="font-display text-lg uppercase text-brand-black">All {total} outlets</span>
+          <span className="font-display text-lg uppercase text-brand-black">All {total} stores</span>
           <span className="text-sm">
-            <strong className="text-brand-black">{activatedAny}</strong> activated ({Math.round(of(activatedAny))}%) ·{" "}
-            <strong className="text-brand-black">{activatedAny + influencedOnly}</strong> activated or influenced ({Math.round(of(activatedAny + influencedOnly))}%)
+            Coverage <strong className="text-brand-black">{activatedAny}</strong> stores ({Math.round(of(activatedAny))}%) ·{" "}
+            <strong className="text-brand-black">{influenced}</strong> influenced
+            {influenced ? ` (coverage = ${Math.round((activatedAny / influenced) * 100)}% of influenced)` : ""}
           </span>
         </p>
         <div className="flex h-14 overflow-hidden rounded-lg ring-1 ring-black/10" role="img" aria-label={parts.map((p) => `${p.label}: ${p.value}`).join(", ")}>
@@ -181,8 +185,8 @@ export function OutletSummary({ stores }: { stores: StoreView[] }) {
         </div>
       </div>
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-lg uppercase text-brand-black">Outlets at a glance</h2>
-        <p className="text-xs">% of the {total} outlets now · bars aren&apos;t counted</p>
+        <h2 className="font-display text-lg uppercase text-brand-black">At a glance</h2>
+        <p className="text-xs">% of the {total} stores now · bars aren&apos;t counted</p>
       </div>
       <div className="space-y-3">
         {rows.map((r) => (
@@ -197,7 +201,7 @@ export function OutletSummary({ stores }: { stores: StoreView[] }) {
             </div>
             <p className="col-start-2 -mt-2 text-sm sm:col-start-3 sm:mt-0 sm:text-right">
               <strong className="font-display text-lg text-brand-black">{r.value}</strong>
-              {r.label !== "Outlets now" && <span className="ml-1.5">{Math.round(of(r.value))}%</span>}
+              {r.label !== "Stores now" && <span className="ml-1.5">{Math.round(of(r.value))}%</span>}
               {r.note && <span className="block text-xs">{r.note}</span>}
             </p>
           </div>
@@ -206,7 +210,7 @@ export function OutletSummary({ stores }: { stores: StoreView[] }) {
           <div className="grid grid-cols-[7.5rem_1fr] items-center gap-3 border-t border-black/10 pt-3 sm:grid-cols-[11rem_1fr_9rem]">
             <p className="text-sm font-medium leading-tight text-brand-black">
               Cold rooms activated
-              <span className="block text-xs font-normal text-brand-grey">of the {coldRooms.length} outlets with one</span>
+              <span className="block text-xs font-normal text-brand-grey">of the {coldRooms.length} stores with one</span>
             </p>
             <div className="flex h-7 overflow-hidden rounded-md bg-brand-light" role="img" aria-label={`Cold rooms activated: ${coldDone} of ${coldRooms.length}`}>
               <div className="h-full bg-brand-green" style={{ width: `${(coldDone / coldRooms.length) * 100}%` }} />
