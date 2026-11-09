@@ -48,6 +48,8 @@ export type OffTradeStore = {
   target_year?: number | null;
   /** Set on the site; blank = as the store list says. */
   has_cold_room?: boolean | null;
+  /** Influenced, set on the store page; blank = worked out from the store list. */
+  influenced_set?: boolean | null;
   /** The year it opened; blank = before the history starts. It's an outlet from that year on. */
   opened_year?: number | null;
   active: boolean;
@@ -188,7 +190,7 @@ export function storeView(s: OffTradeStore, projects: OffTradeProject[]): StoreV
     targets: sorted.filter((p) => p.status !== "cancelled" && yearOf(p) === TARGET_YEAR),
     vis,
     // Master-file stores: influenced = visibility that counts (not T-shirts). Others keep the upload's flag.
-    influenced: s.match_key ? vis.any : s.influenced,
+    influenced: s.influenced_set ?? (s.match_key ? vis.any : s.influenced),
     bar: isBar(s),
     coldRoom: s.has_cold_room ?? (vis.coldRoom || projects.some((p) => p.type === "Cold room" && p.status !== "cancelled")),
     coldRoomActivated: done.filter((p) => p.type === "Cold room").map((p) => p.completed_date ?? p.created_at.slice(0, 10)).sort().at(-1) ?? null,

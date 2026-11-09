@@ -118,6 +118,15 @@ export async function setStoreTarget(storeId: string, year: number | null): Prom
   return { ok: true };
 }
 
+export async function setStoreInfluenced(storeId: string, influenced: boolean): Promise<Result> {
+  const profile = await me();
+  if (!profile) return DENIED;
+  const { error } = await createAdminClient().from("off_trade_stores").update({ influenced_set: influenced, updated_at: new Date().toISOString() }).eq("id", storeId);
+  if (error) return { error: /influenced_set/.test(error.message) ? "Run supabase/migrations/20261117000000_off_trade_influenced_set.sql in Supabase first." : dbError(error.message) };
+  refresh(storeId);
+  return { ok: true };
+}
+
 export async function setStoreColdRoom(storeId: string, has: boolean | null): Promise<Result> {
   const profile = await me();
   if (!profile) return DENIED;

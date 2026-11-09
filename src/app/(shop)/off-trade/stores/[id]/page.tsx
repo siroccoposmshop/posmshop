@@ -6,9 +6,7 @@ import { formatDate } from "@/lib/format";
 import { formatAed } from "@/lib/hub";
 import { OFF_TRADE_STATUS, TARGET_YEAR, VISIBILITY_MAIN, canUseOffTrade, marketName, storeView, type OffTradeProject, type OffTradeStore } from "@/lib/off-trade";
 import { ProjectForm, ProjectItem } from "./ProjectForm";
-import { TargetToggle } from "./TargetToggle";
-import { OpenedYear } from "./OpenedYear";
-import { ColdRoom } from "./ColdRoom";
+import { StoreSettings } from "./StoreSettings";
 
 export const dynamic = "force-dynamic";
 
@@ -35,8 +33,7 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
       <Link href="/off-trade" className="text-sm underline">
         ← Off trade
       </Link>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <div>
           <p className="font-display text-xs uppercase tracking-wide">
             {s.code.startsWith("TBC-") ? "Store code tbc" : `#${s.code}`}
             {s.chain ? ` · ${s.chain}` : ""}
@@ -44,13 +41,18 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
           </p>
           <h1 className="accent-square text-2xl leading-tight text-brand-black sm:text-3xl">{s.name}</h1>
           <p className="mt-1 text-sm">{[s.area, s.city && s.city !== s.area ? s.city : null, s.market && marketName(s.market), s.segment, s.tmam && `TM ${s.tmam}`, s.visit_frequency].filter(Boolean).join(" · ")}</p>
-        </div>
-        <div className="flex flex-wrap items-start gap-3">
-          {s.influenced ? <span className="badge bg-brand-green text-white">Influenced</span> : <span className="badge bg-brand-light text-brand-grey">Not influenced</span>}
-          <TargetToggle storeId={s.id} year={TARGET_YEAR} on={s.target_year === TARGET_YEAR} viaProject={s.targets.length > 0} />
-          <OpenedYear storeId={s.id} year={s.opened_year ?? null} />
-        </div>
       </div>
+
+      <StoreSettings
+        storeId={s.id}
+        influenced={s.influenced}
+        coldRoom={s.coldRoom}
+        coldRoomActivated={s.coldRoomActivated}
+        openedYear={s.opened_year ?? null}
+        targetYear={TARGET_YEAR}
+        target={s.target_year === TARGET_YEAR}
+        targetViaProject={s.targets.length > 0}
+      />
 
       <section className="bento space-y-3">
         <h2 className="text-xl text-brand-black">Visibility in store</h2>
@@ -85,7 +87,6 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
             </ul>
           </details>
         )}
-        <ColdRoom storeId={s.id} has={s.coldRoom} set={s.has_cold_room ?? null} fromList={s.vis.coldRoom} activated={s.coldRoomActivated} />
         {s.visibility_flag && <p className="text-xs">Master file &ldquo;Visibility&rdquo;: {s.visibility_flag}</p>}
       </section>
 
