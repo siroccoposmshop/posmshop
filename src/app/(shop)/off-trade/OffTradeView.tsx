@@ -113,6 +113,12 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
       </Card>
 
       <Card title="Stores" meta={`${stores.length} store${stores.length === 1 ? "" : "s"}`} sticky>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs">{offTradeQuery(f) ? "The download has the stores in these filters." : "The download has every store."}</p>
+          <a href={`/off-trade/stores/export${offTradeQuery(f) ? `?${offTradeQuery(f)}` : ""}`} className="btn btn-secondary !py-1.5 text-sm" download>
+            ⬇ Download Excel
+          </a>
+        </div>
         <table className="table">
           <thead>
             <tr>
