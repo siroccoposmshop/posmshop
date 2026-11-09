@@ -7,6 +7,7 @@ import {
   applyOffTradeFilters,
   marketName,
   offTradeQuery,
+  storeLabel,
   targetRows,
   targetsBy,
   targetsByQuarter,
@@ -132,7 +133,7 @@ export function TargetsView({ all, f, year }: { all: StoreView[]; f: OffTradeFil
               <tr key={r.store.id}>
                 <td className="min-w-[12rem]">
                   <Link href={`/off-trade/stores/${r.store.id}`} className="font-medium text-brand-black hover:underline">
-                    {r.store.name}
+                    {storeLabel(r.store.name, r.store.chain)}
                   </Link>
                   <span className="block text-xs">{r.store.chain ?? ""}</span>
                 </td>

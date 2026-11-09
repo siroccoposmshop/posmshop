@@ -4,7 +4,7 @@ import { requireProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDate } from "@/lib/format";
 import { formatAed } from "@/lib/hub";
-import { OFF_TRADE_STATUS, TARGET_YEAR, VISIBILITY_MAIN, canUseOffTrade, marketName, storeView, type OffTradeProject, type OffTradeStore } from "@/lib/off-trade";
+import { OFF_TRADE_STATUS, TARGET_YEAR, VISIBILITY_MAIN, canUseOffTrade, marketName, storeLabel, storeView, type OffTradeProject, type OffTradeStore } from "@/lib/off-trade";
 import { ProjectForm, ProjectItem } from "./ProjectForm";
 import { StoreSettings } from "./StoreSettings";
 
@@ -39,8 +39,8 @@ export default async function StorePage({ params }: { params: Promise<{ id: stri
             {s.chain ? ` · ${s.chain}` : ""}
             {s.store_type ? ` · ${s.store_type}` : ""}
           </p>
-          <h1 className="accent-square text-2xl leading-tight text-brand-black sm:text-3xl">{s.name}</h1>
-          <p className="mt-1 text-sm">{[s.area, s.city && s.city !== s.area ? s.city : null, s.market && marketName(s.market), s.segment, s.tmam && `TM ${s.tmam}`, s.visit_frequency].filter(Boolean).join(" · ")}</p>
+          <h1 className="accent-square text-2xl leading-tight text-brand-black sm:text-3xl">{storeLabel(s.name, s.chain)}</h1>
+          <p className="mt-1 text-sm">{[s.area, s.city && s.city !== s.area && s.city !== marketName(s.market) ? s.city : null, s.segment, s.tmam && `TM ${s.tmam}`, s.visit_frequency].filter(Boolean).join(" · ")}</p>
       </div>
 
       <StoreSettings

@@ -10,6 +10,7 @@ import {
   historyYears,
   marketName,
   offTradeQuery,
+  storeLabel,
   type HistorySummary,
   type OffTradeFilters,
   type StoreView,
@@ -135,7 +136,10 @@ export function HistoryView({ all, f, year }: { all: StoreView[]; f: OffTradeFil
       <HistoryTable title="By area" first="Area" data={historyBy(rows, (r) => r.store.area)} />
       <HistoryTable title="By market" first="Market" data={historyBy(rows, (r) => r.store.market, (k) => marketName(k))} />
       <HistoryTable title="By TM" first="TM" data={historyBy(rows, (r) => r.store.tmam)} />
-      <HistoryTable title="By store" first="Store" data={historyBy(rows, (r) => r.store.id, (id) => stores.find((s) => s.id === id)?.name ?? id)} />
+      <HistoryTable title="By store" first="Store" data={historyBy(rows, (r) => r.store.id, (id) => {
+          const s = stores.find((x) => x.id === id);
+          return s ? `${storeLabel(s.name, s.chain)}${s.chain && storeLabel(s.name, s.chain) !== s.name ? ` · ${s.chain}` : ""}` : id;
+        })} />
 
       <Card title="Everything installed" meta={`${rows.length} project${rows.length === 1 ? "" : "s"}`} sticky>
         <table className="table">
@@ -156,7 +160,7 @@ export function HistoryView({ all, f, year }: { all: StoreView[]; f: OffTradeFil
                 <td className="whitespace-nowrap">{r.project.completed_date ? formatDate(r.project.completed_date) : "—"}</td>
                 <td className="min-w-[12rem]">
                   <Link href={`/off-trade/stores/${r.store.id}`} className="font-medium text-brand-black hover:underline">
-                    {r.store.name}
+                    {storeLabel(r.store.name, r.store.chain)}
                   </Link>
                   <span className="block text-xs">{r.store.chain ?? ""}</span>
                 </td>

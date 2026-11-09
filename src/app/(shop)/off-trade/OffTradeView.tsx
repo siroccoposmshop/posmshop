@@ -14,8 +14,8 @@ import {
   bySegment,
   byTmam,
   offTradeQuery,
-  marketName,
   offTradeTotals,
+  storeLabel,
   yearOf,
   type OffTradeSummary,
   type OffTradeFilters,
@@ -140,7 +140,7 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
                 <tr key={s.id}>
                   <td className="min-w-[12rem]">
                     <Link href={`/off-trade/stores/${s.id}`} className="font-medium text-brand-black hover:underline">
-                      {s.name}
+                      {storeLabel(s.name, s.chain)}
                     </Link>
                     <span className="block text-xs">
                       {s.chain ? `${s.chain} · ` : ""}
@@ -151,7 +151,6 @@ export function OffTradeView({ all, f }: { all: StoreView[]; f: OffTradeFilters 
                   </td>
                   <td className="whitespace-nowrap">
                     {s.area ?? "—"}
-                    {s.market && <span className="block text-xs">{marketName(s.market)}</span>}
                   </td>
                   <td className="whitespace-nowrap">{s.tmam ?? "—"}</td>
                   <td className="whitespace-nowrap">{s.segment ?? "—"}</td>

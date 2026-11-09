@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireProfile } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { canUseOffTrade, isBar, marketName } from "@/lib/off-trade";
+import { canUseOffTrade, isBar, storeLabel } from "@/lib/off-trade";
 import { AddProjectForm, type StoreOption } from "./AddProjectForm";
 
 export const metadata = { title: "Add a project" };
@@ -21,8 +21,9 @@ export default async function AddProjectPage({ searchParams }: { searchParams: P
     .limit(5000);
   const stores: StoreOption[] = (data ?? []).map((s) => ({
     id: s.id as string,
-    name: s.name as string,
-    detail: [s.chain, s.area ?? (s.market ? marketName(s.market as string) : null), isBar(s as { store_type: string | null }) ? "Bar" : null, s.tmam ? `TM ${s.tmam}` : null]
+    name: storeLabel(s.name as string, s.chain as string | null),
+    search: s.name as string,
+    detail: [s.chain, s.area ?? s.market, isBar(s as { store_type: string | null }) ? "Bar" : null, s.tmam ? `TM ${s.tmam}` : null]
       .filter(Boolean)
       .join(" · "),
   }));

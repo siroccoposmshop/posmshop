@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Spinner } from "@/components/Spinner";
 import { addOffTradeProject } from "../actions";
 
-export type StoreOption = { id: string; name: string; detail: string };
+export type StoreOption = { id: string; name: string; detail: string; search?: string };
 
 const CATEGORIES: { value: string; label: string }[] = [
   { value: "Branding", label: "Branding" },
@@ -29,7 +29,7 @@ function StorePicker({ stores, value, onChange }: { stores: StoreOption[]; value
   const list = useRef<HTMLUListElement>(null);
   const hits = useMemo(() => {
     const ws = words(q).split(" ").filter(Boolean);
-    const all = ws.length ? stores.filter((s) => ws.every((w) => words(`${s.name} ${s.detail}`).includes(w))) : stores;
+    const all = ws.length ? stores.filter((s) => ws.every((w) => words(`${s.search ?? s.name} ${s.detail}`).includes(w))) : stores;
     return all.slice(0, 50);
   }, [q, stores]);
 

@@ -180,6 +180,29 @@ export async function loadOffTrade(): Promise<StoreView[]> {
 export const executedYears = (s: { projects: OffTradeProject[] }) =>
   [...new Set(s.projects.filter((p) => p.status === "completed").map((p) => (p.completed_date ? Number(p.completed_date.slice(0, 4)) : yearOf(p))).filter((y): y is number => !!y))].sort((a, b) => a - b);
 
+/** How a chain's name starts its stores' names ("Spinneys - Al Bandar", "A+E JVC", "TBS - Al Ain"). */
+const CHAIN_PREFIXES: [RegExp, RegExp][] = [
+  [/^a\s*\+\s*e$|african/i, /^(a\s*\+\s*e|a\s*&\s*e|ane|african\s*[+&]\s*eastern)\b/i],
+  [/^the bottle store$/i, /^(tbs|the bottle store)\b/i],
+  [/^richmond/i, /^richmond\b/i],
+  [/^grapes/i, /^grapes\s*(&|and)\s*hops\b/i],
+  [/^cheers|ncth/i, /^(cheers|ncth)\b/i],
+];
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * The store's name without its chain at the front, for lists that show the chain alongside:
+ * "Spinneys - Al Bandar" (Spinneys) → "Al Bandar". Unchanged when nothing would be left.
+ */
+export function storeLabel(name: string, chain: string | null | undefined): string {
+  if (!chain || /independent/i.test(chain)) return name;
+  const re = CHAIN_PREFIXES.find(([c]) => c.test(chain.trim()))?.[1] ?? new RegExp(`^${escapeRe(chain.trim())}\\b`, "i");
+  const m = name.match(re);
+  if (!m) return name;
+  const rest = name.slice(m[0].length).replace(/^[\s\-–:,]+/, "").trim();
+  return rest.length >= 2 ? rest : name;
+}
+
 /** Bars are inside a (Value) store: an addition, not a store in the universe. */
 export const isBar = (s: Pick<OffTradeStore, "store_type">) => /\bbar\b/i.test(s.store_type ?? "");
 
